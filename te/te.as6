@@ -49,8 +49,17 @@ VBLANK               = $33      ; VBLANK flag
 TETR_X               = $40      ; X coordinate of current tetrimino
 TETR_Y               = $41      ; Y coordinate of current tetrimino
 TETR_OR              = $42      ; Orientation of current tetrimino
+B1                   = $ae      ; byte variable
+FRAMECOUNT           = $b1      ; 16bit frame counter
+BUTTONS_NEW          = $b5      ; bits for just pressed buttons
+BUTTONS              = $b6      ; bits for buttons pressed A B Select Start Up Down Left Right
+NMI_FUNC_INDEX       = $bd      ; index of function called from NMI
+COUNTDOWN            = $c3      ; ticks down to 0 every frame
 PTR                  = $e6      ; 2 byte pointer
-INDEX                = $ed      ; values 0..4 used to access mem in page 6
+P6INDEX              = $ed      ; values 0..4 used to access mem in page 6
+JOY1_RAW             = $f5      ; controller 1 value
+JOY2_RAW             = $f6      ; controller 2 value
+C_0                  = $fb      ; constant 0 //TODO eliminate
 VSCROLL              = $fc
 HSCROLL              = $fd
 vPPUMASK             = $fe
@@ -103,55 +112,58 @@ main2:
 ;-------------------------------------------------------------------------------
 ; nmi vector
 ;-------------------------------------------------------------------------------
-nmi:        pha                ; $8005: 48        
-            txa                ; $8006: 8a        
-            pha                ; $8007: 48        
-            tya                ; $8008: 98        
-            pha                ; $8009: 48        
-            lda #$00           ; $800a: a9 00     
+nmi:        pha
+            txa
+            pha
+            tya
+            pha
+            lda #$00
             sta $b3            ; $800c: 85 b3     
-            jsr __804b         ; $800e: 20 4b 80  
-            dec $c3            ; $8011: c6 c3     
-            lda $c3            ; $8013: a5 c3     
-            cmp #$ff           ; $8015: c9 ff     
-            bne __801b         ; $8017: d0 02     
-            inc $c3            ; $8019: e6 c3     
-__801b:     jsr PPU_updateSprites         ; $801b: 20 5e ab  
-            lda $b1            ; $801e: a5 b1     
-            clc                ; $8020: 18        
-            adc #$01           ; $8021: 69 01     
-            sta $b1            ; $8023: 85 b1     
-            lda #$00           ; $8025: a9 00     
-            adc $b2            ; $8027: 65 b2     
-            sta $b2            ; $8029: 85 b2     
-            ldx #$17           ; $802b: a2 17     
-            ldy #$02           ; $802d: a0 02     
-            jsr nextRandom         ; $802f: 20 47 ab  
-            lda #$00           ; $8032: a9 00     
-            sta HSCROLL            ; $8034: 85 fd     
-            sta PPUSCROLL      ; $8036: 8d 05 20  
-            sta VSCROLL            ; $8039: 85 fc     
-            sta PPUSCROLL      ; $803b: 8d 05 20  
-            lda #$01           ; $803e: a9 01     
-            sta VBLANK            ; $8040: 85 33     
+            jsr table_jump_nmi ; call function dependend on NMI_FUNC_INDEX
+            dec COUNTDOWN      ; countdown
+            lda COUNTDOWN
+            cmp #$ff
+            bne __801b
+            inc COUNTDOWN      ; reset counter in case of underflow
+__801b:     jsr PPU_updateSprites
+            lda FRAMECOUNT
+            clc
+            adc #$01
+            sta FRAMECOUNT
+            lda #$00
+            adc FRAMECOUNT+1
+            sta FRAMECOUNT+1   ; increment frame counter
+            ldx #RANDOM
+            ldy #$02
+            jsr nextRandom     ; new 2 byte random number
+            lda #$00
+            sta HSCROLL
+            sta PPUSCROL
+            sta VSCROL
+            sta PPUSCROLL      ; reset scroll position
+            lda #$01
+            sta VBLANK         ; set VBLANK flag
             jsr __9d51         ; $8042: 20 51 9d  
-            pla                ; $8045: 68        
-            tay                ; $8046: a8        
-            pla                ; $8047: 68        
-            tax                ; $8048: aa        
-            pla                ; $8049: 68        
+            pla
+            tay
+            pla
+            tax
+            pla                ; restore registers
 ; irq/brk vector
 ;-------------------------------------------------------------------------------
 irq:        rti                ; $804a: 40        
 
 ;-------------------------------------------------------------------------------
-__804b:     lda $bd            ; $804b: a5 bd     
-            jsr __ac82         ; $804d: 20 82 ac  
+table_jump_nmi:     
+            lda NMI_FUNC_INDEX            ; $804b: a5 bd     
+            jsr table_jump         ; $804d: 20 82 ac  
 
 ;-------------------------------------------------------------------------------
+; jump table
             .hex b1 82 da 85   ; $8050: b1 82 da 85   Data
             .hex 44 a3 ee 94   ; $8054: 44 a3 ee 94   Data
             .hex 95 9f         ; $8058: 95 9f         Data
+; end of jump table
 
 ;-------------------------------------------------------------------------------
 ; main program continued
@@ -278,7 +290,7 @@ __815d:     jsr __819b         ; $815d: 20 9b 81
 
 ;-------------------------------------------------------------------------------
 __8161:     lda $c0            ; $8161: a5 c0     
-            jsr __ac82         ; $8163: 20 82 ac  
+            jsr table_jump         ; $8163: 20 82 ac  
 
 ;-------------------------------------------------------------------------------
             .hex 00 82 4f 82   ; $8166: 00 82 4f 82   Data
@@ -308,7 +320,7 @@ __8198:     inc $a7            ; $8198: e6 a7
 
 ;-------------------------------------------------------------------------------
 __819b:     lda $a7            ; $819b: a5 a7     
-            jsr __ac82         ; $819d: 20 82 ac  
+            jsr table_jump         ; $819d: 20 82 ac  
 
 ;-------------------------------------------------------------------------------
             .hex f0 85 dc 86   ; $81a0: f0 85 dc 86   Data
@@ -319,7 +331,7 @@ __819b:     lda $a7            ; $819b: a5 a7
 
 ;-------------------------------------------------------------------------------
 __81b2:     lda $48            ; $81b2: a5 48     
-            jsr __ac82         ; $81b4: 20 82 ac  
+            jsr table_jump         ; $81b4: 20 82 ac  
             .hex 2f 9e cf      ; $81b7: 2f 9e cf  Invalid Opcode - RLA __cf9e
 
 ;-------------------------------------------------------------------------------
@@ -331,14 +343,14 @@ __81b2:     lda $48            ; $81b2: a5 48
             .hex 9e            ; $81ce: 9e            Data
 
 ;-------------------------------------------------------------------------------
-            jsr __89ae         ; $81cf: 20 ae 89  
+            jsr shift_tetr         ; $81cf: 20 ae 89  
             jsr rotate_tetr         ; $81d2: 20 ab 88  
             jsr __8914         ; $81d5: 20 14 89  
             rts                ; $81d8: 60        
 
 ;-------------------------------------------------------------------------------
 __81d9:     lda $48            ; $81d9: a5 48     
-            jsr __ac82         ; $81db: 20 82 ac  
+            jsr table_jump         ; $81db: 20 82 ac  
             .hex 2f 9e f6      ; $81de: 2f 9e f6  Invalid Opcode - RLA __f69e
             sta ($a2,x)        ; $81e1: 81 a2     
             sta __9a6b,y       ; $81e3: 99 6b 9a  
@@ -350,7 +362,7 @@ __81d9:     lda $48            ; $81d9: a5 48
             stx $3998          ; $81ee: 8e 98 39  
             .hex 9e 11 9a      ; $81f1: 9e 11 9a  Invalid Opcode - SHX __9a11,y
             .hex 37 9e         ; $81f4: 37 9e     Invalid Opcode - RLA $9e,x
-            jsr __89ae         ; $81f6: 20 ae 89  
+            jsr shift_tetr         ; $81f6: 20 ae 89  
             jsr rotate_tetr         ; $81f9: 20 ab 88  
             jsr __8914         ; $81fc: 20 14 89  
             rts                ; $81ff: 60        
@@ -358,7 +370,7 @@ __81d9:     lda $48            ; $81d9: a5 48
 ;-------------------------------------------------------------------------------
             jsr __e003         ; $8200: 20 03 e0  
             lda #$00           ; $8203: a9 00     
-            sta $bd            ; $8205: 85 bd     
+            sta NMI_FUNC_INDEX            ; $8205: 85 bd     
             jsr __aa52         ; $8207: 20 52 aa  
             jsr PPU_disableNMI         ; $820a: 20 78 aa  
             lda #$00           ; $820d: a9 00     
@@ -385,7 +397,7 @@ __81d9:     lda $48            ; $81d9: a5 48
             jsr __a459         ; $8238: 20 59 a4  
             lda #$ff           ; $823b: a9 ff     
             sta $a8            ; $823d: 85 a8     
-__823f:     lda $f5            ; $823f: a5 f5     
+__823f:     lda JOY1_RAW            ; $823f: a5 f5     
             cmp #$10           ; $8241: c9 10     
             beq __824c         ; $8243: f0 07     
             jsr __aa2f         ; $8245: 20 2f aa  
@@ -397,7 +409,7 @@ __824c:     inc $c0            ; $824c: e6 c0
 ;-------------------------------------------------------------------------------
             jsr __e003         ; $824f: 20 03 e0  
             lda #$00           ; $8252: a9 00     
-            sta $bd            ; $8254: 85 bd     
+            sta NMI_FUNC_INDEX            ; $8254: 85 bd     
             sta $d0            ; $8256: 85 d0     
             sta $df            ; $8258: 85 df     
             jsr __aa52         ; $825a: 20 52 aa  
@@ -425,7 +437,7 @@ __824c:     inc $c0            ; $824c: e6 c0
             lda #$00           ; $8289: a9 00     
             sta $b2            ; $828b: 85 b2     
 __828d:     jsr __aa2f         ; $828d: 20 2f aa  
-            lda $f5            ; $8290: a5 f5     
+            lda JOY1_RAW            ; $8290: a5 f5     
             cmp #$10           ; $8292: c9 10     
             beq __829f         ; $8294: f0 09     
             lda $b2            ; $8296: a5 b2     
@@ -447,15 +459,18 @@ __82a7:     lda #$02           ; $82a7: a9 02
             rts                ; $82b0: 60        
 
 ;-------------------------------------------------------------------------------
-            lda CTRL            ; $82b1: a5 ff     
-            and #$fc           ; $82b3: 29 fc     
-            sta CTRL            ; $82b5: 85 ff     
-            lda #$00           ; $82b7: a9 00     
-            sta HSCROLL            ; $82b9: 85 fd     
-            sta PPUSCROLL      ; $82bb: 8d 05 20  
-            sta VSCROLL            ; $82be: 85 fc     
-            sta PPUSCROLL      ; $82c0: 8d 05 20  
-            rts                ; $82c3: 60        
+; function 00 called by table_jump_nmi
+; entry of dynamic jump
+PPU_reset_nametable_scrolling:
+            lda CTRL
+            and #$fc           ; 11111100 reset bit 1,2 of PPUCTRL
+            sta CTRL
+            lda #$00
+            sta HSCROLL
+            sta PPUSCROLL
+            sta VSCROLL
+            sta PPUSCROLL
+            rts
 
 ;-------------------------------------------------------------------------------
             lda #$00           ; $82c4: a9 00     
@@ -471,7 +486,7 @@ __82a7:     lda #$02           ; $82a7: a9 02
             lda #$10           ; $82d4: a9 10     
             jsr MMCsetreg0         ; $82d6: 20 a3 ac  
             lda #$01           ; $82d9: a9 01     
-            sta $bd            ; $82db: 85 bd     
+            sta NMI_FUNC_INDEX            ; $82db: 85 bd     
             jsr __aa52         ; $82dd: 20 52 aa  
             jsr PPU_disableNMI         ; $82e0: 20 78 aa  
             jsr __aa98         ; $82e3: 20 98 aa  
@@ -497,7 +512,7 @@ __830b:     lda #$ff           ; $830b: a9 ff
             ldx #$02           ; $830d: a2 02     
             ldy #$02           ; $830f: a0 02     
             jsr __ac6a         ; $8311: 20 6a ac  
-            lda $f5            ; $8314: a5 f5     
+            lda JOY1_RAW            ; $8314: a5 f5     
             cmp #$01           ; $8316: c9 01     
             bne __8326         ; $8318: d0 0c     
             lda #$01           ; $831a: a9 01     
@@ -507,14 +522,14 @@ __830b:     lda #$ff           ; $830b: a9 ff
             jmp __8335         ; $8323: 4c 35 83  
 
 ;-------------------------------------------------------------------------------
-__8326:     lda $f5            ; $8326: a5 f5     
+__8326:     lda JOY1_RAW            ; $8326: a5 f5     
             cmp #$02           ; $8328: c9 02     
             bne __8335         ; $832a: d0 09     
             lda #$00           ; $832c: a9 00     
             sta $c1            ; $832e: 85 c1     
             lda #$01           ; $8330: a9 01     
             sta $06f1          ; $8332: 8d f1 06  
-__8335:     lda $f5            ; $8335: a5 f5     
+__8335:     lda JOY1_RAW            ; $8335: a5 f5     
             cmp #$04           ; $8337: c9 04     
             bne __8350         ; $8339: d0 15     
             lda #$01           ; $833b: a9 01     
@@ -526,7 +541,7 @@ __8335:     lda $f5            ; $8335: a5 f5
             ldx $c2            ; $8348: a6 c2     
             lda __85d2,x       ; $834a: bd d2 85  
             jsr __9e07         ; $834d: 20 07 9e  
-__8350:     lda $f5            ; $8350: a5 f5     
+__8350:     lda JOY1_RAW            ; $8350: a5 f5     
             cmp #$08           ; $8352: c9 08     
             bne __8369         ; $8354: d0 13     
             lda #$01           ; $8356: a9 01     
@@ -537,7 +552,7 @@ __8350:     lda $f5            ; $8350: a5 f5
             ldx $c2            ; $8361: a6 c2     
             lda __85d2,x       ; $8363: bd d2 85  
             jsr __9e07         ; $8366: 20 07 9e  
-__8369:     lda $f5            ; $8369: a5 f5     
+__8369:     lda JOY1_RAW            ; $8369: a5 f5     
             cmp #$10           ; $836b: c9 10     
             bne __8377         ; $836d: d0 08     
             lda #$02           ; $836f: a9 02     
@@ -546,7 +561,7 @@ __8369:     lda $f5            ; $8369: a5 f5
             rts                ; $8376: 60        
 
 ;-------------------------------------------------------------------------------
-__8377:     lda $f5            ; $8377: a5 f5     
+__8377:     lda JOY1_RAW            ; $8377: a5 f5     
             cmp #$40           ; $8379: c9 40     
             bne __8389         ; $837b: d0 0c     
             lda #$02           ; $837d: a9 02     
@@ -574,7 +589,7 @@ __8389:     ldy #$00           ; $8389: a0 00
             sta $a1            ; $839e: 85 a1     
             lda #$01           ; $83a0: a9 01     
             sta $a2            ; $83a2: 85 a2     
-            lda $b1            ; $83a4: a5 b1     
+            lda FRAMECOUNT            ; $83a4: a5 b1     
             and #$03           ; $83a6: 29 03     
             bne __83ae         ; $83a8: d0 04     
             lda #$02           ; $83aa: a9 02     
@@ -592,7 +607,7 @@ __83ae:     jsr __8c27         ; $83ae: 20 27 8c
             sta $a2            ; $83be: 85 a2     
             lda #$67           ; $83c0: a9 67     
             sta $a0            ; $83c2: 85 a0     
-            lda $b1            ; $83c4: a5 b1     
+            lda FRAMECOUNT            ; $83c4: a5 b1     
             and #$03           ; $83c6: 29 03     
             bne __83ce         ; $83c8: d0 04     
             lda #$02           ; $83ca: a9 02     
@@ -607,7 +622,7 @@ __83ce:     jsr __8c27         ; $83ce: 20 27 8c
             jsr MMCsetreg0         ; $83dc: 20 a3 ac  
             jsr __e003         ; $83df: 20 03 e0  
             lda #$01           ; $83e2: a9 01     
-            sta $bd            ; $83e4: 85 bd     
+            sta NMI_FUNC_INDEX            ; $83e4: 85 bd     
             jsr __aa52         ; $83e6: 20 52 aa  
             jsr PPU_disableNMI         ; $83e9: 20 78 aa  
             lda #$00           ; $83ec: a9 00     
@@ -638,7 +653,7 @@ __8409:     jsr __9ff2         ; $8409: 20 f2 9f
             jsr __aa5f         ; $841c: 20 5f aa  
             jsr __aa2f         ; $841f: 20 2f aa  
             lda #$00           ; $8422: a9 00     
-            sta $ae            ; $8424: 85 ae     
+            sta B1            ; $8424: 85 ae     
             sta $af            ; $8426: 85 af     
 __8428:     lda $67            ; $8428: a5 67     
             cmp #$0a           ; $842a: c9 0a     
@@ -655,9 +670,9 @@ __8436:     lda #$00           ; $8436: a9 00
             sta $47            ; $843c: 85 47     
             lda $79            ; $843e: a5 79     
             sta $59            ; $8440: 85 59     
-            lda $ae            ; $8442: a5 ae     
+            lda B1            ; $8442: a5 ae     
             sta $ad            ; $8444: 85 ad     
-            lda $f5            ; $8446: a5 f5     
+            lda JOY1_RAW            ; $8446: a5 f5     
             sta $b5            ; $8448: 85 b5     
             jsr __84ae         ; $844a: 20 ae 84  
             lda $47            ; $844d: a5 47     
@@ -665,8 +680,8 @@ __8436:     lda #$00           ; $8436: a9 00
             lda $59            ; $8451: a5 59     
             sta $79            ; $8453: 85 79     
             lda $ad            ; $8455: a5 ad     
-            sta $ae            ; $8457: 85 ae     
-            lda $f5            ; $8459: a5 f5     
+            sta B1            ; $8457: 85 ae     
+            lda JOY1_RAW            ; $8459: a5 f5     
             cmp #$10           ; $845b: c9 10     
             bne __8478         ; $845d: d0 19     
             lda $f7            ; $845f: a5 f7     
@@ -684,7 +699,7 @@ __846c:     lda #$00           ; $846c: a9 00
             rts                ; $8477: 60        
 
 ;-------------------------------------------------------------------------------
-__8478:     lda $f5            ; $8478: a5 f5     
+__8478:     lda JOY1_RAW            ; $8478: a5 f5     
             cmp #$40           ; $847a: c9 40     
             bne __8486         ; $847c: d0 08     
             lda #$02           ; $847e: a9 02     
@@ -693,7 +708,7 @@ __8478:     lda $f5            ; $8478: a5 f5
             rts                ; $8485: 60        
 
 ;-------------------------------------------------------------------------------
-__8486:     ldx #$17           ; $8486: a2 17     
+__8486:     ldx #RANDOM           ; $8486: a2 17     
             ldy #$02           ; $8488: a0 02     
             jsr nextRandom         ; $848a: 20 47 ab  
             lda RANDOM            ; $848d: a5 17     
@@ -701,7 +716,7 @@ __8486:     ldx #$17           ; $8486: a2 17
             cmp #$0a           ; $8491: c9 0a     
             bpl __8486         ; $8493: 10 f1     
             sta $7a            ; $8495: 85 7a     
-__8497:     ldx #$17           ; $8497: a2 17     
+__8497:     ldx #RANDOM           ; $8497: a2 17     
             ldy #$02           ; $8499: a0 02     
             jsr nextRandom         ; $849b: 20 47 ab  
             lda RANDOM            ; $849e: a5 17     
@@ -803,7 +818,7 @@ __8540:     lda $c1            ; $8540: a5 c1
             sta $ad            ; $8553: 85 ad     
 __8555:     lda $ad            ; $8555: a5 ad     
             bne __855f         ; $8557: d0 06     
-            lda $b1            ; $8559: a5 b1     
+            lda FRAMECOUNT            ; $8559: a5 b1     
             and #$03           ; $855b: 29 03     
             beq __8581         ; $855d: f0 22     
 __855f:     ldx $47            ; $855f: a6 47     
@@ -826,7 +841,7 @@ __8581:     lda $c1            ; $8581: a5 c1
             beq __85b1         ; $8583: f0 2c     
             lda $ad            ; $8585: a5 ad     
             beq __858f         ; $8587: f0 06     
-            lda $b1            ; $8589: a5 b1     
+            lda FRAMECOUNT            ; $8589: a5 b1     
             and #$03           ; $858b: 29 03     
             beq __85b1         ; $858d: f0 22     
 __858f:     ldx $59            ; $858f: a6 59     
@@ -862,16 +877,18 @@ __85d2:     .hex 03 04 05 ff   ; $85d2: 03 04 05 ff   Data
             .hex 06 07 08 ff   ; $85d6: 06 07 08 ff   Data
 
 ;-------------------------------------------------------------------------------
-            lda CTRL            ; $85da: a5 ff     
-            and #$fc           ; $85dc: 29 fc     
-            sta CTRL            ; $85de: 85 ff     
-            sta PPUCTRL        ; $85e0: 8d 00 20  
-            lda #$00           ; $85e3: a9 00     
-            sta HSCROLL            ; $85e5: 85 fd     
-            sta PPUSCROLL      ; $85e7: 8d 05 20  
-            sta VSCROLL            ; $85ea: 85 fc     
-            sta PPUSCROLL      ; $85ec: 8d 05 20  
-            rts                ; $85ef: 60        
+; function 01 called by table_jump_nmi
+PPU_reset_scrolling:
+            lda CTRL
+            and #$fc           ; 11111100 reset bit 1,2 of CTRL variable
+            sta CTRL
+            sta PPUCTRL
+            lda #$00
+            sta HSCROL
+            sta PPUSCROLL
+            sta VSCROLL
+            sta PPUSCROLL
+            rts
 
 ;-------------------------------------------------------------------------------
             jsr __aa52         ; $85f0: 20 52 aa  
@@ -1021,7 +1038,7 @@ __86e9:     sta $03ef,x        ; $86e9: 9d ef 03
             lda #$dd           ; $8731: a9 dd     
             sta $d2            ; $8733: 85 d2     
             lda #$03           ; $8735: a9 03     
-            sta $bd            ; $8737: 85 bd     
+            sta NMI_FUNC_INDEX            ; $8737: 85 bd     
             lda #$a0           ; $8739: a9 a0     
             sta $6e            ; $873b: 85 6e     
             sta $8e            ; $873d: 85 8e     
@@ -1029,7 +1046,7 @@ __86e9:     sta $03ef,x        ; $86e9: 9d ef 03
             sta $62            ; $8742: 85 62     
             sta $82            ; $8744: 85 82     
             jsr __9969         ; $8746: 20 69 99  
-            ldx #$17           ; $8749: a2 17     
+            ldx #RANDOM           ; $8749: a2 17     
             ldy #$02           ; $874b: a0 02     
             jsr nextRandom         ; $874d: 20 47 ab  
             jsr __98eb         ; $8750: 20 eb 98  
@@ -1055,7 +1072,7 @@ __8776:     lda #$01           ; $8776: a9 01
             sta $b7            ; $8778: 85 b7     
             lda #$04           ; $877a: a9 04     
             sta $b9            ; $877c: 85 b9     
-            lda $f5            ; $877e: a5 f5     
+            lda JOY1_RAW            ; $877e: a5 f5     
             sta $b5            ; $8780: 85 b5     
             lda $f7            ; $8782: a5 f7     
             sta $b6            ; $8784: 85 b6     
@@ -1072,7 +1089,7 @@ __8792:     lda #$02           ; $8792: a9 02
             sta $b7            ; $8794: 85 b7     
             lda #$05           ; $8796: a9 05     
             sta $b9            ; $8798: 85 b9     
-            lda $f6            ; $879a: a5 f6     
+            lda JOY2_RAW            ; $879a: a5 f6     
             sta $b5            ; $879c: 85 b5     
             lda $f8            ; $879e: a5 f8     
             sta $b6            ; $87a0: 85 b6     
@@ -1132,7 +1149,7 @@ __87e7:     lda $a8            ; $87e7: a5 a8
             sta $89            ; $87f6: 85 89     
             lda #$09           ; $87f8: a9 09     
             sta $aa            ; $87fa: 85 aa     
-__87fc:     ldx #$17           ; $87fc: a2 17     
+__87fc:     ldx #RANDOM           ; $87fc: a2 17     
             ldy #$02           ; $87fe: a0 02     
             jsr nextRandom         ; $8800: 20 47 ab  
             lda RANDOM            ; $8803: a5 17     
@@ -1153,7 +1170,7 @@ __87fc:     ldx #$17           ; $87fc: a2 17
 __8821:     jmp __87fc         ; $8821: 4c fc 87  
 
 ;-------------------------------------------------------------------------------
-__8824:     ldx #$17           ; $8824: a2 17     
+__8824:     ldx #RANDOM           ; $8824: a2 17     
             ldy #$02           ; $8826: a0 02     
             jsr nextRandom         ; $8828: 20 47 ab  
             lda RANDOM            ; $882b: a5 17     
@@ -1212,7 +1229,7 @@ __887c:     .hex ef 7b ef 7c   ; $887c: ef 7b ef 7c   Data
             lda $a4            ; $8896: a5 a4     
             beq __889c         ; $8898: f0 02     
             inc $a4            ; $889a: e6 a4     
-__889c:     lda $f5            ; $889c: a5 f5     
+__889c:     lda JOY1_RAW            ; $889c: a5 f5     
             and #$20           ; $889e: 29 20     
             beq __88a8         ; $88a0: f0 06     
             lda $df            ; $88a2: a5 df     
@@ -1225,7 +1242,7 @@ __88a8:     inc $a7            ; $88a8: e6 a7
 ; rotate tetrimino
 rotate_tetr:
             lda TETR_OR
-            sta $ae            ; save old orientation
+            sta B1            ; save old orientation
             clc
             lda TETR_OR
             asl
@@ -1256,7 +1273,7 @@ __88cf:     lda $b5            ; button value
             sta $06f1          ; $88e3: 8d f1 06  
             jmp __88ed         ;  return
 
-restoreOR:  lda $ae            ; $88e9: a5 ae     
+restoreOR:  lda B1            ; $88e9: a5 ae     
             sta TETR_OR        ; restore tetr orientation
 __88ed:     rts
 
@@ -1327,11 +1344,11 @@ __894a:     inc $4e            ; $894a: e6 4e
 __8958:     lda #$00           ; $8958: a9 00     
             sta $45            ; $895a: 85 45     
             lda TETR_Y            ; $895c: a5 41     
-            sta $ae            ; $895e: 85 ae     
+            sta B1            ; $895e: 85 ae     
             inc TETR_Y            ; $8960: e6 41     
             jsr __948b         ; $8962: 20 8b 94  
             beq __8972         ; $8965: f0 0b     
-            lda $ae            ; $8967: a5 ae     
+            lda B1            ; $8967: a5 ae     
             sta TETR_Y            ; $8969: 85 41     
             lda #$02           ; $896b: a9 02     
             sta $48            ; $896d: 85 48     
@@ -1365,8 +1382,8 @@ __898e:     .hex 30 2b 26 21   ; $898e: 30 2b 26 21   Data
             .hex 02 01 01 01   ; $89aa: 02 01 01 01   Data
 
 ;-------------------------------------------------------------------------------
-__89ae:     lda TETR_X            ; $89ae: a5 40     
-            sta $ae            ; $89b0: 85 ae     
+shift_tetr: lda TETR_X
+            sta $ae	       ; save xpos
             lda $b6            ; $89b2: a5 b6     
             and #$04           ; $89b4: 29 04     
             bne __8a09         ; $89b6: d0 51     
@@ -1409,7 +1426,7 @@ __89ec:     lda $b6            ; $89ec: a5 b6
             jmp __8a09         ; $89fe: 4c 09 8a  
 
 ;-------------------------------------------------------------------------------
-__8a01:     lda $ae            ; $8a01: a5 ae     
+__8a01:     lda B1            ; $8a01: a5 ae     
             sta TETR_X            ; $8a03: 85 40     
             lda #$10           ; $8a05: a9 10     
             sta $46            ; $8a07: 85 46     
@@ -1462,7 +1479,7 @@ __8a4b:     lda __8a9c,x       ; $8a4b: bd 9c 8a
             clc                ; $8a51: 18        
             adc $ab            ; $8a52: 65 ab     
             sta $0200,y        ; $8a54: 99 00 02  
-            sta $ae            ; $8a57: 85 ae     
+            sta B1            ; $8a57: 85 ae     
             inc $b3            ; $8a59: e6 b3     
             iny                ; $8a5b: c8        
             inx                ; $8a5c: e8        
@@ -1473,7 +1490,7 @@ __8a4b:     lda __8a9c,x       ; $8a4b: bd 9c 8a
             inx                ; $8a66: e8        
             lda #$02           ; $8a67: a9 02     
             sta $0200,y        ; $8a69: 99 00 02  
-            lda $ae            ; $8a6c: a5 ae     
+            lda B1            ; $8a6c: a5 ae     
             cmp #$2f           ; $8a6e: c9 2f     
             bcs __8a84         ; $8a70: b0 12     
             inc $b3            ; $8a72: e6 b3     
@@ -2241,6 +2258,7 @@ __94e9:     lda #$ff           ; $94e9: a9 ff
             rts                ; $94ed: 60        
 
 ;-------------------------------------------------------------------------------
+; function 03 called by table_jump_nmi
             lda $68            ; $94ee: a5 68     
             cmp #$04           ; $94f0: c9 04     
             bne __9522         ; $94f2: d0 2e     
@@ -2429,11 +2447,11 @@ __9673:     lda #$3f           ; $9673: a9 3f
             lda $56            ; $967f: a5 56     
             cmp #$04           ; $9681: c9 04     
             bne __9698         ; $9683: d0 13     
-            lda $b1            ; $9685: a5 b1     
+            lda FRAMECOUNT            ; $9685: a5 b1     
             and #$03           ; $9687: 29 03     
             bne __9698         ; $9689: d0 0d     
             ldx #$30           ; $968b: a2 30     
-            lda $b1            ; $968d: a5 b1     
+            lda FRAMECOUNT            ; $968d: a5 b1     
             and #$07           ; $968f: 29 07     
             bne __9698         ; $9691: d0 05     
             lda #$09           ; $9693: a9 09     
@@ -2542,7 +2560,7 @@ __9769:     lda ($b8),y        ; $9769: b1 b8
 __977e:     rts                ; $977e: 60        
 
 ;-------------------------------------------------------------------------------
-__977f:     lda $b1            ; $977f: a5 b1     
+__977f:     lda FRAMECOUNT            ; $977f: a5 b1     
             and #$03           ; $9781: 29 03     
             bne __97fd         ; $9783: d0 78     
             lda #$00           ; $9785: a9 00     
@@ -2769,7 +2787,7 @@ TETR_spawn2:
             cmp SPAWN_ID
             bne spawn_use      ; if (new != old) spawn_use
 spawn_invalid:     
-            ldx #$17
+            ldx #RANDOM
             ldy #$02
             jsr nextRandom     ; generate new random number
             lda RANDOM
@@ -2923,7 +2941,7 @@ __9a10:     rts                ; $9a10: 60
             lda $58            ; $9a11: a5 58     
             cmp #$14           ; $9a13: c9 14     
             beq __9a47         ; $9a15: f0 30     
-            lda $b1            ; $9a17: a5 b1     
+            lda FRAMECOUNT            ; $9a17: a5 b1     
             and #$03           ; $9a19: 29 03     
             bne __9a46         ; $9a1b: d0 29     
             ldx $58            ; $9a1d: a6 58     
@@ -2962,12 +2980,12 @@ __9a47:     lda $be            ; $9a47: a5 be
             jmp __9a64         ; $9a5b: 4c 64 9a  
 
 ;-------------------------------------------------------------------------------
-__9a5e:     lda $f5            ; $9a5e: a5 f5     
+__9a5e:     lda JOY1_RAW            ; $9a5e: a5 f5     
             cmp #$10           ; $9a60: c9 10     
             bne __9a6a         ; $9a62: d0 06     
 __9a64:     lda #$00           ; $9a64: a9 00     
             sta $48            ; $9a66: 85 48     
-            sta $f5            ; $9a68: 85 f5     
+            sta JOY1_RAW            ; $9a68: 85 f5     
 __9a6a:     rts                ; $9a6a: 60        
 
 ;-------------------------------------------------------------------------------
@@ -3328,7 +3346,7 @@ __9cd9:     lda $be            ; $9cd9: a5 be
 
 ;-------------------------------------------------------------------------------
 __9ce4:     lda #$03           ; $9ce4: a9 03     
-            sta $bd            ; $9ce6: 85 bd     
+            sta NMI_FUNC_INDEX            ; $9ce6: 85 bd     
             lda $be            ; $9ce8: a5 be     
             cmp #$01           ; $9cea: c9 01     
             bne __9cf1         ; $9cec: d0 03     
@@ -3389,18 +3407,19 @@ __9d3c:     lda $ba            ; $9d3c: a5 ba
 __9d50:     rts                ; $9d50: 60        
 
 ;-------------------------------------------------------------------------------
+; called from nmi
 __9d51:     lda $c0            ; $9d51: a5 c0     
             cmp #$05           ; $9d53: c9 05     
             beq __9d5b         ; $9d55: f0 04     
-            jsr __ab9d         ; $9d57: 20 9d ab  
+            jsr read_joy_safe         ; if ($c0 != 5) call
             rts                ; $9d5a: 60        
 
 ;-------------------------------------------------------------------------------
-__9d5b:     lda $d0            ; $9d5b: a5 d0     
+__9d5b:     lda $d0            ; $c0==5
             cmp #$ff           ; $9d5d: c9 ff     
             beq __9db0         ; $9d5f: f0 4f     
-            jsr __ab9d         ; $9d61: 20 9d ab  
-            lda $f5            ; $9d64: a5 f5     
+            jsr read_joy_safe         ; $9d61: 20 9d ab  
+            lda JOY1_RAW            ; $9d64: a5 f5     
             cmp #$10           ; $9d66: c9 10     
             beq __9da3         ; $9d68: f0 39     
             lda $cf            ; $9d6a: a5 cf     
@@ -3416,7 +3435,7 @@ __9d73:     ldx #$00           ; $9d73: a2 00
             lda $ce            ; $9d7c: a5 ce     
             eor $a8            ; $9d7e: 45 a8     
             and $a8            ; $9d80: 25 a8     
-            sta $f5            ; $9d82: 85 f5     
+            sta JOY1_RAW            ; $9d82: 85 f5     
             lda $a8            ; $9d84: a5 a8     
             sta $ce            ; $9d86: 85 ce     
             ldx #$00           ; $9d88: a2 00     
@@ -3430,7 +3449,7 @@ __9d73:     ldx #$00           ; $9d73: a2 00
 
 ;-------------------------------------------------------------------------------
 __9d9a:     lda #$00           ; $9d9a: a9 00     
-            sta $f5            ; $9d9c: 85 f5     
+            sta JOY1_RAW            ; $9d9c: 85 f5     
 __9d9e:     lda $ce            ; $9d9e: a5 ce     
             sta $f7            ; $9da0: 85 f7     
 __9da2:     rts                ; $9da2: 60        
@@ -3445,7 +3464,7 @@ __9da3:     lda #$dd           ; $9da3: a9 dd
             rts                ; $9daf: 60        
 
 ;-------------------------------------------------------------------------------
-__9db0:     jsr __ab9d         ; $9db0: 20 9d ab  
+__9db0:     jsr read_joy_safe         ; $9db0: 20 9d ab  
             lda $c0            ; $9db3: a5 c0     
             cmp #$05           ; $9db5: c9 05     
             bne __9de7         ; $9db7: d0 2e     
@@ -3543,7 +3562,7 @@ __9e1f:     jsr __e003         ; $9e1f: 20 03 e0
 __9e3a:     lda #$02           ; $9e3a: a9 02     
             sta $a2            ; $9e3c: 85 a2     
             lda #$04           ; $9e3e: a9 04     
-            sta $bd            ; $9e40: 85 bd     
+            sta NMI_FUNC_INDEX            ; $9e40: 85 bd     
             lda $c1            ; $9e42: a5 c1     
             bne __9e49         ; $9e44: d0 03     
             jmp __a926         ; $9e46: 4c 26 a9  
@@ -3604,7 +3623,7 @@ __9ea4:     jsr __aa98         ; $9ea4: 20 98 aa
             jsr __aa5f         ; $9eb2: 20 5f aa  
             jsr __aa2f         ; $9eb5: 20 2f aa  
             lda #$04           ; $9eb8: a9 04     
-            sta $bd            ; $9eba: 85 bd     
+            sta NMI_FUNC_INDEX            ; $9eba: 85 bd     
             lda #$0a           ; $9ebc: a9 0a     
             jsr __9e07         ; $9ebe: 20 07 9e  
             lda #$80           ; $9ec1: a9 80     
@@ -3669,7 +3688,7 @@ __9f28:     lda $ac            ; $9f28: a5 ac
             jsr __a7fd         ; $9f42: 20 fd a7  
 __9f45:     jsr __a527         ; $9f45: 20 27 a5  
             jsr __aa2f         ; $9f48: 20 2f aa  
-            lda $f5            ; $9f4b: a5 f5     
+            lda JOY1_RAW            ; $9f4b: a5 f5     
             cmp #$10           ; $9f4d: c9 10     
             bne __9f45         ; $9f4f: d0 f4     
             lda $64            ; $9f51: a5 64     
@@ -3713,6 +3732,7 @@ __9f85:     lda $de            ; $9f85: a5 de
 __9f94:     rts                ; $9f94: 60        
 
 ;-------------------------------------------------------------------------------
+; function 04 called by table_jump_nmi
             lda #$20           ; $9f95: a9 20     
             sta PPUADDR        ; $9f97: 8d 06 20  
             lda #$8e           ; $9f9a: a9 8e     
@@ -4021,7 +4041,7 @@ __a201:     inc          ; $a201: ee 00 80
             lda #$09           ; $a209: a9 09     
             jsr __9e07         ; $a20b: 20 07 9e  
             lda #$02           ; $a20e: a9 02     
-            sta $bd            ; $a210: 85 bd     
+            sta NMI_FUNC_INDEX            ; $a210: 85 bd     
             jsr __aa52         ; $a212: 20 52 aa  
             jsr PPU_disableNMI         ; $a215: 20 78 aa  
             lda #$00           ; $a218: a9 00     
@@ -4046,7 +4066,7 @@ __a201:     inc          ; $a201: ee 00 80
             sta PPUDATA        ; $a23b: 8d 07 20  
             jsr __9ff2         ; $a23e: 20 f2 9f  
             lda #$02           ; $a241: a9 02     
-            sta $bd            ; $a243: 85 bd     
+            sta NMI_FUNC_INDEX            ; $a243: 85 bd     
             jsr PPU_enableNMI         ; $a245: 20 6b aa  
             jsr __aa2f         ; $a248: 20 2f aa  
             jsr __aa5f         ; $a24b: 20 5f aa  
@@ -4073,13 +4093,13 @@ __a26d:     lda #$00           ; $a26d: a9 00
             sta $a0            ; $a277: 85 a0     
             lda #$0e           ; $a279: a9 0e     
             sta $a2            ; $a27b: 85 a2     
-            lda $b1            ; $a27d: a5 b1     
+            lda FRAMECOUNT            ; $a27d: a5 b1     
             and #$03           ; $a27f: 29 03     
             bne __a287         ; $a281: d0 04     
             lda #$02           ; $a283: a9 02     
             sta $a2            ; $a285: 85 a2     
 __a287:     jsr __8c27         ; $a287: 20 27 8c  
-            lda $f5            ; $a28a: a5 f5     
+            lda JOY1_RAW            ; $a28a: a5 f5     
             and #$10           ; $a28c: 29 10     
             beq __a298         ; $a28e: f0 08     
             lda #$02           ; $a290: a9 02     
@@ -4087,7 +4107,7 @@ __a287:     jsr __8c27         ; $a287: 20 27 8c
             jmp __a337         ; $a295: 4c 37 a3  
 
 ;-------------------------------------------------------------------------------
-__a298:     lda $f5            ; $a298: a5 f5     
+__a298:     lda JOY1_RAW            ; $a298: a5 f5     
             and #$81           ; $a29a: 29 81     
             beq __a2af         ; $a29c: f0 11     
             lda #$01           ; $a29e: a9 01     
@@ -4098,7 +4118,7 @@ __a298:     lda $f5            ; $a298: a5 f5
             bmi __a2af         ; $a2a9: 30 04     
             lda #$00           ; $a2ab: a9 00     
             sta $d4            ; $a2ad: 85 d4     
-__a2af:     lda $f5            ; $a2af: a5 f5     
+__a2af:     lda JOY1_RAW            ; $a2af: a5 f5     
             and #TETR_OR           ; $a2b1: 29 42     
             beq __a2c4         ; $a2b3: f0 0f     
             lda #$01           ; $a2b5: a9 01     
@@ -4111,7 +4131,7 @@ __a2af:     lda $f5            ; $a2af: a5 f5
 __a2c4:     lda $f7            ; $a2c4: a5 f7     
             and #$04           ; $a2c6: 29 04     
             beq __a2f2         ; $a2c8: f0 28     
-            lda $b1            ; $a2ca: a5 b1     
+            lda FRAMECOUNT            ; $a2ca: a5 b1     
             and #$07           ; $a2cc: 29 07     
             bne __a2f2         ; $a2ce: d0 22     
             lda #$01           ; $a2d0: a9 01     
@@ -4134,7 +4154,7 @@ __a2ed:     lda $a8            ; $a2ed: a5 a8
 __a2f2:     lda $f7            ; $a2f2: a5 f7     
             and #$08           ; $a2f4: 29 08     
             beq __a322         ; $a2f6: f0 2a     
-            lda $b1            ; $a2f8: a5 b1     
+            lda FRAMECOUNT            ; $a2f8: a5 b1     
             and #$07           ; $a2fa: 29 07     
             bne __a322         ; $a2fc: d0 24     
             lda #$01           ; $a2fe: a9 01     
@@ -4176,6 +4196,7 @@ __a33e:     .hex 48 50 58 60   ; $a33e: 48 50 58 60   Data
             .hex 68 70         ; $a342: 68 70         Data
 
 ;-------------------------------------------------------------------------------
+; function 02 called by table_jump_nmi
             lda $a3            ; $a344: a5 a3     
             and #$80           ; $a346: 29 80     
             beq __a37e         ; $a348: f0 34     
@@ -4210,7 +4231,7 @@ __a37e:     rts                ; $a37e: 60
             lda $c0            ; $a37f: a5 c0     
             cmp #$05           ; $a381: c9 05     
             bne __a392         ; $a383: d0 0d     
-            lda $f5            ; $a385: a5 f5     
+            lda JOY1_RAW            ; $a385: a5 f5     
             cmp #$10           ; $a387: c9 10     
             bne __a392         ; $a389: d0 07     
             lda #$01           ; $a38b: a9 01     
@@ -4218,10 +4239,10 @@ __a37e:     rts                ; $a37e: 60
             jmp __a3ef         ; $a38f: 4c ef a3  
 
 ;-------------------------------------------------------------------------------
-__a392:     lda $bd            ; $a392: a5 bd     
+__a392:     lda NMI_FUNC_INDEX            ; $a392: a5 bd     
             cmp #$03           ; $a394: c9 03     
             bne __a3ef         ; $a396: d0 57     
-            lda $f5            ; $a398: a5 f5     
+            lda JOY1_RAW            ; $a398: a5 f5     
             and #$10           ; $a39a: 29 10     
             bne __a3a1         ; $a39c: d0 03     
             jmp __a3ef         ; $a39e: 4c ef a3  
@@ -4236,7 +4257,7 @@ __a3a1:     lda $68            ; $a3a1: a5 68
 __a3aa:     lda #$05           ; $a3aa: a9 05     
             sta $068d          ; $a3ac: 8d 8d 06  
             lda #$00           ; $a3af: a9 00     
-            sta $bd            ; $a3b1: 85 bd     
+            sta NMI_FUNC_INDEX            ; $a3b1: 85 bd     
             jsr __aa45         ; $a3b3: 20 45 aa  
             lda #$16           ; $a3b6: a9 16     
             sta PPUMASK        ; $a3b8: 8d 01 20  
@@ -4251,7 +4272,7 @@ __a3c4:     lda #$70           ; $a3c4: a9 70
             lda #$05           ; $a3cc: a9 05     
             sta $a2            ; $a3ce: 85 a2     
             jsr __8c27         ; $a3d0: 20 27 8c  
-            lda $f5            ; $a3d3: a5 f5     
+            lda JOY1_RAW            ; $a3d3: a5 f5     
             cmp #$10           ; $a3d5: c9 10     
             beq __a3df         ; $a3d7: f0 06     
             jsr __aa2f         ; $a3d9: 20 2f aa  
@@ -4264,7 +4285,7 @@ __a3df:     lda #$1e           ; $a3df: a9 1e
             sta $068d          ; $a3e6: 8d 8d 06  
             sta $69            ; $a3e9: 85 69     
             lda #$03           ; $a3eb: a9 03     
-            sta $bd            ; $a3ed: 85 bd     
+            sta NMI_FUNC_INDEX            ; $a3ed: 85 bd     
 __a3ef:     inc $a7            ; $a3ef: e6 a7     
             rts                ; $a3f1: 60        
 
@@ -4290,7 +4311,7 @@ __a411:     lda #$00           ; $a411: a9 00
             sta $69            ; $a413: 85 69     
             jsr __a44d         ; $a415: 20 4d a4  
             lda #$00           ; $a418: a9 00     
-            sta $bd            ; $a41a: 85 bd     
+            sta NMI_FUNC_INDEX            ; $a41a: 85 bd     
             lda #$80           ; $a41c: a9 80     
             jsr __a459         ; $a41e: 20 59 a4  
             jsr __9e3a         ; $a421: 20 3a 9e  
@@ -4313,16 +4334,16 @@ __a42e:     .hex 38 39 39 39   ; $a42e: 38 39 39 39   Data
             .hex 3e 3e 3e 3e   ; $a446: 3e 3e 3e 3e   Data
             .hex 3e 3f 80      ; $a44a: 3e 3f 80      Data
 __a44d:     lda #$14           ; $a44d: a9 14     
-            sta $c3            ; $a44f: 85 c3     
+            sta COUNTDOWN            ; $a44f: 85 c3     
 __a451:     jsr __aa2f         ; $a451: 20 2f aa  
-            lda $c3            ; $a454: a5 c3     
+            lda COUNTDOWN            ; $a454: a5 c3     
             bne __a451         ; $a456: d0 f9     
             rts                ; $a458: 60        
 
 ;-------------------------------------------------------------------------------
-__a459:     sta $c3            ; $a459: 85 c3     
+__a459:     sta COUNTDOWN            ; $a459: 85 c3     
 __a45b:     jsr __aa2f         ; $a45b: 20 2f aa  
-            lda $c3            ; $a45e: a5 c3     
+            lda COUNTDOWN            ; $a45e: a5 c3     
             bne __a45b         ; $a460: d0 f9     
             rts                ; $a462: 60        
 
@@ -4369,12 +4390,12 @@ __a49a:     ldx $44            ; $a49a: a6 44
 
 ;-------------------------------------------------------------------------------
 __a4b1:     lda $c4            ; $a4b1: a5 c4     
-            jsr __ac82         ; $a4b3: 20 82 ac  
+            jsr table_jump         ; $a4b3: 20 82 ac  
             cpy $a4            ; $a4b6: c4 a4     
             .hex cf a4 da      ; $a4b8: cf a4 da  Invalid Opcode - DCP __daa4
             ldy $e5            ; $a4bb: a4 e5     
             ldy $f0            ; $a4bd: a4 f0     
-            ldy $fb            ; $a4bf: a4 fb     
+            ldy C_0            ; $a4bf: a4 fb     
             ldy $06            ; $a4c1: a4 06     
             lda $a9            ; $a4c3: a5 a9     
             tay                ; $a4c5: a8        
@@ -4446,7 +4467,7 @@ __a537:     jsr __a53b         ; $a537: 20 3b a5
 
 ;-------------------------------------------------------------------------------
 __a53b:     lda $79            ; $a53b: a5 79     
-            jsr __ac82         ; $a53d: 20 82 ac  
+            jsr table_jump         ; $a53d: 20 82 ac  
             ora #$a6           ; $a540: 09 a6     
             sbc ($a5),y        ; $a542: f1 a5     
             cmp __c1a5,y       ; $a544: d9 a5 c1  
@@ -4457,7 +4478,7 @@ __a53b:     lda $79            ; $a53b: a5 79
             sta $a0            ; $a54e: 85 a0     
             lda #$47           ; $a550: a9 47     
             sta $a1            ; $a552: 85 a1     
-            lda $b1            ; $a554: a5 b1     
+            lda FRAMECOUNT            ; $a554: a5 b1     
             and #$08           ; $a556: 29 08     
             lsr                ; $a558: 4a        
             lsr                ; $a559: 4a        
@@ -4470,7 +4491,7 @@ __a53b:     lda $79            ; $a53b: a5 79
             sta $a0            ; $a565: 85 a0     
             lda #$27           ; $a567: a9 27     
             sta $a2            ; $a569: 85 a2     
-            lda $b1            ; $a56b: a5 b1     
+            lda FRAMECOUNT            ; $a56b: a5 b1     
             and #$18           ; $a56d: 29 18     
             lsr                ; $a56f: 4a        
             lsr                ; $a570: 4a        
@@ -4508,7 +4529,7 @@ __a599:     tax                ; $a599: aa
             sta $a0            ; $a5ab: 85 a0     
             lda #$a7           ; $a5ad: a9 a7     
             sta $a1            ; $a5af: 85 a1     
-            lda $b1            ; $a5b1: a5 b1     
+            lda FRAMECOUNT            ; $a5b1: a5 b1     
             and #$10           ; $a5b3: 29 10     
             lsr                ; $a5b5: 4a        
             lsr                ; $a5b6: 4a        
@@ -4522,7 +4543,7 @@ __a599:     tax                ; $a599: aa
             sta $a0            ; $a5c3: 85 a0     
             lda #$77           ; $a5c5: a9 77     
             sta $a1            ; $a5c7: 85 a1     
-            lda $b1            ; $a5c9: a5 b1     
+            lda FRAMECOUNT            ; $a5c9: a5 b1     
             and #$10           ; $a5cb: 29 10     
             lsr                ; $a5cd: 4a        
             lsr                ; $a5ce: 4a        
@@ -4536,7 +4557,7 @@ __a599:     tax                ; $a599: aa
             sta $a0            ; $a5db: 85 a0     
             lda #$d7           ; $a5dd: a9 d7     
             sta $a1            ; $a5df: 85 a1     
-            lda $b1            ; $a5e1: a5 b1     
+            lda FRAMECOUNT            ; $a5e1: a5 b1     
             and #$10           ; $a5e3: 29 10     
             lsr                ; $a5e5: 4a        
             lsr                ; $a5e6: 4a        
@@ -4550,7 +4571,7 @@ __a599:     tax                ; $a599: aa
             sta $a0            ; $a5f3: 85 a0     
             lda #$d7           ; $a5f5: a9 d7     
             sta $a1            ; $a5f7: 85 a1     
-            lda $b1            ; $a5f9: a5 b1     
+            lda FRAMECOUNT            ; $a5f9: a5 b1     
             and #$10           ; $a5fb: 29 10     
             lsr                ; $a5fd: 4a        
             lsr                ; $a5fe: 4a        
@@ -4564,7 +4585,7 @@ __a599:     tax                ; $a599: aa
             sta $a0            ; $a60b: 85 a0     
             lda #$77           ; $a60d: a9 77     
             sta $a1            ; $a60f: 85 a1     
-            lda $b1            ; $a611: a5 b1     
+            lda FRAMECOUNT            ; $a611: a5 b1     
             and #$10           ; $a613: 29 10     
             lsr                ; $a615: 4a        
             lsr                ; $a616: 4a        
@@ -4707,7 +4728,7 @@ __a6f7:     lda $a8            ; $a6f7: a5 a8
             clc                ; $a71a: 18        
             adc $a0            ; $a71b: 65 a0     
             sta $a0            ; $a71d: 85 a0     
-            lda $b1            ; $a71f: a5 b1     
+            lda FRAMECOUNT            ; $a71f: a5 b1     
             and #$02           ; $a721: 29 02     
             lsr                ; $a723: 4a        
             clc                ; $a724: 18        
@@ -4777,10 +4798,10 @@ __a7b7:     .hex 98 a8 c0 a8   ; $a7b7: 98 a8 c0 a8   Data
 __a7f3:     .hex 2c 2e 54 32   ; $a7f3: 2c 2e 54 32   Data
             .hex 34 36 4b 38   ; $a7f7: 34 36 4b 38   Data
             .hex 3a 4b         ; $a7fb: 3a 4b         Data
-__a7fd:     sta $c3            ; $a7fd: 85 c3     
+__a7fd:     sta COUNTDOWN            ; $a7fd: 85 c3     
 __a7ff:     jsr __a527         ; $a7ff: 20 27 a5  
             jsr __aa2f         ; $a802: 20 2f aa  
-            lda $c3            ; $a805: a5 c3     
+            lda COUNTDOWN            ; $a805: a5 c3     
             bne __a7ff         ; $a807: d0 f6     
             rts                ; $a809: 60        
 
@@ -4875,7 +4896,7 @@ __a926:     jsr __aa52         ; $a926: 20 52 aa
             jsr __aa5f         ; $a949: 20 5f aa  
             jsr __aa2f         ; $a94c: 20 2f aa  
             lda #$04           ; $a94f: a9 04     
-            sta $bd            ; $a951: 85 bd     
+            sta NMI_FUNC_INDEX            ; $a951: 85 bd     
             lda #$0a           ; $a953: a9 0a     
             jsr __9e07         ; $a955: 20 07 9e  
             lda #$80           ; $a958: a9 80     
@@ -4884,7 +4905,7 @@ __a95d:     jsr __a527         ; $a95d: 20 27 a5
             jsr __aa2f         ; $a960: 20 2f aa  
             lda $c5            ; $a963: a5 c5     
             bne __a95d         ; $a965: d0 f6     
-            lda $f5            ; $a967: a5 f5     
+            lda JOY1_RAW            ; $a967: a5 f5     
             cmp #$10           ; $a969: c9 10     
             bne __a95d         ; $a96b: d0 f0     
             rts                ; $a96d: 60        
@@ -4939,7 +4960,7 @@ __a9b1:     lda $c5            ; $a9b1: a5 c5
             lda $c4            ; $a9ca: a5 c4     
             asl                ; $a9cc: 0a        
             sta $a8            ; $a9cd: 85 a8     
-            lda $b1            ; $a9cf: a5 b1     
+            lda FRAMECOUNT            ; $a9cf: a5 b1     
             and #$02           ; $a9d1: 29 02     
             lsr                ; $a9d3: 4a        
             clc                ; $a9d4: 18        
@@ -4959,7 +4980,7 @@ __a9b1:     lda $c5            ; $a9b1: a5 c5
             lda $c5            ; $a9f0: a5 c5     
             cmp #$b0           ; $a9f2: c9 b0     
             bcc __a9fc         ; $a9f4: 90 06     
-            lda $b1            ; $a9f6: a5 b1     
+            lda FRAMECOUNT            ; $a9f6: a5 b1     
             and #$01           ; $a9f8: 29 01     
             bne __aa0b         ; $a9fa: d0 0f     
 __a9fc:     lda #$03           ; $a9fc: a9 03     
@@ -5186,89 +5207,100 @@ PPU_updateSprites:
             rts
 
 ;-------------------------------------------------------------------------------
-__ab69:     ldx $fb            ; $ab69: a6 fb     
-            inx                ; $ab6b: e8        
-            stx JOY1           ; $ab6c: 8e 16 40  
-            dex                ; $ab6f: ca        
-            stx JOY1           ; $ab70: 8e 16 40  
-            ldx #$08           ; $ab73: a2 08     
-__ab75:     lda JOY1           ; $ab75: ad 16 40  
-            lsr                ; $ab78: 4a        
-            rol $f5            ; $ab79: 26 f5     
-            lsr                ; $ab7b: 4a        
-            rol $00            ; $ab7c: 26 00     
-            lda JOY2           ; $ab7e: ad 17 40  
-            lsr                ; $ab81: 4a        
-            rol $f6            ; $ab82: 26 f6     
-            lsr                ; $ab84: 4a        
-            rol $01            ; $ab85: 26 01     
-            dex                ; $ab87: ca        
-            bne __ab75         ; $ab88: d0 eb     
-            rts                ; $ab8a: 60        
+; read controllers 1 and 2
+; reads joy1 to $f5
+; reads joy2 to $f6
+; reads joy3 to $00
+; reads joy3 to $01
+read_JOY:   ldx C_0
+            inx
+            stx JOY1
+            dex
+            stx JOY1           ; prepare for reading by writing 1 and 0
+            ldx #$08           ; counter
+__ab75:     lda JOY1           ; read bit
+            lsr                ; shift to carry
+            rol JOY1_RAW            ; rol carry into variable
+            lsr                ; 
+            rol $00            ; rol next bit to temp variable
+            lda JOY2           ; read bit
+            lsr
+            rol $f6
+            lsr
+            rol $01
+            dex
+            bne __ab75
+            rts
 
 ;-------------------------------------------------------------------------------
-__ab8b:     lda $00            ; $ab8b: a5 00     
-            ora $f5            ; $ab8d: 05 f5     
-            sta $f5            ; $ab8f: 85 f5     
+; combines joy1 with 3 and joy2 with 4 
+; //TODO remove
+read_joy2:  lda $00            ; $ab8b: a5 00     
+            ora JOY1_RAW            ; $ab8d: 05 f5     
+            sta JOY1_RAW            ; $ab8f: 85 f5     
             lda $01            ; $ab91: a5 01     
-            ora $f6            ; $ab93: 05 f6     
-            sta $f6            ; $ab95: 85 f6     
+            ora JOY2_RAW            ; $ab93: 05 f6     
+            sta JOY2_RAW            ; $ab95: 85 f6     
             rts                ; $ab97: 60        
 
 ;-------------------------------------------------------------------------------
-            jsr __ab69         ; $ab98: 20 69 ab  
-            beq __abbd         ; $ab9b: f0 20     
-__ab9d:     jsr __ab69         ; $ab9d: 20 69 ab  
-            jsr __ab8b         ; $aba0: 20 8b ab  
-            lda $f5            ; $aba3: a5 f5     
-            sta $a9            ; $aba5: 85 a9     
-            lda $f6            ; $aba7: a5 f6     
-            sta $aa            ; $aba9: 85 aa     
-            jsr __ab69         ; $abab: 20 69 ab  
-            jsr __ab8b         ; $abae: 20 8b ab  
-            lda $f5            ; $abb1: a5 f5     
-            and $a9            ; $abb3: 25 a9     
-            sta $f5            ; $abb5: 85 f5     
-            lda $f6            ; $abb7: a5 f6     
-            and $aa            ; $abb9: 25 aa     
-            sta $f6            ; $abbb: 85 f6     
-__abbd:     ldx #$01           ; $abbd: a2 01     
-__abbf:     lda $f5,x          ; $abbf: b5 f5     
-            tay                ; $abc1: a8        
-            eor $f7,x          ; $abc2: 55 f7     
-            and $f5,x          ; $abc4: 35 f5     
-            sta $f5,x          ; $abc6: 95 f5     
-            sty $f7,x          ; $abc8: 94 f7     
-            dex                ; $abca: ca        
-            bpl __abbf         ; $abcb: 10 f2     
-            rts                ; $abcd: 60        
+            jsr read_JOY         ; $ab98: 20 69 ab  
+            beq __abbd         ; $ab9b: f0 20   
 
 ;-------------------------------------------------------------------------------
-            jsr __ab69         ; $abce: 20 69 ab  
-__abd1:     ldy $f5            ; $abd1: a4 f5     
-            lda $f6            ; $abd3: a5 f6     
+; read controller safe, 2 consecutive reads ANDed together  
+read_joy_safe:     
+            jsr read_JOY
+            jsr read_joy2
+            lda JOY1_RAW
+            sta $a9            ; $aba5: 85 a9     
+            lda JOY2_RAW
+            sta $aa            ; $aba9: 85 aa     
+            jsr read_JOY
+            jsr read_joy2
+            lda JOY1_RAW
+            and $a9            ; $abb3: 25 a9     
+            sta JOY1_RAW
+            lda JOY2_RAW
+            and $aa            ; $abb9: 25 aa     
+            sta JOY2_RAW
+__abbd:     ldx #$01
+__abbf:     lda $f5,x
+            tay
+            eor $f7,x
+            and $f5,x
+            sta $f5,x
+            sty $f7,x          ; joy = (joy eor old) and joy f5-new pressed button, f7-all pressed buttons //TODO namin
+            dex
+            bpl __abbf
+            rts
+
+;-------------------------------------------------------------------------------
+            jsr read_JOY         ; $abce: 20 69 ab  
+__abd1:     ldy JOY1_RAW            ; $abd1: a4 f5     
+            lda JOY2_RAW            ; $abd3: a5 f6     
             pha                ; $abd5: 48        
-            jsr __ab69         ; $abd6: 20 69 ab  
+            jsr read_JOY         ; $abd6: 20 69 ab  
             pla                ; $abd9: 68        
-            cmp $f6            ; $abda: c5 f6     
+            cmp JOY2_RAW            ; $abda: c5 f6     
             bne __abd1         ; $abdc: d0 f3     
-            cpy $f5            ; $abde: c4 f5     
+            cpy JOY1_RAW            ; $abde: c4 f5     
             bne __abd1         ; $abe0: d0 ef     
             beq __abbd         ; $abe2: f0 d9     
-            jsr __ab69         ; $abe4: 20 69 ab  
-            jsr __ab8b         ; $abe7: 20 8b ab  
-__abea:     ldy $f5            ; $abea: a4 f5     
-            lda $f6            ; $abec: a5 f6     
+            jsr read_JOY         ; $abe4: 20 69 ab  
+            jsr read_joy2         ; $abe7: 20 8b ab  
+__abea:     ldy JOY1_RAW            ; $abea: a4 f5     
+            lda JOY2_RAW            ; $abec: a5 f6     
             pha                ; $abee: 48        
-            jsr __ab69         ; $abef: 20 69 ab  
-            jsr __ab8b         ; $abf2: 20 8b ab  
+            jsr read_JOY         ; $abef: 20 69 ab  
+            jsr read_joy2         ; $abf2: 20 8b ab  
             pla                ; $abf5: 68        
-            cmp $f6            ; $abf6: c5 f6     
+            cmp JOY2_RAW            ; $abf6: c5 f6     
             bne __abea         ; $abf8: d0 f0     
-            cpy $f5            ; $abfa: c4 f5     
+            cpy JOY1_RAW            ; $abfa: c4 f5     
             bne __abea         ; $abfc: d0 ec     
             beq __abbd         ; $abfe: f0 bd     
-            jsr __ab69         ; $ac00: 20 69 ab  
+            jsr read_JOY         ; $ac00: 20 69 ab  
             lda $00            ; $ac03: a5 00     
             sta $f7            ; $ac05: 85 f7     
             lda $01            ; $ac07: a5 01     
@@ -5345,20 +5377,23 @@ __ac77:     sta (TEMP),y       ; $ac77: 91 00
             rts                ; $ac81: 60        
 
 ;-------------------------------------------------------------------------------
-; arg A
-__ac82:     asl                ; A = A*2  
-            tay                ; Y = A     
-            iny                ; Y++
+; jump table
+; arg A index to jump table
+; base of jump table (top of stack)+1
+; dynamic jump
+table_jump: asl                ; index to jump table = 2*A (2 byte entries)
+            tay
+            iny                ; increment because return address = jumptable-1
             pla
             sta $00
             pla
             sta $01            ; PTR=return address
-            lda ($00),y        ; A = *(PTR+Y)
-            tax                ; X = A     
-            iny                ; Y++
-            lda ($00),y        ; A = *(PTR+Y)
+            lda ($00),y        ; 
+            tax                ; 
+            iny                ; 
+            lda ($00),y        ; read 2 bytes of jump address
             sta $01            ; 
-            stx $00            ; PTR = AX
+            stx $00            ; store to PTR
             jmp ($0000)        ; jmp PTR
 
 ;-------------------------------------------------------------------------------
@@ -8803,7 +8838,7 @@ __e0b0:     ror $eb            ; $e0b0: 66 eb
             rts                ; $e0b4: 60        
 
 ;-------------------------------------------------------------------------------
-__e0b5:     ldx INDEX            ; $e0b5: a6 ed     
+__e0b5:     ldx P6INDEX            ; $e0b5: a6 ed     
             inc $06da,x        ; $e0b7: fe da 06  
             lda $06da,x        ; $e0ba: bd da 06  
             cmp $06d5,x        ; $e0bd: dd d5 06  
@@ -8918,7 +8953,7 @@ __e1b9:     ldx #$00           ; $e1b9: a2 00
             lda #$09           ; $e1bb: a9 09     
             ldy #$0f           ; $e1bd: a0 0f     
 __e1bf:     sta $e0            ; $e1bf: 85 e0     
-            stx INDEX            ; $e1c1: 86 ed     
+            stx P6INDEX            ; $e1c1: 86 ed     
             lda $06f0,x        ; $e1c3: bd f0 06  
             beq __e1ce         ; $e1c6: f0 06     
 __e1c8:     jsr __e072         ; $e1c8: 20 72 e0  
@@ -8941,9 +8976,9 @@ APU_init2:  lda #$0f
 
 ;-------------------------------------------------------------------------------
 __e1e5:     inc $0682          ; $e1e5: ee 82 06  
-            jsr APU_initRegs         ; $e1e8: 20 71 e2  
-            sta $0683          ; $e1eb: 8d 83 06  
-            rts                ; $e1ee: 60        
+            jsr APU_initRegs
+            sta $0683          ; A=0
+            rts
 
 ;-------------------------------------------------------------------------------
 __e1ef:     lda $0682          ; $e1ef: ad 82 06  
@@ -9023,7 +9058,7 @@ APU_initRegs:
             rts
 
 ;-------------------------------------------------------------------------------
-__e287:     ldx INDEX            ; $e287: a6 ed     
+__e287:     ldx P6INDEX            ; $e287: a6 ed     
             sta $06d5,x        ; $e289: 9d d5 06  
             txa                ; $e28c: 8a        
             sta $06c7,x        ; $e28d: 9d c7 06  
@@ -9487,7 +9522,7 @@ __e617:     lda $e2            ; $e617: a5 e2
             jmp __e677         ; $e621: 4c 77 e6  
 
 ;-------------------------------------------------------------------------------
-__e624:     lda #$f6           ; $e624: a9 f6     
+__e624:     lda #JOY2_RAW           ; $e624: a9 f6     
             bne __e677         ; $e626: d0 4f     
 __e628:     lda $06c3,x        ; $e628: bd c3 06  
             cmp #$4c           ; $e62b: c9 4c     
