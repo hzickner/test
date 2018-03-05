@@ -1,0 +1,314 @@
+LEGAL_SCREEN_DATA:
+            .hex 20 00         ; PPU address $2000 (screen0, line 0)
+            .hex 20            ; control byte: VRAM line, ptr inc, 32bytes of data //TODO test use of compression bit
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff   ; 32 data bytes
+            .hex 20 20         ; PPU address $2020 (screen0, line 1)
+            .hex 20            ; control byte: VRAM line, ptr inc, 32bytes of data
+            .hex ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff
+            .hex 20 40         ; PPU address $2040 (screen0, line 2)
+            .hex 20            ; control byte: VRAM line, ptr inc, 32bytes of data
+            .hex ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff ff ff
+            .hex ff ff 
+            .hex 20 60         ; PPU address $2060 (screen0, line 3)
+            .hex 20            ; control byte: VRAM line, ptr inc, 32bytes of data 
+            .hex ff ff ff   ; $ae23: 20 ff ff ff   Data
+            .hex ff ff ff ff   ; $ae27: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae2b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae2f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae33: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae37: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae3b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae3f: ff ff ff ff   Data
+            .hex ff 
+            .hex 20 80         ; PPU address (screen0, line 4)
+            .hex 20   ; $ae43: ff 20 80 20   Data
+            .hex ff ff ff ff   ; $ae47: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae4b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae4f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae53: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae57: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae5b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae5f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae63: ff ff ff ff   Data
+            .hex 20 a0 20      ; PPU address (screen0, line 5)
+            .hex ff   ; $ae67: 20 a0 20 ff   Data
+            .hex ff ff ff ff   ; $ae6b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae6f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae73: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae77: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae7b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae7f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $ae83: ff ff ff ff   Data
+            .hex ff ff ff
+            .hex 20 c0         ; PPU address (screen0, line 6)
+            .hex 20
+            .hex ff ff   ; $ae8b: c0 20 ff ff   Data
+            .hex ff ff ff ff   ; $ae8f: ff ff ff ff   Data
+            .hex ff ff ff 1d   ; $ae93: ff ff ff 1d   Data
+            .hex 16 ff 0a 17   ; $ae97: 16 ff 0a 17   Data
+            .hex 0d ff f5 ff   ; $ae9b: 0d ff f5 ff   Data
+            .hex 01 09 08 07   ; $ae9f: 01 09 08 07   Data
+            .hex ff ff ff ff   ; $aea3: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $aea7: ff ff ff ff   Data
+            .hex ff ff
+            .hex 20 e0         ; PPU address (screen0, line 7)
+            .hex 20
+            .hex ff ff ff   ; $aeaf: 20 ff ff ff   Data
+            .hex ff ff ff ff   ; $aeb3: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $aeb7: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $aebb: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $aebf: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $aec3: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $aec7: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $aecb: ff ff ff ff   Data
+            .hex ff
+            .hex 21 00         ; PPU address (screen0, line 8)
+            .hex 20   ; $aecf: ff 21 00 20   Data
+            .hex ff ff ff ff   ; $aed3: ff ff ff ff   Data
+            .hex ff 1f 4f 18   ; $aed7: ff 1f 4f 18   Data
+            .hex ff 0e 15 0e   ; $aedb: ff 0e 15 0e   Data
+            .hex 0c 1d 1b 18   ; $aedf: 0c 1d 1b 18   Data
+            .hex 17 18 1b 10   ; $aee3: 17 18 1b 10   Data
+            .hex 1d 0e 0c 11   ; $aee7: 1d 0e 0c 11   Data
+            .hex 17 12 0c 0a   ; $aeeb: 17 12 0c 0a   Data
+            .hex ff ff ff ff   ; $aeef: ff ff ff ff   Data
+            .hex 21 20         ; PPU address (screen0, line 9)
+            .hex 20
+            .hex ff   ; $aef3: 21 20 20 ff   Data
+            .hex ff ff ff ff   ; $aef7: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $aefb: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $aeff: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af03: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af07: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af0b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af0f: ff ff ff ff   Data
+            .hex ff ff ff
+            .hex 21 40         ; PPU address (screen0, line 10)
+            .hex 20
+            .hex ff ff   ; $af17: 40 20 ff ff   Data
+            .hex ff ff ff ff   ; $af1b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af1f: ff ff ff ff   Data
+            .hex ff 5e 6e 0e   ; $af23: ff 5e 6e 0e   Data
+            .hex 15 18 1b 10   ; $af27: 15 18 1b 10   Data
+            .hex 6e 5f ff ff   ; $af2b: 6e 5f ff ff   Data
+            .hex ff ff ff ff   ; $af2f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af33: ff ff ff ff   Data
+            .hex ff ff 
+            .hex 21 60         ; PPU address (screen0, line 11)
+            .hex 20
+            .hex ff ff ff   ; $af3b: 20 ff ff ff   Data
+            .hex ff ff ff ff   ; $af3f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af43: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af47: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af4b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af4f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af53: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af57: ff ff ff ff   Data
+            .hex ff
+            .hex 21 80         ; PPU address (screen0, line 12)
+            .hex 20   ; $af5b: ff 21 80 20   Data
+            .hex ff ff ff 1d   ; $af5f: ff ff ff 1d   Data
+            .hex 0e 1d 1b 12   ; $af63: 0e 1d 1b 12   Data
+            .hex 1c ff 15 12   ; $af67: 1c ff 15 12   Data
+            .hex 0c 0e 17 1c   ; $af6b: 0c 0e 17 1c   Data
+            .hex 0e 0d ff 1d   ; $af6f: 0e 0d ff 1d   Data
+            .hex 18 ff 17 12   ; $af73: 18 ff 17 12   Data
+            .hex 17 1d 0e 17   ; $af77: 17 1d 0e 17   Data
+            .hex 0d 18 ff ff   ; $af7b: 0d 18 ff ff   Data
+            .hex 21 a0         ; PPU address (screen0, line 13)
+            .hex 20
+            .hex ff   ; $af7f: 21 a0 20 ff   Data
+            .hex ff ff ff ff   ; $af83: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af87: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af8b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af8f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af93: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af97: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $af9b: ff ff ff ff   Data
+            .hex ff ff ff
+            .hex 21 c0         ; PPU address (screen0, line 14)
+            .hex 20
+            .hex ff ff   ; $afa3: c0 20 ff ff   Data
+            .hex ff ff ff ff   ; $afa7: ff ff ff ff   Data
+            .hex ff f5 ff 01   ; $afab: ff f5 ff 01   Data
+            .hex 09 08 09 ff   ; $afaf: 09 08 09 ff   Data
+            .hex 17 12 17 1d   ; $afb3: 17 12 17 1d   Data
+            .hex 0e 17 0d 18   ; $afb7: 0e 17 0d 18   Data
+            .hex ff ff ff ff   ; $afbb: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $afbf: ff ff ff ff   Data
+            .hex ff ff
+            .hex 21 e0         ; PPU address (screen0, line 15)
+            .hex 20
+            .hex ff ff ff   ; $afc7: 20 ff ff ff   Data
+            .hex ff ff ff ff   ; $afcb: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $afcf: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $afd3: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $afd7: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $afdb: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $afdf: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $afe3: ff ff ff ff   Data
+            .hex ff 22 00 20   ; $afe7: ff 22 00 20   Data
+            .hex ff ff ff ff   ; $afeb: ff ff ff ff   Data
+            .hex ff ff 0a 15   ; $afef: ff ff 0a 15   Data
+            .hex 15 ff 1b 12   ; $aff3: 15 ff 1b 12   Data
+            .hex 10 11 1d 1c   ; $aff7: 10 11 1d 1c   Data
+            .hex ff 1b 0e 1c   ; $affb: ff 1b 0e 1c   Data
+            .hex 0e 1b 1f 0e   ; $afff: 0e 1b 1f 0e   Data
+            .hex 0d ff ff ff   ; $b003: 0d ff ff ff   Data
+            .hex ff ff ff ff   ; $b007: ff ff ff ff   Data
+            .hex 22 20 20 ff   ; $b00b: 22 20 20 ff   Data
+            .hex ff ff ff ff   ; $b00f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b013: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b017: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b01b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b01f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b023: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b027: ff ff ff ff   Data
+            .hex ff ff ff 22   ; $b02b: ff ff ff 22   Data
+            .hex 40 20 ff ff   ; $b02f: 40 20 ff ff   Data
+            .hex ff ff 18 1b   ; $b033: ff ff 18 1b   Data
+            .hex 12 10 12 17   ; $b037: 12 10 12 17   Data
+            .hex 0a 15 ff 0c   ; $b03b: 0a 15 ff 0c   Data
+            .hex 18 17 0c 0e   ; $b03f: 18 17 0c 0e   Data
+            .hex 19 1d 25 0d   ; $b043: 19 1d 25 0d   Data
+            .hex 0e 1c 12 10   ; $b047: 0e 1c 12 10   Data
+            .hex 17 ff ff ff   ; $b04b: 17 ff ff ff   Data
+            .hex ff ff 22 60   ; $b04f: ff ff 22 60   Data
+            .hex 20 ff ff ff   ; $b053: 20 ff ff ff   Data
+            .hex ff ff ff ff   ; $b057: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b05b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b05f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b063: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b067: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b06b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b06f: ff ff ff ff   Data
+            .hex ff 22 80 20   ; $b073: ff 22 80 20   Data
+            .hex ff ff ff ff   ; $b077: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b07b: ff ff ff ff   Data
+            .hex ff ff ff 0a   ; $b07f: ff ff ff 0a   Data
+            .hex 17 0d ff 19   ; $b083: 17 0d ff 19   Data
+            .hex 1b 18 10 1b   ; $b087: 1b 18 10 1b   Data
+            .hex 0a 16 ff ff   ; $b08b: 0a 16 ff ff   Data
+            .hex ff ff ff ff   ; $b08f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b093: ff ff ff ff   Data
+            .hex 22 a0 20 ff   ; $b097: 22 a0 20 ff   Data
+            .hex ff ff ff ff   ; $b09b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b09f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b0a3: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b0a7: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b0ab: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b0af: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b0b3: ff ff ff ff   Data
+            .hex ff ff ff 22   ; $b0b7: ff ff ff 22   Data
+            .hex c0 20 ff ff   ; $b0bb: c0 20 ff ff   Data
+            .hex ff ff ff ff   ; $b0bf: ff ff ff ff   Data
+            .hex ff 0b 22 ff   ; $b0c3: ff 0b 22 ff   Data
+            .hex 0a 15 0e 21   ; $b0c7: 0a 15 0e 21   Data
+            .hex 0e 22 ff 19   ; $b0cb: 0e 22 ff 19   Data
+            .hex 0a 23 11 12   ; $b0cf: 0a 23 11 12   Data
+            .hex 1d 17 18 1f   ; $b0d3: 1d 17 18 1f   Data
+            .hex ff ff ff ff   ; $b0d7: ff ff ff ff   Data
+            .hex ff ff 22 e0   ; $b0db: ff ff 22 e0   Data
+            .hex 20 ff ff ff   ; $b0df: 20 ff ff ff   Data
+            .hex ff ff ff ff   ; $b0e3: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b0e7: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b0eb: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b0ef: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b0f3: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b0f7: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b0fb: ff ff ff ff   Data
+            .hex ff 23 00 20   ; $b0ff: ff 23 00 20   Data
+            .hex ff ff ff ff   ; $b103: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b107: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b10b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b10f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b113: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b117: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b11b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b11f: ff ff ff ff   Data
+            .hex 23 20 20 ff   ; $b123: 23 20 20 ff   Data
+            .hex ff ff ff ff   ; $b127: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b12b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b12f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b133: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b137: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b13b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b13f: ff ff ff ff   Data
+            .hex ff ff ff 23   ; $b143: ff ff ff 23   Data
+            .hex 40 20 ff ff   ; $b147: 40 20 ff ff   Data
+            .hex ff ff ff ff   ; $b14b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b14f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b153: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b157: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b15b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b15f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b163: ff ff ff ff   Data
+            .hex ff ff 23 60   ; $b167: ff ff 23 60   Data
+            .hex 20 ff ff ff   ; $b16b: 20 ff ff ff   Data
+            .hex ff ff ff ff   ; $b16f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b173: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b177: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b17b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b17f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b183: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b187: ff ff ff ff   Data
+            .hex ff 23 80 20   ; $b18b: ff 23 80 20   Data
+            .hex ff ff ff ff   ; $b18f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b193: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b197: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b19b: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b19f: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b1a3: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b1a7: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b1ab: ff ff ff ff   Data
+            .hex 23 a0 20 ff   ; $b1af: 23 a0 20 ff   Data
+            .hex ff ff ff ff   ; $b1b3: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b1b7: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b1bb: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b1bf: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b1c3: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b1c7: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b1cb: ff ff ff ff   Data
+            .hex ff ff ff 23   ; $b1cf: ff ff ff 23   Data
+            .hex c0 20 ff ff   ; $b1d3: c0 20 ff ff   Data
+            .hex ff ff ff ff   ; $b1d7: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b1db: ff ff ff ff   Data
+            .hex ff ff 5f df   ; $b1df: ff ff 5f df   Data
+            .hex ff ff bf 00   ; $b1e3: ff ff bf 00   Data
+            .hex 00 00 00 00   ; $b1e7: 00 00 00 00   Data
+            .hex 00 cc f7 45   ; $b1eb: 00 cc f7 45   Data
+            .hex 5d 1f 0f 03   ; $b1ef: 5d 1f 0f 03   Data
+            .hex 00 0c 23 e0   ; $b1f3: 00 0c 23 e0   Data
+            .hex 20 ff ff ff   ; $b1f7: 20 ff ff ff   Data
+            .hex ff ff ff ff   ; $b1fb: ff ff ff ff   Data
+            .hex ff ff ff bf   ; $b1ff: ff ff ff bf   Data
+            .hex af af af af   ; $b203: af af af af   Data
+            .hex ff ff ff ff   ; $b207: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $b20b: ff ff ff ff   Data
+            .hex ff 0f 0f 0f   ; $b20f: ff 0f 0f 0f   Data
+            .hex 0f 0f 0f 0f   ; $b213: 0f 0f 0f 0f   Data
+            .hex 0f 
+            .hex ff            ; end of data processing
+; end of legal screen data

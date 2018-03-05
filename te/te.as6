@@ -45,6 +45,12 @@ CTRL                 = $ff
 
 ; page 2
 ; $0200-$02FF sprite info
+; 64 x 4 byte sprite attribute data
+; byte0	- y position of top of sprite - 1 (0 means line1, 239-255 is hidden)
+; byte1	- 8x8 tiles: index to pattern table selected with bit3 of PPUCTRL
+;	- 8x16 tiles: bit0 selects pattern table, bit1-7 (0,2,..254) select tile index for upper half, lower half gets next tile
+; byte2	- attributes: bit0-bit1 pallette(4 to 7), bit5 priority (0 in front of bg), bit6 flip h, bit7 flip v 
+; byte3	- x position of left side of sprite	
 
 ; page 4
 ; $0400-$04C7 1024-1223 10x20 playfield in row major order
@@ -100,7 +106,7 @@ nmi:        pha
             lda COUNTDOWN
             cmp #$ff
             bne @skip
-            inc COUNTDOWN      ; reset counter in case of underflow
+            inc COUNTDOWN      ; reset counter to 0 in case of underflow
 @skip:      jsr PPU_updateSprites
             lda FRAMECOUNT
             clc
@@ -213,7 +219,7 @@ skip_d700init:
             sta $0103
             lda #$ac
             sta $0104          ; variable initializations
-            jsr PPU_rendering_off         ; $80f7: 20 52 aa  
+            jsr frame_PPU_rendering_off         ; $80f7: 20 52 aa  
             jsr PPU_disableNMI
             lda #$20
             jsr PPU_nameFF_attribute00
@@ -228,22 +234,22 @@ skip_d700init:
             ldy #$05
             jsr memset         ; fill page 4-5 with $ef
             jsr PPU_enableNMI
-            jsr __aa2f         ; $811d: 20 2f aa  
-            jsr __aa5f         ; $8120: 20 5f aa  
-            jsr __aa2f         ; $8123: 20 2f aa  
+            jsr frame_clear_sprite_ram
+            jsr frame_PPU_rendering_on
+            jsr frame_clear_sprite_ram
             lda #$0e           ; $8126: a9 0e     
             sta $34            ; $8128: 85 34     
-            lda #$00           ; $812a: a9 00     
+            lda #$00
             sta $a7            ; $812c: 85 a7     
-            sta GAME_MODE      ; init GAME_MODE to MODE_LEGAL
-            lda #$01           ; $8130: a9 01     
-            sta N_PLR            ; $8132: 85 be     
+            sta GAME_MODE
+            lda #$01
+            sta N_PLR
             lda #$00           ; $8134: a9 00     
             sta $b2            ; $8136: 85 b2     
 @mainloop:  jsr table_jump_game_mode
             cmp $a7            ; $813b: c5 a7     
             bne @skip1         ; $813d: d0 03     
-            jsr __aa2f         ; $813f: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $813f: 20 2f aa  
 @skip1:     lda GAME_MODE
             cmp #MODE_DEMO
             bne @skip2         ; if (MODE_DEMO) {
@@ -344,77 +350,83 @@ __81d9:     lda $48            ; $81d9: a5 48
             rts                ; $81ff: 60        
 
 ;-------------------------------------------------------------------------------
+; display copyright screeen
+; 4.25s(255f) not interruptible
+; 4.25s(255f) interruptible with start
+; continue with title screen
 mode_func_legal:
             jsr snd_reset_call
-            lda #$00           ; $8203: a9 00     
-            sta NMI_FUNC_INDEX            ; $8205: 85 bd     
-            jsr PPU_rendering_off
+            lda #$00
+            sta NMI_FUNC_INDEX ; set nmi function for this mode, resets nametable nr and scroll every frame
+            jsr frame_PPU_rendering_off
             jsr PPU_disableNMI
             lda #$00
             jsr MMCsetreg1
             lda #$00
             jsr MMCsetreg2
-            jsr __aa98         ; $8217: 20 98 aa  
+            
+            jsr process_rom_data
+            DW PALETTE_DATA_FUNC_LEGAL
 
-;-------------------------------------------------------------------------------
-            DW DATA_FUNC_LEGAL1           ; pointer read by __aa98
-            jsr __aa98         ; $821c: 20 98 aa  
+            jsr process_rom_data
+            DW LEGAL_SCREEN_DATA
 
-;-------------------------------------------------------------------------------
-            DW DATA_FUNC_LEGAL2         ; $821f: b8 ad         Data
-            jsr PPU_enableNMI         ; $8221: 20 6b aa  
-            jsr __aa2f         ; $8224: 20 2f aa  
-            jsr __aa5f         ; $8227: 20 5f aa  
-            jsr __aa2f         ; $822a: 20 2f aa  
-            lda #$00           ; $822d: a9 00     
-            ldx #$02           ; $822f: a2 02     
-            ldy #$02           ; $8231: a0 02     
-            jsr memset         ; clear sprite data
-            lda #$ff           ; $8236: a9 ff     
-            jsr __a459         ; $8238: 20 59 a4  
+            jsr PPU_enableNMI
+            jsr frame_clear_sprite_ram
+            jsr frame_PPU_rendering_on
+            jsr frame_clear_sprite_ram ; sprite ram $ff
+            lda #$00
+            ldx #$02
+            ldy #$02
+            jsr memset         ; clear sprite data $00 //TODO why?
+
+            lda #$ff           ; set counter
+            jsr Nframe_clear_sprite_ram         
+                               ; 255 frames of legal screen
             lda #$ff
-            sta TEMP2            ; init loop counter
+            sta TEMP2          ; init loop counter
 @loop:      lda JOY1_RAW
             cmp #BUTTON_START
             beq @next_mode     ; procede to title screen if start pressed
-            jsr __aa2f         ; something with sprites and sound
+            jsr frame_clear_sprite_ram
             dec TEMP2
-            bne @loop          ; loop runs 255 iterations
+            bne @loop          ; loop runs 255 iterations interruptible with start button
+
 @next_mode: inc GAME_MODE
             rts
 
 ;-------------------------------------------------------------------------------
+; display title screen
 mode_func_title:
             jsr snd_reset_call
             lda #$00
-            sta NMI_FUNC_INDEX
+            sta NMI_FUNC_INDEX ; set nmi function for this mode, resets nametable nr and scroll every frame
             sta $d0            ; $8256: 85 d0     
-            sta $df            ; $8258: 85 df     
-            jsr PPU_rendering_off
+            sta $df            ; some kind of flag toggled by select
+            jsr frame_PPU_rendering_off
             jsr PPU_disableNMI
-            lda #$00           ; $8260: a9 00     
-            jsr MMCsetreg1         ; $8262: 20 b7 ac  
-            lda #$00           ; $8265: a9 00     
-            jsr MMCsetreg2         ; $8267: 20 cb ac  
-            jsr __aa98         ; $826a: 20 98 aa  
+            lda #$00
+            jsr MMCsetreg1
+            lda #$00
+            jsr MMCsetreg2
 
-;-------------------------------------------------------------------------------
-            .hex 2b ad         ; $826d: 2b ad         Data
-            jsr __aa98         ; $826f: 20 98 aa  
+            jsr process_rom_data
+            DW PALETTE_DATA_FUNC_TITLE
+            
+            jsr process_rom_data
+            DW TITLE_SCREEN_DATA
 
-;-------------------------------------------------------------------------------
-            .hex 19 b2         ; $8272: 19 b2         Data
-            jsr PPU_enableNMI         ; $8274: 20 6b aa  
-            jsr __aa2f         ; $8277: 20 2f aa  
-            jsr __aa5f         ; $827a: 20 5f aa  
-            jsr __aa2f         ; $827d: 20 2f aa  
-            lda #$00           ; $8280: a9 00     
-            ldx #$02           ; $8282: a2 02     
-            ldy #$02           ; $8284: a0 02     
-            jsr memset         ; clear sprite data
+            jsr PPU_enableNMI
+            jsr frame_clear_sprite_ram
+            jsr frame_PPU_rendering_on
+            jsr frame_clear_sprite_ram
+            lda #$00
+            ldx #$02
+            ldy #$02
+            jsr memset         ; clear sprite data //TODO why?
             lda #$00           ; $8289: a9 00     
             sta $b2            ; $828b: 85 b2     
-@loop:      jsr __aa2f         ; title screen loop
+@loop:      jsr frame_clear_sprite_ram         ; title screen loop
             lda JOY1_RAW            ; $8290: a5 f5     
             cmp #BUTTON_START
             beq @skip1         ; $8294: f0 09     
@@ -439,13 +451,13 @@ mode_func_title:
 ; entry of dynamic jump
 PPU_reset_nametable_scrolling:
             lda CTRL
-            and #$fc           ; 11111100 reset bit 1,2 of PPUCTRL
+            and #$fc           ; nametable 0
             sta CTRL
             lda #$00
             sta HSCROLL
             sta PPUSCROLL
             sta VSCROLL
-            sta PPUSCROLL
+            sta PPUSCROLL      ; no scrolling
             rts
 
 ;-------------------------------------------------------------------------------
@@ -464,13 +476,13 @@ mode_func_type:
             jsr MMCsetreg0         ; $82d6: 20 a3 ac  
             lda #$01           ; $82d9: a9 01     
             sta NMI_FUNC_INDEX            ; $82db: 85 bd     
-            jsr PPU_rendering_off         ; $82dd: 20 52 aa  
+            jsr frame_PPU_rendering_off         ; $82dd: 20 52 aa  
             jsr PPU_disableNMI         ; $82e0: 20 78 aa  
-            jsr __aa98         ; $82e3: 20 98 aa  
+            jsr process_rom_data         ; $82e3: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex 2b ad         ; $82e6: 2b ad         Data
-            jsr __aa98         ; $82e8: 20 98 aa  
+            jsr process_rom_data         ; $82e8: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex 7a b6         ; $82eb: 7a b6         Data
@@ -479,9 +491,9 @@ mode_func_type:
             lda #$00           ; $82f2: a9 00     
             jsr MMCsetreg2         ; $82f4: 20 cb ac  
             jsr PPU_enableNMI         ; $82f7: 20 6b aa  
-            jsr __aa2f         ; $82fa: 20 2f aa  
-            jsr __aa5f         ; $82fd: 20 5f aa  
-            jsr __aa2f         ; $8300: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $82fa: 20 2f aa  
+            jsr frame_PPU_rendering_on         ; $82fd: 20 5f aa  
+            jsr frame_clear_sprite_ram         ; $8300: 20 2f aa  
             ldx $c2            ; $8303: a6 c2     
             lda __85d2,x       ; $8305: bd d2 85  
             jsr __9e07         ; $8308: 20 07 9e  
@@ -590,7 +602,7 @@ __83ae:     jsr __8c27         ; $83ae: 20 27 8c
             lda #$02           ; $83ca: a9 02     
             sta $a2            ; $83cc: 85 a2     
 __83ce:     jsr __8c27         ; $83ce: 20 27 8c  
-            jsr __aa2f         ; $83d1: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $83d1: 20 2f aa  
             jmp __830b         ; $83d4: 4c 0b 83  
 
 ;-------------------------------------------------------------------------------
@@ -601,35 +613,35 @@ mode_func_level:
             jsr snd_reset_call         ; $83df: 20 03 e0  
             lda #$01           ; $83e2: a9 01     
             sta NMI_FUNC_INDEX            ; $83e4: 85 bd     
-            jsr PPU_rendering_off         ; $83e6: 20 52 aa  
+            jsr frame_PPU_rendering_off         ; $83e6: 20 52 aa  
             jsr PPU_disableNMI         ; $83e9: 20 78 aa  
             lda #$00           ; $83ec: a9 00     
             jsr MMCsetreg1         ; $83ee: 20 b7 ac  
             lda #$00           ; $83f1: a9 00     
             jsr MMCsetreg2         ; $83f3: 20 cb ac  
-            jsr __aa98         ; $83f6: 20 98 aa  
+            jsr process_rom_data         ; $83f6: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex 2b ad         ; $83f9: 2b ad         Data
-            jsr __aa98         ; $83fb: 20 98 aa  
+            jsr process_rom_data         ; $83fb: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex db ba         ; $83fe: db ba         Data
             lda $c1            ; $8400: a5 c1     
             bne __8409         ; $8402: d0 05     
-            jsr __aa98         ; $8404: 20 98 aa  
+            jsr process_rom_data         ; $8404: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex 5d c9         ; $8407: 5d c9         Data
 __8409:     jsr __9ff2         ; $8409: 20 f2 9f  
             jsr PPU_enableNMI         ; $840c: 20 6b aa  
-            jsr __aa2f         ; $840f: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $840f: 20 2f aa  
             lda #$00           ; $8412: a9 00     
             sta PPUSCROLL      ; $8414: 8d 05 20  
             lda #$00           ; $8417: a9 00     
             sta PPUSCROLL      ; $8419: 8d 05 20  
-            jsr __aa5f         ; $841c: 20 5f aa  
-            jsr __aa2f         ; $841f: 20 2f aa  
+            jsr frame_PPU_rendering_on         ; $841c: 20 5f aa  
+            jsr frame_clear_sprite_ram         ; $841f: 20 2f aa  
             lda #$00           ; $8422: a9 00     
             sta B1            ; $8424: 85 ae     
             sta $af            ; $8426: 85 af     
@@ -651,7 +663,7 @@ __8436:     lda #$00           ; $8436: a9 00
             lda B1            ; $8442: a5 ae     
             sta $ad            ; $8444: 85 ad     
             lda JOY1_RAW            ; $8446: a5 f5     
-            sta $b5            ; $8448: 85 b5     
+            sta BUTTONS_NEW           ; $8448: 85 b5     
             jsr __84ae         ; $844a: 20 ae 84  
             lda $47            ; $844d: a5 47     
             sta $67            ; $844f: 85 67     
@@ -702,11 +714,11 @@ __8497:     ldx #RANDOM           ; $8497: a2 17
             cmp #$0a           ; $84a2: c9 0a     
             bpl __8497         ; $84a4: 10 f1     
             sta $9a            ; $84a6: 85 9a     
-            jsr __aa2f         ; $84a8: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $84a8: 20 2f aa  
             jmp __8436         ; $84ab: 4c 36 84  
 
 ;-------------------------------------------------------------------------------
-__84ae:     lda $b5            ; $84ae: a5 b5     
+__84ae:     lda BUTTONS_NEW           ; $84ae: a5 b5     
             cmp #$01           ; $84b0: c9 01     
             bne __84d0         ; $84b2: d0 1c     
             lda #$01           ; $84b4: a9 01     
@@ -724,7 +736,7 @@ __84c8:     lda $59            ; $84c8: a5 59
             cmp #$05           ; $84ca: c9 05     
             beq __84d0         ; $84cc: f0 02     
             inc $59            ; $84ce: e6 59     
-__84d0:     lda $b5            ; $84d0: a5 b5     
+__84d0:     lda BUTTONS_NEW           ; $84d0: a5 b5     
             cmp #$02           ; $84d2: c9 02     
             bne __84ee         ; $84d4: d0 18     
             lda #$01           ; $84d6: a9 01     
@@ -740,7 +752,7 @@ __84d0:     lda $b5            ; $84d0: a5 b5
 __84e8:     lda $59            ; $84e8: a5 59     
             beq __84ee         ; $84ea: f0 02     
             dec $59            ; $84ec: c6 59     
-__84ee:     lda $b5            ; $84ee: a5 b5     
+__84ee:     lda BUTTONS_NEW           ; $84ee: a5 b5     
             cmp #$04           ; $84f0: c9 04     
             bne __8517         ; $84f2: d0 23     
             lda #$01           ; $84f4: a9 01     
@@ -762,7 +774,7 @@ __850b:     lda $59            ; $850b: a5 59
             inc $59            ; $8511: e6 59     
             inc $59            ; $8513: e6 59     
             inc $59            ; $8515: e6 59     
-__8517:     lda $b5            ; $8517: a5 b5     
+__8517:     lda BUTTONS_NEW           ; $8517: a5 b5     
             cmp #$08           ; $8519: c9 08     
             bne __8540         ; $851b: d0 23     
             lda #$01           ; $851d: a9 01     
@@ -786,7 +798,7 @@ __8534:     lda $59            ; $8534: a5 59
             dec $59            ; $853e: c6 59     
 __8540:     lda $c1            ; $8540: a5 c1     
             beq __8555         ; $8542: f0 11     
-            lda $b5            ; $8544: a5 b5     
+            lda BUTTONS_NEW           ; $8544: a5 b5     
             cmp #$80           ; $8546: c9 80     
             bne __8555         ; $8548: d0 0b     
             lda #$01           ; $854a: a9 01     
@@ -869,17 +881,17 @@ PPU_reset_scrolling:
             rts
 
 ;-------------------------------------------------------------------------------
-            jsr PPU_rendering_off         ; $85f0: 20 52 aa  
+            jsr frame_PPU_rendering_off         ; $85f0: 20 52 aa  
             jsr PPU_disableNMI         ; $85f3: 20 78 aa  
             lda #$03           ; $85f6: a9 03     
             jsr MMCsetreg1         ; $85f8: 20 b7 ac  
             lda #$03           ; $85fb: a9 03     
             jsr MMCsetreg2         ; $85fd: 20 cb ac  
-            jsr __aa98         ; $8600: 20 98 aa  
+            jsr process_rom_data         ; $8600: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex f3 ac         ; $8603: f3 ac         Data
-            jsr __aa98         ; $8605: 20 98 aa  
+            jsr process_rom_data         ; $8605: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex 3c bf         ; $8608: 3c bf         Data
@@ -944,9 +956,9 @@ __867f:     lda #$23           ; $867f: a9 23
 
 ;-------------------------------------------------------------------------------
 __8693:     jsr PPU_enableNMI         ; $8693: 20 6b aa  
-            jsr __aa2f         ; $8696: 20 2f aa  
-            jsr __aa5f         ; $8699: 20 5f aa  
-            jsr __aa2f         ; $869c: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $8696: 20 2f aa  
+            jsr frame_PPU_rendering_on         ; $8699: 20 5f aa  
+            jsr frame_clear_sprite_ram         ; $869c: 20 2f aa  
             lda #$01           ; $869f: a9 01     
             sta $68            ; $86a1: 85 68     
             sta $88            ; $86a3: 85 88     
@@ -1037,7 +1049,7 @@ __86e9:     sta $03ef,x        ; $86e9: 9d ef 03
             sta $90            ; $875f: 85 90     
 __8761:     lda #$47           ; $8761: a9 47     
             sta $a3            ; $8763: 85 a3     
-            jsr __aa2f         ; $8765: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $8765: 20 2f aa  
             jsr __87dc         ; $8768: 20 dc 87  
             ldx $c2            ; $876b: a6 c2     
             lda __85d2,x       ; $876d: bd d2 85  
@@ -1051,7 +1063,7 @@ __8776:     lda #$01           ; $8776: a9 01
             lda #$04           ; $877a: a9 04     
             sta $b9            ; $877c: 85 b9     
             lda JOY1_RAW            ; $877e: a5 f5     
-            sta $b5            ; $8780: 85 b5     
+            sta BUTTONS_NEW           ; $8780: 85 b5     
             lda $f7            ; $8782: a5 f7     
             sta $b6            ; $8784: 85 b6     
             ldx #$1f           ; $8786: a2 1f     
@@ -1068,7 +1080,7 @@ __8792:     lda #$02           ; $8792: a9 02
             lda #$05           ; $8796: a9 05     
             sta $b9            ; $8798: 85 b9     
             lda JOY2_RAW            ; $879a: a5 f6     
-            sta $b5            ; $879c: 85 b5     
+            sta BUTTONS_NEW           ; $879c: 85 b5     
             lda $f8            ; $879e: a5 f8     
             sta $b6            ; $87a0: 85 b6     
             ldx #$1f           ; $87a2: a2 1f     
@@ -1163,7 +1175,7 @@ __8824:     ldx #RANDOM           ; $8824: a2 17
             tay                ; $883d: a8        
             lda #$ef           ; $883e: a9 ef     
             sta PLAYFIELD,y        ; $8840: 99 00 04  
-            jsr __aa2f         ; $8843: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $8843: 20 2f aa  
             dec TEMP2            ; $8846: c6 a8     
             bne __87e7         ; $8848: d0 9d     
 __884a:     ldx #$c8           ; $884a: a2 c8     
@@ -1212,7 +1224,7 @@ __889c:     lda JOY1_RAW            ; $889c: a5 f5
             beq __88a8         ; $88a0: f0 06     
             lda $df            ; $88a2: a5 df     
             eor #$01           ; $88a4: 49 01     
-            sta $df            ; $88a6: 85 df     
+            sta $df            ; flip bit 0 in $df
 __88a8:     inc $a7            ; $88a8: e6 a7     
             rts                ; $88aa: 60        
 
@@ -1225,7 +1237,7 @@ rotate_tetr:
             lda TETR_OR
             asl
             tax                ; line of rot_table = 2 * orientation
-            lda $b5            ; button value
+            lda BUTTONS_NEW           ; button value
             and #$80
             cmp #$80           ; $88b8: c9 80  //TODO not necessary?   
             bne __88cf         ; if (button A) pressed   
@@ -1239,7 +1251,7 @@ rotate_tetr:
             jmp __88ed         ;   return
 
                                ; else
-__88cf:     lda $b5            ; button value
+__88cf:     lda BUTTONS_NEW           ; button value
             and #$40
             cmp #$40           ; $88d3: c9 40  //TODO not necessary?   
             bne __88ed         ; if (button B) !pressed return  
@@ -1284,7 +1296,7 @@ rot_table:  .hex 03  01        ;  Tl  Tr 0 is Tu
 ;-------------------------------------------------------------------------------
 __8914:     lda $4e            ; $8914: a5 4e     
             bpl __8922         ; $8916: 10 0a     
-            lda $b5            ; $8918: a5 b5     
+            lda BUTTONS_NEW           ; $8918: a5 b5     
             and #$04           ; $891a: 29 04     
             beq __8989         ; $891c: f0 6b     
             lda #$00           ; $891e: a9 00     
@@ -1293,7 +1305,7 @@ __8922:     bne __8939         ; $8922: d0 15
             lda $b6            ; $8924: a5 b6     
             and #$03           ; $8926: 29 03     
             bne __8973         ; $8928: d0 49     
-            lda $b5            ; $892a: a5 b5     
+            lda BUTTONS_NEW           ; $892a: a5 b5     
             and #$0f           ; $892c: 29 0f     
             cmp #$04           ; $892e: c9 04     
             bne __8973         ; $8930: d0 41     
@@ -1365,7 +1377,7 @@ shift_tetr: lda TETR_X
             lda $b6            ; $89b2: a5 b6     
             and #$04           ; $89b4: 29 04     
             bne __8a09         ; $89b6: d0 51     
-            lda $b5            ; $89b8: a5 b5     
+            lda BUTTONS_NEW           ; $89b8: a5 b5     
             and #$03           ; $89ba: 29 03     
             bne __89d3         ; $89bc: d0 15     
             lda $b6            ; $89be: a5 b6     
@@ -2954,7 +2966,7 @@ __9a47:     lda N_PLR            ; $9a47: a5 be
             cmp #$03           ; $9a4f: c9 03     
             bcc __9a5e         ; $9a51: 90 0b     
             lda #$80           ; $9a53: a9 80     
-            jsr __a459         ; $9a55: 20 59 a4  
+            jsr Nframe_clear_sprite_ram         ; $9a55: 20 59 a4  
             jsr __9e3a         ; $9a58: 20 3a 9e  
             jmp __9a64         ; $9a5b: 4c 64 9a  
 
@@ -3343,7 +3355,7 @@ __9cf1:     lda #$01           ; $9cf1: a9 01
             lda #$01           ; $9d06: a9 01     
             sta $68            ; $9d08: 85 68     
             sta $88            ; $9d0a: 85 88     
-            jsr __aa2f         ; $9d0c: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $9d0c: 20 2f aa  
             lda #MODE_LEVEL
             sta GAME_MODE            ; $9d11: 85 c0     
             rts                ; $9d13: 60        
@@ -3568,7 +3580,7 @@ __9e49:     ldx $64            ; $9e49: a6 64
             asl                ; $9e66: 0a        
             asl                ; $9e67: 0a        
             sta $ac            ; $9e68: 85 ac     
-            jsr PPU_rendering_off         ; $9e6a: 20 52 aa  
+            jsr frame_PPU_rendering_off         ; $9e6a: 20 52 aa  
             jsr PPU_disableNMI         ; $9e6d: 20 78 aa  
             lda $44            ; $9e70: a5 44     
             cmp #$09           ; $9e72: c9 09     
@@ -3577,7 +3589,7 @@ __9e49:     ldx $64            ; $9e49: a6 64
             jsr MMCsetreg1         ; $9e78: 20 b7 ac  
             lda #$01           ; $9e7b: a9 01     
             jsr MMCsetreg2         ; $9e7d: 20 cb ac  
-            jsr __aa98         ; $9e80: 20 98 aa  
+            jsr process_rom_data         ; $9e80: 20 98 aa  
             ldx $c9            ; $9e83: a6 c9     
             jmp __9ea4         ; $9e85: 4c a4 9e  
 
@@ -3593,15 +3605,15 @@ __9e96:     txa                ; $9e96: 8a
             jsr MMCsetreg1         ; $9e97: 20 b7 ac  
             lda #$02           ; $9e9a: a9 02     
             jsr MMCsetreg2         ; $9e9c: 20 cb ac  
-            jsr __aa98         ; $9e9f: 20 98 aa  
+            jsr process_rom_data         ; $9e9f: 20 98 aa  
             .hex 07 ce         ; $9ea2: 07 ce     Invalid Opcode - SLO $ce
-__9ea4:     jsr __aa98         ; $9ea4: 20 98 aa  
+__9ea4:     jsr process_rom_data         ; $9ea4: 20 98 aa  
             .hex 43 ad         ; $9ea7: 43 ad     Invalid Opcode - SRE ($ad,x)
             jsr __a463         ; $9ea9: 20 63 a4  
             jsr PPU_enableNMI         ; $9eac: 20 6b aa  
-            jsr __aa2f         ; $9eaf: 20 2f aa  
-            jsr __aa5f         ; $9eb2: 20 5f aa  
-            jsr __aa2f         ; $9eb5: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $9eaf: 20 2f aa  
+            jsr frame_PPU_rendering_on         ; $9eb2: 20 5f aa  
+            jsr frame_clear_sprite_ram         ; $9eb5: 20 2f aa  
             lda #$04           ; $9eb8: a9 04     
             sta NMI_FUNC_INDEX            ; $9eba: 85 bd     
             lda #$0a           ; $9ebc: a9 0a     
@@ -3667,7 +3679,7 @@ __9f28:     lda $ac            ; $9f28: a5 ac
             lda #$40           ; $9f40: a9 40     
             jsr __a7fd         ; $9f42: 20 fd a7  
 __9f45:     jsr __a527         ; $9f45: 20 27 a5  
-            jsr __aa2f         ; $9f48: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $9f48: 20 2f aa  
             lda JOY1_RAW            ; $9f4b: a5 f5     
             cmp #BUTTON_START
             bne __9f45         ; $9f4f: d0 f4     
@@ -3760,7 +3772,7 @@ __9ff2:     lda N_PLR            ; $9ff2: a5 be
             jmp __a085         ; $9ff8: 4c 85 a0  
 
 ;-------------------------------------------------------------------------------
-__9ffb:     jsr __aa98         ; $9ffb: 20 98 aa  
+__9ffb:     jsr process_rom_data         ; $9ffb: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex fe            ; $9ffe: fe            Data
@@ -4023,17 +4035,17 @@ __a201:     inc $8000         ; $a201: ee 00 80
             jsr __9e07         ; $a20b: 20 07 9e  
             lda #$02           ; $a20e: a9 02     
             sta NMI_FUNC_INDEX            ; $a210: 85 bd     
-            jsr PPU_rendering_off         ; $a212: 20 52 aa  
+            jsr frame_PPU_rendering_off         ; $a212: 20 52 aa  
             jsr PPU_disableNMI         ; $a215: 20 78 aa  
             lda #$00           ; $a218: a9 00     
             jsr MMCsetreg1         ; $a21a: 20 b7 ac  
             lda #$00           ; $a21d: a9 00     
             jsr MMCsetreg2         ; $a21f: 20 cb ac  
-            jsr __aa98         ; $a222: 20 98 aa  
+            jsr process_rom_data         ; $a222: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex 2b ad         ; $a225: 2b ad         Data
-            jsr __aa98         ; $a227: 20 98 aa  
+            jsr process_rom_data         ; $a227: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex 9d c3         ; $a22a: 9d c3         Data
@@ -4049,9 +4061,9 @@ __a201:     inc $8000         ; $a201: ee 00 80
             lda #$02           ; $a241: a9 02     
             sta NMI_FUNC_INDEX            ; $a243: 85 bd     
             jsr PPU_enableNMI         ; $a245: 20 6b aa  
-            jsr __aa2f         ; $a248: 20 2f aa  
-            jsr __aa5f         ; $a24b: 20 5f aa  
-            jsr __aa2f         ; $a24e: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $a248: 20 2f aa  
+            jsr frame_PPU_rendering_on         ; $a24b: 20 5f aa  
+            jsr frame_clear_sprite_ram         ; $a24e: 20 2f aa  
             lda $d5            ; $a251: a5 d5     
             asl                ; $a253: 0a        
             sta TEMP2            ; $a254: 85 a8     
@@ -4164,11 +4176,11 @@ __a322:     lda $d6            ; $a322: a5 d6
             sta $d7            ; $a32b: 85 d7     
             lda #$80           ; $a32d: a9 80     
             sta $a3            ; $a32f: 85 a3     
-            jsr __aa2f         ; $a331: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $a331: 20 2f aa  
             jmp __a26d         ; $a334: 4c 6d a2  
 
 ;-------------------------------------------------------------------------------
-__a337:     jsr __aa2f         ; $a337: 20 2f aa  
+__a337:     jsr frame_clear_sprite_ram         ; $a337: 20 2f aa  
             rts                ; $a33a: 60        
 
 ;-------------------------------------------------------------------------------
@@ -4240,7 +4252,7 @@ __a3aa:     lda #$05           ; $a3aa: a9 05
             sta $068d          ; $a3ac: 8d 8d 06  
             lda #$00           ; $a3af: a9 00     
             sta NMI_FUNC_INDEX            ; $a3b1: 85 bd     
-            jsr __aa45         ; $a3b3: 20 45 aa  
+            jsr frame_func         ; $a3b3: 20 45 aa  
             lda #$16           ; $a3b6: a9 16     
             sta PPUMASK        ; $a3b8: 8d 01 20  
             lda #$ff           ; $a3bb: a9 ff     
@@ -4257,7 +4269,7 @@ __a3c4:     lda #$70           ; $a3c4: a9 70
             lda JOY1_RAW            ; $a3d3: a5 f5     
             cmp #BUTTON_START
             beq __a3df         ; $a3d7: f0 06     
-            jsr __aa2f         ; $a3d9: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $a3d9: 20 2f aa  
             jmp __a3c4         ; $a3dc: 4c c4 a3  
 
 ;-------------------------------------------------------------------------------
@@ -4295,7 +4307,7 @@ __a411:     lda #$00           ; $a411: a9 00
             lda #$00           ; $a418: a9 00     
             sta NMI_FUNC_INDEX            ; $a41a: 85 bd     
             lda #$80           ; $a41c: a9 80     
-            jsr __a459         ; $a41e: 20 59 a4  
+            jsr Nframe_clear_sprite_ram         ; $a41e: 20 59 a4  
             jsr __9e3a         ; $a421: 20 3a 9e  
             lda #$00           ; $a424: a9 00     
             sta $48            ; $a426: 85 48     
@@ -4317,17 +4329,19 @@ __a42e:     .hex 38 39 39 39   ; $a42e: 38 39 39 39   Data
             .hex 3e 3f 80      ; $a44a: 3e 3f 80      Data
 __a44d:     lda #$14           ; $a44d: a9 14     
             sta COUNTDOWN            ; $a44f: 85 c3     
-__a451:     jsr __aa2f         ; $a451: 20 2f aa  
+__a451:     jsr frame_clear_sprite_ram         ; $a451: 20 2f aa  
             lda COUNTDOWN            ; $a454: a5 c3     
             bne __a451         ; $a456: d0 f9     
             rts                ; $a458: 60        
 
 ;-------------------------------------------------------------------------------
-__a459:     sta COUNTDOWN            ; $a459: 85 c3     
-__a45b:     jsr __aa2f         ; $a45b: 20 2f aa  
-            lda COUNTDOWN            ; $a45e: a5 c3     
-            bne __a45b         ; $a460: d0 f9     
-            rts                ; $a462: 60        
+; arg A - number of frames
+Nframe_clear_sprite_ram:
+            sta COUNTDOWN
+@loop:      jsr frame_clear_sprite_ram
+            lda COUNTDOWN
+            bne @loop
+            rts
 
 ;-------------------------------------------------------------------------------
 __a463:     lda #$00           ; $a463: a9 00     
@@ -4782,7 +4796,7 @@ __a7f3:     .hex 2c 2e 54 32   ; $a7f3: 2c 2e 54 32   Data
             .hex 3a 4b         ; $a7fb: 3a 4b         Data
 __a7fd:     sta COUNTDOWN            ; $a7fd: 85 c3     
 __a7ff:     jsr __a527         ; $a7ff: 20 27 a5  
-            jsr __aa2f         ; $a802: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $a802: 20 2f aa  
             lda COUNTDOWN            ; $a805: a5 c3     
             bne __a7ff         ; $a807: d0 f6     
             rts                ; $a809: 60        
@@ -4861,22 +4875,22 @@ __a821:     .hex 29 21 a5 ff   ; $a821: 29 21 a5 ff   Data
             .hex 46 47 fe 22   ; $a91d: 46 47 fe 22   Data
             .hex ea 56 57 fd   ; $a921: ea 56 57 fd   Data
             .hex fc            ; $a925: fc            Data
-__a926:     jsr PPU_rendering_off         ; $a926: 20 52 aa  
+__a926:     jsr frame_PPU_rendering_off         ; $a926: 20 52 aa  
             jsr PPU_disableNMI         ; $a929: 20 78 aa  
             lda #$02           ; $a92c: a9 02     
             jsr MMCsetreg1         ; $a92e: 20 b7 ac  
             lda #$02           ; $a931: a9 02     
             jsr MMCsetreg2         ; $a933: 20 cb ac  
-            jsr __aa98         ; $a936: 20 98 aa  
+            jsr process_rom_data         ; $a936: 20 98 aa  
             pla                ; $a939: 68        
             .hex d2            ; $a93a: d2        Invalid Opcode - KIL 
-            jsr __aa98         ; $a93b: 20 98 aa  
+            jsr process_rom_data         ; $a93b: 20 98 aa  
             .hex 43 ad         ; $a93e: 43 ad     Invalid Opcode - SRE ($ad,x)
             jsr __a96e         ; $a940: 20 6e a9  
             jsr PPU_enableNMI         ; $a943: 20 6b aa  
-            jsr __aa2f         ; $a946: 20 2f aa  
-            jsr __aa5f         ; $a949: 20 5f aa  
-            jsr __aa2f         ; $a94c: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $a946: 20 2f aa  
+            jsr frame_PPU_rendering_on         ; $a949: 20 5f aa  
+            jsr frame_clear_sprite_ram         ; $a94c: 20 2f aa  
             lda #$04           ; $a94f: a9 04     
             sta NMI_FUNC_INDEX            ; $a951: 85 bd     
             lda #$0a           ; $a953: a9 0a     
@@ -4884,7 +4898,7 @@ __a926:     jsr PPU_rendering_off         ; $a926: 20 52 aa
             lda #$80           ; $a958: a9 80     
             jsr __a7fd         ; $a95a: 20 fd a7  
 __a95d:     jsr __a527         ; $a95d: 20 27 a5  
-            jsr __aa2f         ; $a960: 20 2f aa  
+            jsr frame_clear_sprite_ram         ; $a960: 20 2f aa  
             lda $c5            ; $a963: a5 c5     
             bne __a95d         ; $a965: d0 f6     
             lda JOY1_RAW            ; $a967: a5 f5     
@@ -4992,7 +5006,10 @@ __aa2a:     .hex bf bf bf bf   ; $aa2a: bf bf bf bf   Data
             .hex c7            ; $aa2e: c7            Data
 
 ;-------------------------------------------------------------------------------
-__aa2f:     jsr snd__e000         ; $aa2f: 20 00 e0  
+; waits for vblank
+; set sprite RAM to $ff
+frame_clear_sprite_ram:     
+            jsr snd__e000         ; $aa2f: 20 00 e0  
             lda #$00
             sta VBLANK
             nop
@@ -5005,17 +5022,21 @@ __aa2f:     jsr snd__e000         ; $aa2f: 20 00 e0
             rts
 
 ;-------------------------------------------------------------------------------
-__aa45:     jsr snd__e000         ; $aa45: 20 00 e0  
+; waits for vblank
+frame_func: 
+            jsr snd__e000      ; $aa45: 20 00 e0  
             lda #$00
             sta VBLANK
             nop
-__aa4d:     lda VBLANK
-            beq __aa4d         ; wait for VBLANK
+@loop:      lda VBLANK
+            beq @loop          ; wait for VBLANK
             rts
 
 ;-------------------------------------------------------------------------------
-PPU_rendering_off:
-            jsr __aa45         ; $aa52: 20 45 aa  
+; waits for vblank
+; disable rendering of sprites and background
+frame_PPU_rendering_off:
+            jsr frame_func
             lda vPPUMASK
             and #$e1           ; 11100001 bits unsetset in PPUMASK (show sprites and background)
 __aa59:     sta PPUMASK
@@ -5023,7 +5044,10 @@ __aa59:     sta PPUMASK
             rts
 
 ;-------------------------------------------------------------------------------
-__aa5f:     jsr __aa45         ; $aa5f: 20 45 aa  
+; waits for vblank
+; enable rendering of sprites and background
+frame_PPU_rendering_on:
+            jsr frame_func
             jsr PPU_resetSCROLL
             lda vPPUMASK
             ora #$1e           ; 11110 bits set in PPUMASK (show sprites and background)
@@ -5065,52 +5089,53 @@ PPU_resetSCROLL:
             rts
 
 ;-------------------------------------------------------------------------------
-__aa98:     jsr get_pointer    ; read ROM stored pointer to TEMP1
+process_rom_data:     jsr get_pointer    ; read ROM stored pointer to TEMP1
             jmp __aaf2_entry         ; $aa9b: 4c f2 aa  
 
 ;-------------------------------------------------------------------------------
-__aa9e:     pha                ; $aa9e: 48        
-            sta PPUADDR        ; $aa9f: 8d 06 20  
-            iny                ; $aaa2: c8        
-            lda ($00),y        ; $aaa3: b1 00     
-            sta PPUADDR        ; $aaa5: 8d 06 20  
-            iny                ; $aaa8: c8        
-            lda ($00),y        ; $aaa9: b1 00     
-            asl                ; $aaab: 0a        
-            pha                ; $aaac: 48        
-            lda CTRL            ; $aaad: a5 ff     
-            ora #$04           ; $aaaf: 09 04     
-            bcs __aab5         ; $aab1: b0 02     
-            and #$fb           ; $aab3: 29 fb     
-__aab5:     sta PPUCTRL        ; $aab5: 8d 00 20  
-            sta CTRL            ; $aab8: 85 ff     
-            pla                ; $aaba: 68        
-            asl                ; $aabb: 0a        
-            php                ; $aabc: 08        
-            bcc __aac2         ; $aabd: 90 03     
-            ora #$02           ; $aabf: 09 02     
-            iny                ; $aac1: c8        
-__aac2:     plp                ; $aac2: 28        
-            clc                ; $aac3: 18        
-            bne __aac7         ; $aac4: d0 01     
-            sec                ; $aac6: 38        
-__aac7:     ror                ; $aac7: 6a        
-            lsr                ; $aac8: 4a        
-            tax                ; $aac9: aa        
-@loop:      bcs __aacd         ; $aaca: b0 01     
-            iny                ; $aacc: c8        
-__aacd:     lda ($00),y        ; $aacd: b1 00     
-            sta PPUDATA        ; $aacf: 8d 07 20  
-            dex                ; $aad2: ca        
-            bne @loop         ; $aad3: d0 f5     
-            pla                ; $aad5: 68        
-            cmp #$3f           ; $aad6: c9 3f     
-            bne __aae6         ; $aad8: d0 0c     
-            sta PPUADDR        ; $aada: 8d 06 20  
-            stx PPUADDR        ; $aadd: 8e 06 20  
-            stx PPUADDR        ; $aae0: 8e 06 20  
-            stx PPUADDR        ; $aae3: 8e 06 20
-  
+__aa9e:     pha                ; save high byte PPU address read from TEMP1 pointer
+            sta PPUADDR
+            iny
+            lda (TEMP1),y      ; read next byte from TEMP1 pointer
+            sta PPUADDR        ; set PPU address
+            iny
+            lda (TEMP1),y      ; read next byte from TEMP1 pointer (bit7 VRAM inc line, bit6 ptr inc off, bit 0..5 byte counter)
+            asl                ; A *= 2, bit7 to carry, toggles VRAM address increment
+            pha                ; save A
+            lda CTRL
+            ora #$04           ; VRAM address increment: down
+            bcs @skip
+            and #$fb           ; VRAM address increment: right
+@skip:      sta PPUCTRL        ; set VRAM address increment
+            sta CTRL
+            pla                ; restore A
+            asl                ; A *= 2, original bit 6 to carry
+            php                ; save flags
+            bcc @skip2 
+            ora #$02           ; A: set bit 2, controls increment of TEMP1 ptr
+            iny
+@skip2:     plp                ; restore flags (flags after 2 asl of original A)
+            clc
+            bne @skip3
+            sec                ; if lower 6bits of original A clear set carry else clear
+@skip3:     ror                ; rotate carry to bit 7
+            lsr                ; carry is in bit 6 bits 0..5 are equal to original A, carry is ptr increment flag
+            tax                ; initialize counter
+@loop:      bcs @skip4
+            iny                ; if !carry increment pointer
+@skip4:     lda (TEMP1),y
+            sta PPUDATA
+            dex
+            bne @loop          ; read X bytes from TEMP1 ptr carry controls if ptr is incremented, write to PPUDATA
+            pla                ; restore high byte of PPU address
+            cmp #$3f
+            bne __aae6         ; if pallette address {
+            sta PPUADDR
+            stx PPUADDR        ; set PPU address to $3F00
+            stx PPUADDR
+            stx PPUADDR        ; set PPU address to $0000 //TODO 4 writes to PPUADDR?
+                               ; } endif
+
 __aae6:     sec                ; $aae6: 38        
             tya                ; $aae7: 98        
             adc TEMP1            ; A = Y + 1
@@ -5119,7 +5144,7 @@ __aae6:     sec                ; $aae6: 38
             adc TEMP1+1            ; $aaee: 65 01     
             sta TEMP1+1         ; 
 __aaf2_entry:
-@loop:      ldx PPUSTATUS
+@loop:      ldx PPUSTATUS      ; reset PPU address latch
             ldy #$00           ; Y=0
             lda (TEMP1),y
             bpl @skip
@@ -5150,9 +5175,9 @@ __aaf2_entry:
             bcs @loop          ; end while
 
 ;-------------------------------------------------------------------------------
-; called from __aa98
-; read pointer which is stored at return address of __aa98 caller to TEMP1
-; set return address for __aa98 caller after ROM stored pointer 
+; called from process_rom_data
+; read pointer which is stored at return address of process_rom_data caller to TEMP1
+; set return address for process_rom_data caller after ROM stored pointer 
 get_pointer:
             tsx                ; get stack pointer
             lda $0103,x
@@ -5475,18 +5500,24 @@ MMCsetreg3:
             .hex 35 29 26 0f   ; $ad0b: 35 29 26 0f   Data
             .hex 2c 16 29 0f   ; $ad0f: 2c 16 29 0f   Data
             .hex 3c 00 30 ff   ; $ad13: 3c 00 30 ff   Data
-DATA_FUNC_LEGAL1:
-            .hex 3f 00 10 0f   ; $ad17: 3f 00 10 0f   Data
-            .hex 27 2a 2b 0f   ; $ad1b: 27 2a 2b 0f   Data
-            .hex 3c 2a 22 0f   ; $ad1f: 3c 2a 22 0f   Data
-            .hex 27 2c 29 0f   ; $ad23: 27 2c 29 0f   Data
-            .hex 30 3a 15 ff   ; $ad27: 30 3a 15 ff   Data
-            .hex 3f 00 14 0f   ; $ad2b: 3f 00 14 0f   Data
+
+PALETTE_DATA_FUNC_LEGAL:
+            .hex 3f 00         ; PPU address $3F00 (palette RAM indexes)
+            .hex 10            ; control byte: VRAM line, ptr inc, 16bytes of data
+            .hex 0f 27 2a 2b 0f 3c 2a 22 0f 27 2c 29 0f 30 3a 15 ; 16 bytes of data
+            .hex ff            ; end of data processing
+
+PALETTE_DATA_FUNC_TITLE:
+            .hex 3f 00
+            .hex 14            ; control byte: VRAM line, ptr inc, 20bytes of data
+            .hex 0f
             .hex 30 38 00 0f   ; $ad2f: 30 38 00 0f   Data
             .hex 30 16 00 0f   ; $ad33: 30 16 00 0f   Data
             .hex 30 21 00 0f   ; $ad37: 30 21 00 0f   Data
             .hex 16 2a 28 0f   ; $ad3b: 16 2a 28 0f   Data
-            .hex 30 29 27 ff   ; $ad3f: 30 29 27 ff   Data
+            .hex 30 29 27
+            .hex ff            ; end of data processing
+
             .hex 3f 00 20 12   ; $ad43: 3f 00 20 12   Data
             .hex 0f 29 37 12   ; $ad47: 0f 29 37 12   Data
             .hex 0f 30 27 12   ; $ad4b: 0f 30 27 12   Data
@@ -5519,568 +5550,11 @@ data_ad67:  .hex 08 0f 17 01   ; $ad67: 08 0f 17 01   Data
             .hex 09 05 00 00   ; $adaf: 09 05 00 00   Data
             .hex 09 05 00 00   ; $adb3: 09 05 00 00   Data
             .hex ff            ; $FF marks end of data
-DATA_FUNC_LEGAL2:
-            .hex 20 00 20
-            .hex ff ff ff ff   ; $adbb: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $adbf: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $adc3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $adc7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $adcb: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $adcf: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $add3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $add7: ff ff ff ff   Data
-            .hex 20 20 20 ff   ; $addb: 20 20 20 ff   Data
-            .hex ff ff ff ff   ; $addf: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ade3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ade7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $adeb: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $adef: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $adf3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $adf7: ff ff ff ff   Data
-            .hex ff ff ff 20   ; $adfb: ff ff ff 20   Data
-            .hex 40 20 ff ff   ; $adff: 40 20 ff ff   Data
-            .hex ff ff ff ff   ; $ae03: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae07: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae0b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae0f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae13: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae17: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae1b: ff ff ff ff   Data
-            .hex ff ff 20 60   ; $ae1f: ff ff 20 60   Data
-            .hex 20 ff ff ff   ; $ae23: 20 ff ff ff   Data
-            .hex ff ff ff ff   ; $ae27: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae2b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae2f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae33: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae37: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae3b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae3f: ff ff ff ff   Data
-            .hex ff 20 80 20   ; $ae43: ff 20 80 20   Data
-            .hex ff ff ff ff   ; $ae47: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae4b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae4f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae53: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae57: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae5b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae5f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae63: ff ff ff ff   Data
-            .hex 20 a0 20 ff   ; $ae67: 20 a0 20 ff   Data
-            .hex ff ff ff ff   ; $ae6b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae6f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae73: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae77: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae7b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae7f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ae83: ff ff ff ff   Data
-            .hex ff ff ff 20   ; $ae87: ff ff ff 20   Data
-            .hex c0 20 ff ff   ; $ae8b: c0 20 ff ff   Data
-            .hex ff ff ff ff   ; $ae8f: ff ff ff ff   Data
-            .hex ff ff ff 1d   ; $ae93: ff ff ff 1d   Data
-            .hex 16 ff 0a 17   ; $ae97: 16 ff 0a 17   Data
-            .hex 0d ff f5 ff   ; $ae9b: 0d ff f5 ff   Data
-            .hex 01 09 08 07   ; $ae9f: 01 09 08 07   Data
-            .hex ff ff ff ff   ; $aea3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $aea7: ff ff ff ff   Data
-            .hex ff ff 20 e0   ; $aeab: ff ff 20 e0   Data
-            .hex 20 ff ff ff   ; $aeaf: 20 ff ff ff   Data
-            .hex ff ff ff ff   ; $aeb3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $aeb7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $aebb: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $aebf: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $aec3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $aec7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $aecb: ff ff ff ff   Data
-            .hex ff 21 00 20   ; $aecf: ff 21 00 20   Data
-            .hex ff ff ff ff   ; $aed3: ff ff ff ff   Data
-            .hex ff 1f 4f 18   ; $aed7: ff 1f 4f 18   Data
-            .hex ff 0e 15 0e   ; $aedb: ff 0e 15 0e   Data
-            .hex 0c 1d 1b 18   ; $aedf: 0c 1d 1b 18   Data
-            .hex 17 18 1b 10   ; $aee3: 17 18 1b 10   Data
-            .hex 1d 0e 0c 11   ; $aee7: 1d 0e 0c 11   Data
-            .hex 17 12 0c 0a   ; $aeeb: 17 12 0c 0a   Data
-            .hex ff ff ff ff   ; $aeef: ff ff ff ff   Data
-            .hex 21 20 20 ff   ; $aef3: 21 20 20 ff   Data
-            .hex ff ff ff ff   ; $aef7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $aefb: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $aeff: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af03: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af07: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af0b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af0f: ff ff ff ff   Data
-            .hex ff ff ff 21   ; $af13: ff ff ff 21   Data
-            .hex 40 20 ff ff   ; $af17: 40 20 ff ff   Data
-            .hex ff ff ff ff   ; $af1b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af1f: ff ff ff ff   Data
-            .hex ff 5e 6e 0e   ; $af23: ff 5e 6e 0e   Data
-            .hex 15 18 1b 10   ; $af27: 15 18 1b 10   Data
-            .hex 6e 5f ff ff   ; $af2b: 6e 5f ff ff   Data
-            .hex ff ff ff ff   ; $af2f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af33: ff ff ff ff   Data
-            .hex ff ff 21 60   ; $af37: ff ff 21 60   Data
-            .hex 20 ff ff ff   ; $af3b: 20 ff ff ff   Data
-            .hex ff ff ff ff   ; $af3f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af43: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af47: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af4b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af4f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af53: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af57: ff ff ff ff   Data
-            .hex ff 21 80 20   ; $af5b: ff 21 80 20   Data
-            .hex ff ff ff 1d   ; $af5f: ff ff ff 1d   Data
-            .hex 0e 1d 1b 12   ; $af63: 0e 1d 1b 12   Data
-            .hex 1c ff 15 12   ; $af67: 1c ff 15 12   Data
-            .hex 0c 0e 17 1c   ; $af6b: 0c 0e 17 1c   Data
-            .hex 0e 0d ff 1d   ; $af6f: 0e 0d ff 1d   Data
-            .hex 18 ff 17 12   ; $af73: 18 ff 17 12   Data
-            .hex 17 1d 0e 17   ; $af77: 17 1d 0e 17   Data
-            .hex 0d 18 ff ff   ; $af7b: 0d 18 ff ff   Data
-            .hex 21 a0 20 ff   ; $af7f: 21 a0 20 ff   Data
-            .hex ff ff ff ff   ; $af83: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af87: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af8b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af8f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af93: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af97: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $af9b: ff ff ff ff   Data
-            .hex ff ff ff 21   ; $af9f: ff ff ff 21   Data
-            .hex c0 20 ff ff   ; $afa3: c0 20 ff ff   Data
-            .hex ff ff ff ff   ; $afa7: ff ff ff ff   Data
-            .hex ff f5 ff 01   ; $afab: ff f5 ff 01   Data
-            .hex 09 08 09 ff   ; $afaf: 09 08 09 ff   Data
-            .hex 17 12 17 1d   ; $afb3: 17 12 17 1d   Data
-            .hex 0e 17 0d 18   ; $afb7: 0e 17 0d 18   Data
-            .hex ff ff ff ff   ; $afbb: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $afbf: ff ff ff ff   Data
-            .hex ff ff 21 e0   ; $afc3: ff ff 21 e0   Data
-            .hex 20 ff ff ff   ; $afc7: 20 ff ff ff   Data
-            .hex ff ff ff ff   ; $afcb: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $afcf: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $afd3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $afd7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $afdb: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $afdf: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $afe3: ff ff ff ff   Data
-            .hex ff 22 00 20   ; $afe7: ff 22 00 20   Data
-            .hex ff ff ff ff   ; $afeb: ff ff ff ff   Data
-            .hex ff ff 0a 15   ; $afef: ff ff 0a 15   Data
-            .hex 15 ff 1b 12   ; $aff3: 15 ff 1b 12   Data
-            .hex 10 11 1d 1c   ; $aff7: 10 11 1d 1c   Data
-            .hex ff 1b 0e 1c   ; $affb: ff 1b 0e 1c   Data
-            .hex 0e 1b 1f 0e   ; $afff: 0e 1b 1f 0e   Data
-            .hex 0d ff ff ff   ; $b003: 0d ff ff ff   Data
-            .hex ff ff ff ff   ; $b007: ff ff ff ff   Data
-            .hex 22 20 20 ff   ; $b00b: 22 20 20 ff   Data
-            .hex ff ff ff ff   ; $b00f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b013: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b017: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b01b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b01f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b023: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b027: ff ff ff ff   Data
-            .hex ff ff ff 22   ; $b02b: ff ff ff 22   Data
-            .hex 40 20 ff ff   ; $b02f: 40 20 ff ff   Data
-            .hex ff ff 18 1b   ; $b033: ff ff 18 1b   Data
-            .hex 12 10 12 17   ; $b037: 12 10 12 17   Data
-            .hex 0a 15 ff 0c   ; $b03b: 0a 15 ff 0c   Data
-            .hex 18 17 0c 0e   ; $b03f: 18 17 0c 0e   Data
-            .hex 19 1d 25 0d   ; $b043: 19 1d 25 0d   Data
-            .hex 0e 1c 12 10   ; $b047: 0e 1c 12 10   Data
-            .hex 17 ff ff ff   ; $b04b: 17 ff ff ff   Data
-            .hex ff ff 22 60   ; $b04f: ff ff 22 60   Data
-            .hex 20 ff ff ff   ; $b053: 20 ff ff ff   Data
-            .hex ff ff ff ff   ; $b057: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b05b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b05f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b063: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b067: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b06b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b06f: ff ff ff ff   Data
-            .hex ff 22 80 20   ; $b073: ff 22 80 20   Data
-            .hex ff ff ff ff   ; $b077: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b07b: ff ff ff ff   Data
-            .hex ff ff ff 0a   ; $b07f: ff ff ff 0a   Data
-            .hex 17 0d ff 19   ; $b083: 17 0d ff 19   Data
-            .hex 1b 18 10 1b   ; $b087: 1b 18 10 1b   Data
-            .hex 0a 16 ff ff   ; $b08b: 0a 16 ff ff   Data
-            .hex ff ff ff ff   ; $b08f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b093: ff ff ff ff   Data
-            .hex 22 a0 20 ff   ; $b097: 22 a0 20 ff   Data
-            .hex ff ff ff ff   ; $b09b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b09f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b0a3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b0a7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b0ab: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b0af: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b0b3: ff ff ff ff   Data
-            .hex ff ff ff 22   ; $b0b7: ff ff ff 22   Data
-            .hex c0 20 ff ff   ; $b0bb: c0 20 ff ff   Data
-            .hex ff ff ff ff   ; $b0bf: ff ff ff ff   Data
-            .hex ff 0b 22 ff   ; $b0c3: ff 0b 22 ff   Data
-            .hex 0a 15 0e 21   ; $b0c7: 0a 15 0e 21   Data
-            .hex 0e 22 ff 19   ; $b0cb: 0e 22 ff 19   Data
-            .hex 0a 23 11 12   ; $b0cf: 0a 23 11 12   Data
-            .hex 1d 17 18 1f   ; $b0d3: 1d 17 18 1f   Data
-            .hex ff ff ff ff   ; $b0d7: ff ff ff ff   Data
-            .hex ff ff 22 e0   ; $b0db: ff ff 22 e0   Data
-            .hex 20 ff ff ff   ; $b0df: 20 ff ff ff   Data
-            .hex ff ff ff ff   ; $b0e3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b0e7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b0eb: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b0ef: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b0f3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b0f7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b0fb: ff ff ff ff   Data
-            .hex ff 23 00 20   ; $b0ff: ff 23 00 20   Data
-            .hex ff ff ff ff   ; $b103: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b107: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b10b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b10f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b113: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b117: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b11b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b11f: ff ff ff ff   Data
-            .hex 23 20 20 ff   ; $b123: 23 20 20 ff   Data
-            .hex ff ff ff ff   ; $b127: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b12b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b12f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b133: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b137: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b13b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b13f: ff ff ff ff   Data
-            .hex ff ff ff 23   ; $b143: ff ff ff 23   Data
-            .hex 40 20 ff ff   ; $b147: 40 20 ff ff   Data
-            .hex ff ff ff ff   ; $b14b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b14f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b153: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b157: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b15b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b15f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b163: ff ff ff ff   Data
-            .hex ff ff 23 60   ; $b167: ff ff 23 60   Data
-            .hex 20 ff ff ff   ; $b16b: 20 ff ff ff   Data
-            .hex ff ff ff ff   ; $b16f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b173: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b177: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b17b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b17f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b183: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b187: ff ff ff ff   Data
-            .hex ff 23 80 20   ; $b18b: ff 23 80 20   Data
-            .hex ff ff ff ff   ; $b18f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b193: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b197: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b19b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b19f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b1a3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b1a7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b1ab: ff ff ff ff   Data
-            .hex 23 a0 20 ff   ; $b1af: 23 a0 20 ff   Data
-            .hex ff ff ff ff   ; $b1b3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b1b7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b1bb: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b1bf: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b1c3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b1c7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b1cb: ff ff ff ff   Data
-            .hex ff ff ff 23   ; $b1cf: ff ff ff 23   Data
-            .hex c0 20 ff ff   ; $b1d3: c0 20 ff ff   Data
-            .hex ff ff ff ff   ; $b1d7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b1db: ff ff ff ff   Data
-            .hex ff ff 5f df   ; $b1df: ff ff 5f df   Data
-            .hex ff ff bf 00   ; $b1e3: ff ff bf 00   Data
-            .hex 00 00 00 00   ; $b1e7: 00 00 00 00   Data
-            .hex 00 cc f7 45   ; $b1eb: 00 cc f7 45   Data
-            .hex 5d 1f 0f 03   ; $b1ef: 5d 1f 0f 03   Data
-            .hex 00 0c 23 e0   ; $b1f3: 00 0c 23 e0   Data
-            .hex 20 ff ff ff   ; $b1f7: 20 ff ff ff   Data
-            .hex ff ff ff ff   ; $b1fb: ff ff ff ff   Data
-            .hex ff ff ff bf   ; $b1ff: ff ff ff bf   Data
-            .hex af af af af   ; $b203: af af af af   Data
-            .hex ff ff ff ff   ; $b207: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b20b: ff ff ff ff   Data
-            .hex ff 0f 0f 0f   ; $b20f: ff 0f 0f 0f   Data
-            .hex 0f 0f 0f 0f   ; $b213: 0f 0f 0f 0f   Data
-            .hex 0f ff 20 00   ; $b217: 0f ff 20 00   Data
-            .hex 20 83 90 83   ; $b21b: 20 83 90 83   Data
-            .hex 90 81 83 62   ; $b21f: 90 81 83 62   Data
-            .hex 72 80 81 91   ; $b223: 72 80 81 91   Data
-            .hex 82 90 83 70   ; $b227: 82 90 83 70   Data
-            .hex 71 62 80 41   ; $b22b: 71 62 80 41   Data
-            .hex 83 60 61 62   ; $b22f: 83 60 61 62   Data
-            .hex 62 80 91 62   ; $b233: 62 80 91 62   Data
-            .hex a0 83 80 81   ; $b237: a0 83 80 81   Data
-            .hex 91 20 20 20   ; $b23b: 91 20 20 20   Data
-            .hex 80 a1 62 82   ; $b23f: 80 a1 62 82   Data
-            .hex 80 81 a1 82   ; $b243: 80 81 a1 82   Data
-            .hex 60 61 82 80   ; $b247: 60 61 82 80   Data
-            .hex a1 90 73 90   ; $b24b: a1 90 73 90   Data
-            .hex a1 80 81 91   ; $b24f: a1 80 81 91   Data
-            .hex 70 71 72 40   ; $b253: 70 71 72 40   Data
-            .hex 83 72 72 80   ; $b257: 83 72 72 80   Data
-            .hex 81 81 83 82   ; $b25b: 81 81 83 82   Data
-            .hex 20 40 20 80   ; $b25f: 20 40 20 80   Data
-            .hex 81 a1 80 43   ; $b263: 81 a1 80 43   Data
-            .hex 83 90 83 70   ; $b267: 83 90 83 70   Data
-            .hex 71 80 81 91   ; $b26b: 71 80 81 91   Data
-            .hex 72 62 82 62   ; $b26f: 72 62 82 62   Data
-            .hex 60 61 82 62   ; $b273: 60 61 82 62   Data
-            .hex 80 a1 82 62   ; $b277: 80 a1 82 62   Data
-            .hex 82 a0 83 ff   ; $b27b: 82 a0 83 ff   Data
-            .hex 60 61 62 20   ; $b27f: 60 61 62 20   Data
-            .hex 60 20 90 81   ; $b283: 60 20 90 81   Data
-            .hex 83 62 82 80   ; $b287: 83 62 82 80   Data
-            .hex a1 ff 80 81   ; $b28b: a1 ff 80 81   Data
-            .hex 81 83 82 82   ; $b28f: 81 83 82 82   Data
-            .hex 72 80 42 70   ; $b293: 72 80 42 70   Data
-            .hex 71 90 a1 ff   ; $b297: 71 90 a1 ff   Data
-            .hex ff 80 41 83   ; $b29b: ff 80 41 83   Data
-            .hex ff ff ff 70   ; $b29f: ff ff ff 70   Data
-            .hex 71 40 20 80   ; $b2a3: 71 40 20 80   Data
-            .hex 20 82 62 80   ; $b2a7: 20 82 62 80   Data
-            .hex 41 83 ff ff   ; $b2ab: 41 83 ff ff   Data
-            .hex ff ff ff ff   ; $b2af: ff ff ff ff   Data
-            .hex ff ff 80 a1   ; $b2b3: ff ff 80 a1   Data
-            .hex ff 82 ff ff   ; $b2b7: ff 82 ff ff   Data
-            .hex 82 ff ff ff   ; $b2bb: 82 ff ff ff   Data
-            .hex ff ff ff ff   ; $b2bf: ff ff ff ff   Data
-            .hex ff ff ff 62   ; $b2c3: ff ff ff 62   Data
-            .hex 82 20 a0 20   ; $b2c7: 82 20 a0 20   Data
-            .hex 90 a1 ff ff   ; $b2cb: 90 a1 ff ff   Data
-            .hex ff ff ff ff   ; $b2cf: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b2d3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b2d7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b2db: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b2df: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b2e3: ff ff ff ff   Data
-            .hex ff ff a0 91   ; $b2e7: ff ff a0 91   Data
-            .hex 20 c0 20 82   ; $b2eb: 20 c0 20 82   Data
-            .hex ff ff c3 c4   ; $b2ef: ff ff c3 c4   Data
-            .hex c5 c6 c7 c5   ; $b2f3: c5 c6 c7 c5   Data
-            .hex c8 c9 ca c3   ; $b2f7: c8 c9 ca c3   Data
-            .hex c4 c5 c6 c7   ; $b2fb: c4 c5 c6 c7   Data
-            .hex c5 bc c0 c1   ; $b2ff: c5 bc c0 c1   Data
-            .hex c5 ff cb cc   ; $b303: c5 ff cb cc   Data
-            .hex be bf b0 b1   ; $b307: be bf b0 b1   Data
-            .hex ff 62 82 20   ; $b30b: ff 62 82 20   Data
-            .hex e0 20 90 73   ; $b30f: e0 20 90 73   Data
-            .hex ff d3 d4 d5   ; $b313: ff d3 d4 d5   Data
-            .hex d6 d7 d5 ff   ; $b317: d6 d7 d5 ff   Data
-            .hex d9 da d3 d4   ; $b31b: d9 da d3 d4   Data
-            .hex d5 d6 d7 d5   ; $b31f: d5 d6 d7 d5   Data
-            .hex 9c d0 d1 d5   ; $b323: 9c d0 d1 d5   Data
-            .hex ff e8 e9 ce   ; $b327: ff e8 e9 ce   Data
-            .hex cf ff ff ff   ; $b32b: cf ff ff ff   Data
-            .hex 72 62 21 00   ; $b32f: 72 62 21 00   Data
-            .hex 20 72 ff ff   ; $b333: 20 72 ff ff   Data
-            .hex e3 ff d5 ff   ; $b337: e3 ff d5 ff   Data
-            .hex e7 d5 ff c2   ; $b33b: e7 d5 ff c2   Data
-            .hex ea e3 ff d5   ; $b33f: ea e3 ff d5   Data
-            .hex ff e7 d5 9c   ; $b343: ff e7 d5 9c   Data
-            .hex e0 e1 d5 ff   ; $b347: e0 e1 d5 ff   Data
-            .hex af fd 5c df   ; $b34b: af fd 5c df   Data
-            .hex ff ff ff 72   ; $b34f: ff ff ff 72   Data
-            .hex 72 21 20 20   ; $b353: 72 21 20 20   Data
-            .hex 82 ff ff ff   ; $b357: 82 ff ff ff   Data
-            .hex ff d5 ff ff   ; $b35b: ff d5 ff ff   Data
-            .hex d5 e4 d2 ff   ; $b35f: d5 e4 d2 ff   Data
-            .hex ff ff d5 ff   ; $b363: ff ff d5 ff   Data
-            .hex ff d5 ac f0   ; $b367: ff d5 ac f0   Data
-            .hex f1 d5 ff b3   ; $b36b: f1 d5 ff b3   Data
-            .hex fd 6c 7e ff   ; $b36f: fd 6c 7e ff   Data
-            .hex ff 62 82 72   ; $b373: ff 62 82 72   Data
-            .hex 21 40 20 90   ; $b377: 21 40 20 90   Data
-            .hex 81 83 ff ff   ; $b37b: 81 83 ff ff   Data
-            .hex d5 ff ff d5   ; $b37f: d5 ff ff d5   Data
-            .hex f4 e2 ff ff   ; $b383: f4 e2 ff ff   Data
-            .hex ff d5 ff ff   ; $b387: ff d5 ff ff   Data
-            .hex d5 7c ff ff   ; $b38b: d5 7c ff ff   Data
-            .hex d5 ff 7d 5d   ; $b38f: d5 ff 7d 5d   Data
-            .hex fd a3 ff ff   ; $b393: fd a3 ff ff   Data
-            .hex a0 91 82 21   ; $b397: a0 91 82 21   Data
-            .hex 60 20 82 62   ; $b39b: 60 20 82 62   Data
-            .hex ff ff ff d5   ; $b39f: ff ff ff d5   Data
-            .hex ff ff d5 ff   ; $b3a3: ff ff d5 ff   Data
-            .hex f2 cd ff ff   ; $b3a7: f2 cd ff ff   Data
-            .hex d5 ff ff d5   ; $b3ab: d5 ff ff d5   Data
-            .hex 8c 8d ff d5   ; $b3af: 8c 8d ff d5   Data
-            .hex ff 8c 6d fd   ; $b3b3: ff 8c 6d fd   Data
-            .hex 7f ff ff ff   ; $b3b7: 7f ff ff ff   Data
-            .hex 82 62 21 80   ; $b3bb: 82 62 21 80   Data
-            .hex 20 80 43 83   ; $b3bf: 20 80 43 83   Data
-            .hex ff ff d5 ff   ; $b3c3: ff ff d5 ff   Data
-            .hex ff d5 ff dc   ; $b3c7: ff d5 ff dc   Data
-            .hex dd ff ff d5   ; $b3cb: dd ff ff d5   Data
-            .hex ff ff d5 9c   ; $b3cf: ff ff d5 9c   Data
-            .hex 9d ff d5 ff   ; $b3d3: 9d ff d5 ff   Data
-            .hex 9c 9d 8e 8f   ; $b3d7: 9c 9d 8e 8f   Data
-            .hex ff ff ff 62   ; $b3db: ff ff ff 62   Data
-            .hex 40 21 a0 20   ; $b3df: 40 21 a0 20   Data
-            .hex 83 82 ff ff   ; $b3e3: 83 82 ff ff   Data
-            .hex ff e5 ff ff   ; $b3e7: ff e5 ff ff   Data
-            .hex e5 eb ec ed   ; $b3eb: e5 eb ec ed   Data
-            .hex ff ff e5 ff   ; $b3ef: ff ff e5 ff   Data
-            .hex ff e5 ac ad   ; $b3f3: ff e5 ac ad   Data
-            .hex ae e5 ff ac   ; $b3f7: ae e5 ff ac   Data
-            .hex ad 9e 9f ff   ; $b3fb: ad 9e 9f ff   Data
-            .hex ff ff 72 82   ; $b3ff: ff ff 72 82   Data
-            .hex 21 c0 20 60   ; $b403: 21 c0 20 60   Data
-            .hex 61 ff ff ff   ; $b407: 61 ff ff ff   Data
-            .hex ff ff ff ff   ; $b40b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b40f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b413: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b417: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b41b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b41f: ff ff ff ff   Data
-            .hex ff a0 83 21   ; $b423: ff a0 83 21   Data
-            .hex e0 20 70 71   ; $b427: e0 20 70 71   Data
-            .hex ff ff ff ff   ; $b42b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b42f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b433: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b437: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b43b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b43f: ff ff ff ff   Data
-            .hex ff ff ff 80   ; $b443: ff ff ff 80   Data
-            .hex 81 91 22 00   ; $b447: 81 91 22 00   Data
-            .hex 20 90 73 ff   ; $b44b: 20 90 73 ff   Data
-            .hex ff ff ff ff   ; $b44f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b453: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b457: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b45b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b45f: ff ff ff ff   Data
-            .hex ff 93 ff ff   ; $b463: ff 93 ff ff   Data
-            .hex ff 80 43 83   ; $b467: ff 80 43 83   Data
-            .hex 82 22 20 20   ; $b46b: 82 22 20 20   Data
-            .hex 72 62 ff ff   ; $b46f: 72 62 ff ff   Data
-            .hex ff ff ff ff   ; $b473: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b477: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b47b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b47f: ff ff ff ff   Data
-            .hex ff 55 56 57   ; $b483: ff 55 56 57   Data
-            .hex 58 59 5a ff   ; $b487: 58 59 5a ff   Data
-            .hex ff 82 80 91   ; $b48b: ff 82 80 91   Data
-            .hex 22 40 20 82   ; $b48f: 22 40 20 82   Data
-            .hex a0 91 ff ff   ; $b493: a0 91 ff ff   Data
-            .hex ff ff ff ff   ; $b497: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b49b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b49f: ff ff ff ff   Data
-            .hex ff ff ff 64   ; $b4a3: ff ff ff 64   Data
-            .hex 65 66 67 68   ; $b4a7: 65 66 67 68   Data
-            .hex 69 6a 6b ff   ; $b4ab: 69 6a 6b ff   Data
-            .hex ff 62 72 22   ; $b4af: ff 62 72 22   Data
-            .hex 60 20 81 62   ; $b4b3: 60 20 81 62   Data
-            .hex 82 ff ff ff   ; $b4b7: 82 ff ff ff   Data
-            .hex ff ff ff ff   ; $b4bb: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b4bf: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b4c3: ff ff ff ff   Data
-            .hex ff ff 74 75   ; $b4c7: ff ff 74 75   Data
-            .hex 76 77 78 79   ; $b4cb: 76 77 78 79   Data
-            .hex 7a 7b ff 90   ; $b4cf: 7a 7b ff 90   Data
-            .hex a1 82 22 80   ; $b4d3: a1 82 22 80   Data
-            .hex 20 62 40 83   ; $b4d7: 20 62 40 83   Data
-            .hex ff ff ff ff   ; $b4db: ff ff ff ff   Data
-            .hex 19 1e 1c 11   ; $b4df: 19 1e 1c 11   Data
-            .hex ff 1c 1d 0a   ; $b4e3: ff 1c 1d 0a   Data
-            .hex 1b 1d ff ff   ; $b4e7: 1b 1d ff ff   Data
-            .hex ff 84 85 86   ; $b4eb: ff 84 85 86   Data
-            .hex 87 88 89 8a   ; $b4ef: 87 88 89 8a   Data
-            .hex 8b ff 82 90   ; $b4f3: 8b ff 82 90   Data
-            .hex 73 22 a0 20   ; $b4f7: 73 22 a0 20   Data
-            .hex 72 82 ff ff   ; $b4fb: 72 82 ff ff   Data
-            .hex ff ff ff ff   ; $b4ff: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b503: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b507: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b50b: ff ff ff ff   Data
-            .hex 94 95 96 97   ; $b50f: 94 95 96 97   Data
-            .hex 98 99 9a 9b   ; $b513: 98 99 9a 9b   Data
-            .hex ff ff 72 80   ; $b517: ff ff 72 80   Data
-            .hex 22 c0 20 a0   ; $b51b: 22 c0 20 a0   Data
-            .hex 83 ff ff ff   ; $b51f: 83 ff ff ff   Data
-            .hex ff ff ff ff   ; $b523: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b527: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b52b: ff ff ff ff   Data
-            .hex ff ff ff a4   ; $b52f: ff ff ff a4   Data
-            .hex a5 a6 a7 a8   ; $b533: a5 a6 a7 a8   Data
-            .hex a9 aa ab ff   ; $b537: a9 aa ab ff   Data
-            .hex ff 82 62 22   ; $b53b: ff 82 62 22   Data
-            .hex e0 20 81 81   ; $b53f: e0 20 81 81   Data
-            .hex 83 ff ff ff   ; $b543: 83 ff ff ff   Data
-            .hex ff ff ff ff   ; $b547: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b54b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b54f: ff ff ff ff   Data
-            .hex ff ff b4 b5   ; $b553: ff ff b4 b5   Data
-            .hex b6 b7 b8 b9   ; $b557: b6 b7 b8 b9   Data
-            .hex ba bb ff ff   ; $b55b: ba bb ff ff   Data
-            .hex 90 a1 23 00   ; $b55f: 90 a1 23 00   Data
-            .hex 20 61 62 ff   ; $b563: 20 61 62 ff   Data
-            .hex ff ff ff ff   ; $b567: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b56b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b56f: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b573: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b577: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b57b: ff ff ff ff   Data
-            .hex ff ff ff 82   ; $b57f: ff ff ff 82   Data
-            .hex 62 23 20 20   ; $b583: 62 23 20 20   Data
-            .hex 71 72 ff 80   ; $b587: 71 72 ff 80   Data
-            .hex 43 83 ff ff   ; $b58b: 43 83 ff ff   Data
-            .hex ff f5 ff 01   ; $b58f: ff f5 ff 01   Data
-            .hex 09 08 09 ff   ; $b593: 09 08 09 ff   Data
-            .hex ff f6 f7 f8   ; $b597: ff f6 f7 f8   Data
-            .hex f9 fa fb ff   ; $b59b: f9 fa fb ff   Data
-            .hex ff ff ff ff   ; $b59f: ff ff ff ff   Data
-            .hex ff 80 81 a1   ; $b5a3: ff 80 81 a1   Data
-            .hex 23 40 20 91   ; $b5a7: 23 40 20 91   Data
-            .hex 72 ff ff 82   ; $b5ab: 72 ff ff 82   Data
-            .hex ff ff ff ff   ; $b5af: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b5b3: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b5b7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b5bb: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b5bf: ff ff ff ff   Data
-            .hex ff 62 ff ff   ; $b5c3: ff 62 ff ff   Data
-            .hex ff 60 61 23   ; $b5c7: ff 60 61 23   Data
-            .hex 60 20 82 82   ; $b5cb: 60 20 82 82   Data
-            .hex 62 ff ff ff   ; $b5cf: 62 ff ff ff   Data
-            .hex 80 91 ff ff   ; $b5d3: 80 91 ff ff   Data
-            .hex ff ff 62 80   ; $b5d7: ff ff 62 80   Data
-            .hex 81 91 ff 90   ; $b5db: 81 91 ff 90   Data
-            .hex 73 90 83 62   ; $b5df: 73 90 83 62   Data
-            .hex ff 62 62 80   ; $b5e3: ff 62 62 80   Data
-            .hex 42 90 81 83   ; $b5e7: 42 90 81 83   Data
-            .hex 70 71 23 80   ; $b5eb: 70 71 23 80   Data
-            .hex 20 60 61 40   ; $b5ef: 20 60 61 40   Data
-            .hex 83 ff 62 62   ; $b5f3: 83 ff 62 62   Data
-            .hex a0 83 80 43   ; $b5f7: a0 83 80 43   Data
-            .hex 83 72 80 91   ; $b5fb: 83 72 80 91   Data
-            .hex 82 62 72 80   ; $b5ff: 82 62 72 80   Data
-            .hex a1 80 42 90   ; $b603: a1 80 42 90   Data
-            .hex a1 a0 91 82   ; $b607: a1 a0 91 82   Data
-            .hex 82 62 80 91   ; $b60b: 82 62 80 91   Data
-            .hex 80 23 a0 20   ; $b60f: 80 23 a0 20   Data
-            .hex 70 71 82 80   ; $b613: 70 71 82 80   Data
-            .hex 81 a1 a0 81   ; $b617: 81 a1 a0 81   Data
-            .hex 83 62 82 80   ; $b61b: 83 62 82 80   Data
-            .hex a1 62 72 80   ; $b61f: a1 62 72 80   Data
-            .hex 42 82 90 81   ; $b623: 42 82 90 81   Data
-            .hex 83 82 82 60   ; $b627: 83 82 82 60   Data
-            .hex 61 82 62 80   ; $b62b: 61 82 62 80   Data
-            .hex 41 83 a0 83   ; $b62f: 41 83 a0 83   Data
-            .hex 23 c0 20 aa   ; $b633: 23 c0 20 aa   Data
-            .hex aa aa aa aa   ; $b637: aa aa aa aa   Data
-            .hex aa aa aa ea   ; $b63b: aa aa aa ea   Data
-            .hex fa fa fa fa   ; $b63f: fa fa fa fa   Data
-            .hex fa fa ba a6   ; $b643: fa fa ba a6   Data
-            .hex a5 a5 a5 a5   ; $b647: a5 a5 a5 a5   Data
-            .hex a5 a5 aa 2a   ; $b64b: a5 a5 aa 2a   Data
-            .hex 00 00 00 00   ; $b64f: 00 00 00 00   Data
-            .hex 00 00 aa 23   ; $b653: 00 00 aa 23   Data
-            .hex e0 20 a2 00   ; $b657: e0 20 a2 00   Data
-            .hex 00 00 00 ff   ; $b65b: 00 00 00 ff   Data
-            .hex ff aa aa 00   ; $b65f: ff aa aa 00   Data
-            .hex 00 00 00 ff   ; $b663: 00 00 00 ff   Data
-            .hex ff aa aa a2   ; $b667: ff aa aa a2   Data
-            .hex a7 a5 a0 a0   ; $b66b: a7 a5 a0 a0   Data
-            .hex a0 aa 0a 0a   ; $b66f: a0 aa 0a 0a   Data
-            .hex 0a 0a 0a 0a   ; $b673: 0a 0a 0a 0a   Data
-            .hex 0a 0a ff 20   ; $b677: 0a 0a ff 20   Data
+
+INCLUDE	legal_screen.as6
+INCLUDE title_screen.as6
+
+            .hex 20   ; $b677: 0a 0a ff 20   Data
             .hex 00 20 62 90   ; $b67b: 00 20 62 90   Data
             .hex 73 80 41 83   ; $b67f: 73 80 41 83   Data
             .hex 62 72 80 61   ; $b683: 62 72 80 61   Data
@@ -11020,7 +10494,7 @@ __f8e2:     .hex 5a b1 56 b0   ; $f8e2: 5a b1 56 b0   Data
             .hex 5a 56 56 54   ; $f916: 5a 56 56 54   Data
             .hex 56 50 56 4c   ; $f91a: 56 50 56 4c   Data
             .hex 54 00         ; $f91e: 54 00         Data
-__f920:     .hex c6 b0 04 04   ; $f920: c6 b0 04 04   Data
+            .hex c6 b0 04 04   ; $f920: c6 b0 04 04   Data
             .hex 0a 04 ff b1   ; $f924: 0a 04 ff b1   Data
             .hex 04 0a b0 04   ; $f928: 04 0a b0 04   Data
             .hex 04 b1 0a 00   ; $f92c: 04 b1 0a 00   Data
@@ -11498,7 +10972,7 @@ __ff0f:     lda PPUSTATUS      ;
             brk                ; $ffa2: 00        
             brk                ; $ffa3: 00        
             brk                ; $ffa4: 00        
-__ffa5:     .hex 00 00 00 00   ; $ffa5: 00 00 00 00   Data
+            .hex 00 00 00 00   ; $ffa5: 00 00 00 00   Data
             .hex 00 00 00 00   ; $ffa9: 00 00 00 00   Data
             .hex 00 00 00 00   ; $ffad: 00 00 00 00   Data
             .hex 00 00 00 00   ; $ffb1: 00 00 00 00   Data
