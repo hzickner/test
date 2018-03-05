@@ -245,7 +245,7 @@ skip_d700init:
             lda #$01
             sta N_PLR
             lda #$00           ; $8134: a9 00     
-            sta $b2            ; $8136: 85 b2     
+            sta FRAMECOUNT+1            ; $8136: 85 b2     
 @mainloop:  jsr table_jump_game_mode
             cmp $a7            ; $813b: c5 a7     
             bne @skip1         ; $813d: d0 03     
@@ -259,7 +259,7 @@ skip_d700init:
             lda #$dd           ; $814e: a9 dd     
             sta $d2            ; $8150: 85 d2     
             lda #$00           ; $8152: a9 00     
-            sta $b2            ; $8154: 85 b2     
+            sta FRAMECOUNT+1            ; $8154: 85 b2     
             lda #MODE_TITLE
             sta GAME_MODE      ;  set GAME_MODE to MODE_TITLE
                                ; } endif     
@@ -277,7 +277,7 @@ table_jump_game_mode:
 
 ;-------------------------------------------------------------------------------
 ; jump table used by table_jump_game_mode
-            DW mode_func_legal, mode_func_title, mode_func_type, mode_func_level, mode_func_gamedemo, mode_func_gamedemo, mode_func_6
+            DW mode_func_legal, mode_func_title, mode_func_type, mode_func_level, mode_func_gamedemo, mode_func_gamedemo, mode_func_setup_demo
 ; end of jump table
 
 ;-------------------------------------------------------------------------------
@@ -397,6 +397,9 @@ mode_func_legal:
 
 ;-------------------------------------------------------------------------------
 ; display title screen
+; exit to game type selection with start
+; exit to MODE_SETUP_DEMO after timeout (17s-21s NTSC)
+; $824F
 mode_func_title:
             jsr snd_reset_call
             lda #$00
@@ -424,27 +427,28 @@ mode_func_title:
             ldx #$02
             ldy #$02
             jsr memset         ; clear sprite data //TODO why?
-            lda #$00           ; $8289: a9 00     
-            sta $b2            ; $828b: 85 b2     
-@loop:      jsr frame_clear_sprite_ram         ; title screen loop
-            lda JOY1_RAW            ; $8290: a5 f5     
+            lda #$00
+            sta FRAMECOUNT+1   ; reset high byte of frame counter     
+                               ; title screen loop
+@loop:      jsr frame_clear_sprite_ram
+            lda JOY1_RAW
             cmp #BUTTON_START
-            beq @skip1         ; $8294: f0 09     
-            lda $b2            ; $8296: a5 b2     
-            cmp #$05           ; $8298: c9 05     
-            beq @skip2         ; $829a: f0 0b     
+            beq @skip1
+            lda FRAMECOUNT+1
+            cmp #$05
+            beq @skip2
             jmp @loop          ; end of title screen loop
 
 @skip1:     lda #$02           ; $829f: a9 02     
             sta $06f1          ; sound related?
-            inc GAME_MODE            ; $82a4: e6 c0     
-            rts                ; exit to game type selection
+            inc GAME_MODE
+            rts                ; exit to game type selection after start is pressed
 
 @skip2:     lda #$02           ; $82a7: a9 02     
             sta $06f1          ; sound related?
-            lda #$06           ; $82ac: a9 06     
-            sta GAME_MODE            ; $82ae: 85 c0     
-            rts                ; exit to GAME_MODE_6
+            lda #MODE_SETUP_DEMO
+            sta GAME_MODE
+            rts                ; exit to MODE_SETUP_DEMO after about 5*256 frames
 
 ;-------------------------------------------------------------------------------
 ; function 00 called by table_jump_nmi
@@ -556,7 +560,7 @@ __8377:     lda JOY1_RAW            ; $8377: a5 f5
             lda #$02           ; $837d: a9 02     
             sta $06f1          ; $837f: 8d f1 06  
             lda #$00           ; $8382: a9 00     
-            sta $b2            ; $8384: 85 b2     
+            sta FRAMECOUNT+1            ; $8384: 85 b2     
             dec GAME_MODE            ; $8386: c6 c0     
             rts                ; $8388: 60        
 
@@ -3449,7 +3453,7 @@ __9da2:     rts                ; $9da2: 60
 __9da3:     lda #$dd           ; $9da3: a9 dd     
             sta $d2            ; $9da5: 85 d2     
             lda #$00           ; $9da7: a9 00     
-            sta $b2            ; $9da9: 85 b2     
+            sta FRAMECOUNT+1            ; $9da9: 85 b2     
             lda #MODE_TITLE
             sta GAME_MODE            ; $9dad: 85 c0     
             rts                ; $9daf: 60        
@@ -3499,7 +3503,7 @@ __9de8:     lda $d1            ; $9de8: a5 d1
             rts                ; $9df5: 60        
 
 ;-------------------------------------------------------------------------------
-mode_func_6:
+mode_func_setup_demo:
             lda #$00           ; $9df6: a9 00     
             sta $c1            ; $9df8: 85 c1     
             sta $67            ; $9dfa: 85 67     

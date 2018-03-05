@@ -1,6 +1,7 @@
 TITLE_SCREEN_DATA:
-            .hex 20 00   ; $b217: 0f ff 20 00   Data
-            .hex 20 83 90 83   ; $b21b: 20 83 90 83   Data
+            .hex 20 00         ; PPU address $2000 (screen0, line 0)
+            .hex 20            ; control byte: VRAM line, ptr inc, 32bytes of data
+            .hex 83 90 83   ; $b21b: 20 83 90 83   Data
             .hex 90 81 83 62   ; $b21f: 90 81 83 62   Data
             .hex 72 80 81 91   ; $b223: 72 80 81 91   Data
             .hex 82 90 83 70   ; $b227: 82 90 83 70   Data
@@ -8,7 +9,9 @@ TITLE_SCREEN_DATA:
             .hex 83 60 61 62   ; $b22f: 83 60 61 62   Data
             .hex 62 80 91 62   ; $b233: 62 80 91 62   Data
             .hex a0 83 80 81   ; $b237: a0 83 80 81   Data
-            .hex 91 20 20 20   ; $b23b: 91 20 20 20   Data
+            .hex 91 
+            .hex 20 20         ; PPU address (screen0, line 1)
+            .hex 20
             .hex 80 a1 62 82   ; $b23f: 80 a1 62 82   Data
             .hex 80 81 a1 82   ; $b243: 80 81 a1 82   Data
             .hex 60 61 82 80   ; $b247: 60 61 82 80   Data
@@ -17,7 +20,9 @@ TITLE_SCREEN_DATA:
             .hex 70 71 72 40   ; $b253: 70 71 72 40   Data
             .hex 83 72 72 80   ; $b257: 83 72 72 80   Data
             .hex 81 81 83 82   ; $b25b: 81 81 83 82   Data
-            .hex 20 40 20 80   ; $b25f: 20 40 20 80   Data
+            .hex 20 40
+            .hex 20
+            .hex 80   ; $b25f: 20 40 20 80   Data
             .hex 81 a1 80 43   ; $b263: 81 a1 80 43   Data
             .hex 83 90 83 70   ; $b267: 83 90 83 70   Data
             .hex 71 80 81 91   ; $b26b: 71 80 81 91   Data
@@ -25,8 +30,10 @@ TITLE_SCREEN_DATA:
             .hex 60 61 82 62   ; $b273: 60 61 82 62   Data
             .hex 80 a1 82 62   ; $b277: 80 a1 82 62   Data
             .hex 82 a0 83 ff   ; $b27b: 82 a0 83 ff   Data
-            .hex 60 61 62 20   ; $b27f: 60 61 62 20   Data
-            .hex 60 20 90 81   ; $b283: 60 20 90 81   Data
+            .hex 60 61 62
+            .hex 20 60
+            .hex 20
+            .hex 90 81   ; $b283: 60 20 90 81   Data
             .hex 83 62 82 80   ; $b287: 83 62 82 80   Data
             .hex a1 ff 80 81   ; $b28b: a1 ff 80 81   Data
             .hex 81 83 82 82   ; $b28f: 81 83 82 82   Data
@@ -270,8 +277,10 @@ TITLE_SCREEN_DATA:
             .hex a5 a5 a5 a5   ; $b647: a5 a5 a5 a5   Data
             .hex a5 a5 aa 2a   ; $b64b: a5 a5 aa 2a   Data
             .hex 00 00 00 00   ; $b64f: 00 00 00 00   Data
-            .hex 00 00 aa 23   ; $b653: 00 00 aa 23   Data
-            .hex e0 20 a2 00   ; $b657: e0 20 a2 00   Data
+            .hex 00 00 aa
+            .hex 23 e0
+            .hex 20
+            .hex a2 00   ; $b657: e0 20 a2 00   Data
             .hex 00 00 00 ff   ; $b65b: 00 00 00 ff   Data
             .hex ff aa aa 00   ; $b65f: ff aa aa 00   Data
             .hex 00 00 00 ff   ; $b663: 00 00 00 ff   Data
