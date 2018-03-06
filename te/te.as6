@@ -29,6 +29,8 @@ BUTTONS              = $b6      ; bits for buttons pressed A B Select Start Up D
 NMI_FUNC_INDEX       = $bd      ; index of function called from NMI
 N_PLR                = $be      ; number of players 1 or 2, only 1 supported
 GAME_MODE            = $c0      ; current game mode
+SEL_TYPE             = $c1      ; selected game type A or B
+SEL_MUSIC            = $c2      ; selected music (1-3,off)
 COUNTDOWN            = $c3      ; ticks down to 0 every frame
 PTR                  = $e6      ; 2 byte pointer
 P6INDEX              = $ed      ; values 0..4 used to access mem in page 6
@@ -60,6 +62,7 @@ PLAYFIELD            = $0400
 ; page 6
 ; sound related
 ; $068a $068c $069c $06c8-$06ca $06f8-$06fd
+sndMUSIC             = $06f5
 
 ; page 7
 ; $700-$754
@@ -208,7 +211,6 @@ skip_d700init:
             sta PPUCTRL        ; set PPUCTRL to 10010000  (NMI enabled, background table $1000)
             lda #$06           ; $80d8: a9 06     
             sta PPUMASK        ; set PPUMASK 110
-;//TODO continue
             jsr APU_init
             jsr snd_reset_call         ; //TODO necessary? calls part of APU_init again
             lda #$c0
@@ -414,7 +416,7 @@ mode_func_title:
             jsr MMCsetreg2
 
             jsr process_rom_data
-            DW PALETTE_DATA_FUNC_TITLE
+            DW PALETTE_DATA_MODE1_2
             
             jsr process_rom_data
             DW TITLE_SCREEN_DATA
@@ -467,90 +469,92 @@ PPU_reset_nametable_scrolling:
 ;-------------------------------------------------------------------------------
             lda #$00           ; $82c4: a9 00     
             sta $64            ; $82c6: 85 64     
-            lda #$00           ; $82c8: a9 00     
-            sta $c1            ; $82ca: 85 c1     
+            lda #TYPE_A           ; $82c8: a9 00     
+            sta SEL_TYPE            ; $82ca: 85 c1     
             lda #$04           ; $82cc: a9 04     
             lda GAME_MODE            ; $82ce: a5 c0     
             rts                ; $82d0: 60        
 
 ;-------------------------------------------------------------------------------
+; game type selection
 mode_func_type:
-            inc main2          ; $82d1: ee 00 80  ; ROM write
-            lda #$10           ; $82d4: a9 10     
-            jsr MMCsetreg0         ; $82d6: 20 a3 ac  
-            lda #$01           ; $82d9: a9 01     
-            sta NMI_FUNC_INDEX            ; $82db: 85 bd     
-            jsr frame_PPU_rendering_off         ; $82dd: 20 52 aa  
-            jsr PPU_disableNMI         ; $82e0: 20 78 aa  
-            jsr process_rom_data         ; $82e3: 20 98 aa  
+            inc $8000          ; $82d1: ee 00 80  ; ROM write
+            lda #%10000        ; mirrorring: one screen; PRG: 32K $8000 siwitchable at $C000; CHR: switch 2 4K banks
+            jsr MMCsetreg0
+            lda #$01           ; set nmi function for this mode (write PPUCTRL with nametable 0, write scroll regs with 0)
+            sta NMI_FUNC_INDEX
+            jsr frame_PPU_rendering_off
+            jsr PPU_disableNMI
 
-;-------------------------------------------------------------------------------
-            .hex 2b ad         ; $82e6: 2b ad         Data
-            jsr process_rom_data         ; $82e8: 20 98 aa  
+            jsr process_rom_data
+            DW PALETTE_DATA_MODE1_2
+            
+            jsr process_rom_data
+            DW TYPE_SCREEN_DATA
 
-;-------------------------------------------------------------------------------
-            .hex 7a b6         ; $82eb: 7a b6         Data
-            lda #$00           ; $82ed: a9 00     
-            jsr MMCsetreg1         ; $82ef: 20 b7 ac  
-            lda #$00           ; $82f2: a9 00     
-            jsr MMCsetreg2         ; $82f4: 20 cb ac  
-            jsr PPU_enableNMI         ; $82f7: 20 6b aa  
-            jsr frame_clear_sprite_ram         ; $82fa: 20 2f aa  
-            jsr frame_PPU_rendering_on         ; $82fd: 20 5f aa  
-            jsr frame_clear_sprite_ram         ; $8300: 20 2f aa  
-            ldx $c2            ; $8303: a6 c2     
-            lda __85d2,x       ; $8305: bd d2 85  
-            jsr __9e07         ; $8308: 20 07 9e  
-__830b:     lda #$ff           ; $830b: a9 ff     
-            ldx #$02           ; $830d: a2 02     
-            ldy #$02           ; $830f: a0 02     
+            lda #$00
+            jsr MMCsetreg1     ; CHR0 bank
+            lda #$00
+            jsr MMCsetreg2     ; CHR1 bank
+            jsr PPU_enableNMI
+            jsr frame_clear_sprite_ram
+            jsr frame_PPU_rendering_on
+            jsr frame_clear_sprite_ram
+            ldx SEL_MUSIC            ; $8303: a6 c2     
+            lda MUSIC_TABLE,x       ; $8305: bd d2 85  
+            jsr snd_setMUSIC         ; $8308: 20 07 9e
+  
+loop__830b: lda #$ff
+            ldx #$02
+            ldy #$02
             jsr memset         ; set sprite data to $ff
-            lda JOY1_RAW            ; $8314: a5 f5     
+            lda JOY1_RAW
             cmp #BUTTON_R
-            bne __8326         ; $8318: d0 0c     
-            lda #$01           ; $831a: a9 01     
-            sta $c1            ; $831c: 85 c1     
+            bne skip1          ; if (BUTTON_R) {
+            lda #TYPE_B           ; $831a: a9 01     
+            sta SEL_TYPE            ; $831c: 85 c1     
             lda #$01           ; $831e: a9 01     
             sta $06f1          ; $8320: 8d f1 06  
-            jmp __8335         ; $8323: 4c 35 83  
+            jmp skip2          ; $8323: 4c 35 83  
 
 ;-------------------------------------------------------------------------------
-__8326:     lda JOY1_RAW            ; $8326: a5 f5     
+skip1:      lda JOY1_RAW            ; $8326: a5 f5     
             cmp #BUTTON_L
-            bne __8335         ; $832a: d0 09     
-            lda #$00           ; $832c: a9 00     
-            sta $c1            ; $832e: 85 c1     
+            bne skip2          ; } else if (BUTTON_L) {
+            lda #TYPE_A           ; $832c: a9 00     
+            sta SEL_TYPE            ; $832e: 85 c1     
             lda #$01           ; $8330: a9 01     
-            sta $06f1          ; $8332: 8d f1 06  
-__8335:     lda JOY1_RAW            ; $8335: a5 f5     
+            sta $06f1          ; $8332: 8d f1 06
+                               ; } endif  
+skip2:      lda JOY1_RAW            ; $8335: a5 f5     
             cmp #BUTTON_D
-            bne __8350         ; $8339: d0 15     
+            bne skip3         ; $8339: d0 15     
             lda #$01           ; $833b: a9 01     
             sta $06f1          ; $833d: 8d f1 06  
-            lda $c2            ; $8340: a5 c2     
+            lda SEL_MUSIC            ; $8340: a5 c2     
             cmp #$03           ; $8342: c9 03     
-            beq __8369         ; $8344: f0 23     
-            inc $c2            ; $8346: e6 c2     
-            ldx $c2            ; $8348: a6 c2     
-            lda __85d2,x       ; $834a: bd d2 85  
-            jsr __9e07         ; $834d: 20 07 9e  
-__8350:     lda JOY1_RAW            ; $8350: a5 f5     
+            beq skip4         ; $8344: f0 23     
+            inc SEL_MUSIC            ; $8346: e6 c2     
+            ldx SEL_MUSIC            ; $8348: a6 c2     
+            lda MUSIC_TABLE,x       ; $834a: bd d2 85  
+            jsr snd_setMUSIC         ; $834d: 20 07 9e  
+skip3:      lda JOY1_RAW            ; $8350: a5 f5     
             cmp #BUTTON_U
-            bne __8369         ; $8354: d0 13     
+            bne skip4         ; $8354: d0 13     
             lda #$01           ; $8356: a9 01     
             sta $06f1          ; $8358: 8d f1 06  
-            lda $c2            ; $835b: a5 c2     
-            beq __8369         ; $835d: f0 0a     
-            dec $c2            ; $835f: c6 c2     
-            ldx $c2            ; $8361: a6 c2     
-            lda __85d2,x       ; $8363: bd d2 85  
-            jsr __9e07         ; $8366: 20 07 9e  
-__8369:     lda JOY1_RAW            ; $8369: a5 f5     
+            lda SEL_MUSIC            ; $835b: a5 c2     
+            beq skip4         ; $835d: f0 0a     
+            dec SEL_MUSIC            ; $835f: c6 c2     
+            ldx SEL_MUSIC            ; $8361: a6 c2     
+            lda MUSIC_TABLE,x       ; $8363: bd d2 85  
+            jsr snd_setMUSIC         ; $8366: 20 07 9e  
+skip4:      lda JOY1_RAW            ; $8369: a5 f5     
             cmp #BUTTON_START
             bne __8377         ; $836d: d0 08     
             lda #$02           ; $836f: a9 02     
             sta $06f1          ; $8371: 8d f1 06  
-            inc GAME_MODE            ; $8374: e6 c0     
+            inc GAME_MODE      ; go to level selection
             rts                ; $8376: 60        
 
 ;-------------------------------------------------------------------------------
@@ -561,12 +565,12 @@ __8377:     lda JOY1_RAW            ; $8377: a5 f5
             sta $06f1          ; $837f: 8d f1 06  
             lda #$00           ; $8382: a9 00     
             sta FRAMECOUNT+1            ; $8384: 85 b2     
-            dec GAME_MODE            ; $8386: c6 c0     
+            dec GAME_MODE      ; go back to title screen
             rts                ; $8388: 60        
 
 ;-------------------------------------------------------------------------------
 __8389:     ldy #$00           ; $8389: a0 00     
-            lda $c1            ; $838b: a5 c1     
+            lda SEL_TYPE            ; $838b: a5 c1     
             asl                ; $838d: 0a        
             sta TEMP2            ; $838e: 85 a8     
             asl                ; $8390: 0a        
@@ -588,7 +592,7 @@ __8389:     ldy #$00           ; $8389: a0 00
             lda #$02           ; $83aa: a9 02     
             sta $a2            ; $83ac: 85 a2     
 __83ae:     jsr __8c27         ; $83ae: 20 27 8c  
-            lda $c2            ; $83b1: a5 c2     
+            lda SEL_MUSIC            ; $83b1: a5 c2     
             asl                ; $83b3: 0a        
             asl                ; $83b4: 0a        
             asl                ; $83b5: 0a        
@@ -607,7 +611,7 @@ __83ae:     jsr __8c27         ; $83ae: 20 27 8c
             sta $a2            ; $83cc: 85 a2     
 __83ce:     jsr __8c27         ; $83ce: 20 27 8c  
             jsr frame_clear_sprite_ram         ; $83d1: 20 2f aa  
-            jmp __830b         ; $83d4: 4c 0b 83  
+            jmp loop__830b         ; $83d4: 4c 0b 83  
 
 ;-------------------------------------------------------------------------------
 mode_func_level:
@@ -631,7 +635,7 @@ mode_func_level:
 
 ;-------------------------------------------------------------------------------
             .hex db ba         ; $83fe: db ba         Data
-            lda $c1            ; $8400: a5 c1     
+            lda SEL_TYPE            ; $8400: a5 c1     
             bne __8409         ; $8402: d0 05     
             jsr process_rom_data         ; $8404: 20 98 aa  
 
@@ -800,7 +804,7 @@ __8534:     lda $59            ; $8534: a5 59
             dec $59            ; $853a: c6 59     
             dec $59            ; $853c: c6 59     
             dec $59            ; $853e: c6 59     
-__8540:     lda $c1            ; $8540: a5 c1     
+__8540:     lda SEL_TYPE            ; $8540: a5 c1     
             beq __8555         ; $8542: f0 11     
             lda BUTTONS_NEW           ; $8544: a5 b5     
             cmp #$80           ; $8546: c9 80     
@@ -831,7 +835,7 @@ __855f:     ldx $47            ; $855f: a6 47
             adc #ST_LINES           ; $857a: 69 50     
             sta $a1            ; $857c: 85 a1     
 __857e:     jsr __8c27         ; $857e: 20 27 8c  
-__8581:     lda $c1            ; $8581: a5 c1     
+__8581:     lda SEL_TYPE            ; $8581: a5 c1     
             beq __85b1         ; $8583: f0 2c     
             lda $ad            ; $8585: a5 ad     
             beq __858f         ; $8587: f0 06     
@@ -867,14 +871,21 @@ __85c6:     .hex 53 53 53 63   ; $85c6: 53 53 53 63   Data
             .hex 63 63         ; $85ca: 63 63         Data
 __85cc:     .hex 9c ac bc 9c   ; $85cc: 9c ac bc 9c   Data
             .hex ac bc         ; $85d0: ac bc         Data
-__85d2:     .hex 03 04 05 ff   ; $85d2: 03 04 05 ff   Data
+
+;-------------------------------------------------------------------------------
+; music table
+MUSIC_TABLE:     .hex 03 04 05 ff   ; values for sndMUSIC (1 2 3 off)
+; end of music table
+
+
             .hex 06 07 08 ff   ; $85d6: 06 07 08 ff   Data
 
 ;-------------------------------------------------------------------------------
 ; function 01 called by table_jump_nmi
+; //TODO almost identical to PPU_reset_nametable_scrolling
 PPU_reset_scrolling:
             lda CTRL
-            and #$fc           ; 11111100 reset bit 1,2 of CTRL variable
+            and #$fc           ; nametable 0
             sta CTRL
             sta PPUCTRL
             lda #$00
@@ -903,7 +914,7 @@ PPU_reset_scrolling:
             sta PPUADDR        ; $860c: 8d 06 20  
             lda #$83           ; $860f: a9 83     
             sta PPUADDR        ; $8611: 8d 06 20  
-            lda $c1            ; $8614: a5 c1     
+            lda SEL_TYPE            ; $8614: a5 c1     
             bne __863c         ; $8616: d0 24     
             lda #$0a           ; $8618: a9 0a     
             sta PPUDATA        ; $861a: 8d 07 20  
@@ -1046,7 +1057,7 @@ __86e9:     sta $03ef,x        ; $86e9: 9d ef 03
             jsr __98eb         ; $8750: 20 eb 98  
             sta $bf            ; $8753: 85 bf     
             sta $a6            ; $8755: 85 a6     
-            lda $c1            ; $8757: a5 c1     
+            lda SEL_TYPE            ; $8757: a5 c1     
             beq __8761         ; $8759: f0 06     
             lda #$25           ; $875b: a9 25     
             sta $70            ; $875d: 85 70     
@@ -1055,9 +1066,9 @@ __8761:     lda #$47           ; $8761: a9 47
             sta $a3            ; $8763: 85 a3     
             jsr frame_clear_sprite_ram         ; $8765: 20 2f aa  
             jsr __87dc         ; $8768: 20 dc 87  
-            ldx $c2            ; $876b: a6 c2     
-            lda __85d2,x       ; $876d: bd d2 85  
-            jsr __9e07         ; $8770: 20 07 9e  
+            ldx SEL_MUSIC            ; $876b: a6 c2     
+            lda MUSIC_TABLE,x       ; $876d: bd d2 85  
+            jsr snd_setMUSIC         ; $8770: 20 07 9e  
             inc $a7            ; $8773: e6 a7     
             rts                ; $8775: 60        
 
@@ -1125,7 +1136,7 @@ __87ca:     lda $40,x          ; $87ca: b5 40
             rts                ; $87db: 60        
 
 ;-------------------------------------------------------------------------------
-__87dc:     lda $c1            ; $87dc: a5 c1     
+__87dc:     lda SEL_TYPE            ; $87dc: a5 c1     
             bne __87e3         ; $87de: d0 03     
             jmp __8875         ; $87e0: 4c 75 88  
 
@@ -3141,7 +3152,7 @@ __9b62:     tax                ; $9b62: aa
 __9b78:     lda $a3            ; $9b78: a5 a3     
             ora #$01           ; $9b7a: 09 01     
             sta $a3            ; $9b7c: 85 a3     
-            lda $c1            ; $9b7e: a5 c1     
+            lda SEL_TYPE            ; $9b7e: a5 c1     
             beq __9ba6         ; $9b80: f0 24     
             lda $56            ; $9b82: a5 56     
             sta TEMP2            ; $9b84: 85 a8     
@@ -3383,9 +3394,9 @@ __9d1f:     lda ($b8),y        ; $9d1f: b1 b8
             beq __9d50         ; $9d2b: f0 23     
             lda #$00           ; $9d2d: a9 00     
             sta $ba            ; $9d2f: 85 ba     
-            ldx $c2            ; $9d31: a6 c2     
-            lda __85d2,x       ; $9d33: bd d2 85  
-            jsr __9e07         ; $9d36: 20 07 9e  
+            ldx SEL_MUSIC            ; $9d31: a6 c2     
+            lda MUSIC_TABLE,x       ; $9d33: bd d2 85  
+            jsr snd_setMUSIC         ; $9d36: 20 07 9e  
             jmp __9d50         ; $9d39: 4c 50 9d  
 
 ;-------------------------------------------------------------------------------
@@ -3393,12 +3404,12 @@ __9d3c:     lda $ba            ; $9d3c: a5 ba
             bne __9d50         ; $9d3e: d0 10     
             lda #$ff           ; $9d40: a9 ff     
             sta $ba            ; $9d42: 85 ba     
-            lda $c2            ; $9d44: a5 c2     
+            lda SEL_MUSIC            ; $9d44: a5 c2     
             clc                ; $9d46: 18        
             adc #$04           ; $9d47: 69 04     
             tax                ; $9d49: aa        
-            lda __85d2,x       ; $9d4a: bd d2 85  
-            jsr __9e07         ; $9d4d: 20 07 9e  
+            lda MUSIC_TABLE,x       ; $9d4a: bd d2 85  
+            jsr snd_setMUSIC         ; $9d4d: 20 07 9e  
 __9d50:     rts                ; $9d50: 60        
 
 ;-------------------------------------------------------------------------------
@@ -3505,7 +3516,7 @@ __9de8:     lda $d1            ; $9de8: a5 d1
 ;-------------------------------------------------------------------------------
 mode_func_setup_demo:
             lda #$00           ; $9df6: a9 00     
-            sta $c1            ; $9df8: 85 c1     
+            sta SEL_TYPE       ; TYPE_A
             sta $67            ; $9dfa: 85 67     
             sta $a7            ; $9dfc: 85 a7     
             sta $68            ; $9dfe: 85 68     
@@ -3514,13 +3525,16 @@ mode_func_setup_demo:
             jmp __815d         ; $9e04: 4c 5d 81  
 
 ;-------------------------------------------------------------------------------
-__9e07:     sta $06f5          ; $9e07: 8d f5 06  
-            lda GAME_MODE            ; $9e0a: a5 c0     
+; args A - value for sndMUSIC
+; if MODE_DEMO forced to off
+snd_setMUSIC:
+            sta sndMUSIC
+            lda GAME_MODE
             cmp #MODE_DEMO
-            bne __9e15         ; $9e0e: d0 05     
-            lda #$ff           ; $9e10: a9 ff     
-            sta $06f5          ; $9e12: 8d f5 06  
-__9e15:     rts                ; $9e15: 60        
+            bne @skip
+            lda #$ff
+            sta sndMUSIC
+@skip:      rts
 
 ;-------------------------------------------------------------------------------
             lda $f7            ; $9e16: a5 f7     
@@ -3559,7 +3573,7 @@ __9e3a:     lda #$02           ; $9e3a: a9 02
             sta $a2            ; $9e3c: 85 a2     
             lda #$04           ; $9e3e: a9 04     
             sta NMI_FUNC_INDEX            ; $9e40: 85 bd     
-            lda $c1            ; $9e42: a5 c1     
+            lda SEL_TYPE            ; $9e42: a5 c1     
             bne __9e49         ; $9e44: d0 03     
             jmp __a926         ; $9e46: 4c 26 a9  
 
@@ -3621,7 +3635,7 @@ __9ea4:     jsr process_rom_data         ; $9ea4: 20 98 aa
             lda #$04           ; $9eb8: a9 04     
             sta NMI_FUNC_INDEX            ; $9eba: 85 bd     
             lda #$0a           ; $9ebc: a9 0a     
-            jsr __9e07         ; $9ebe: 20 07 9e  
+            jsr snd_setMUSIC         ; $9ebe: 20 07 9e  
             lda #$80           ; $9ec1: a9 80     
             jsr __a7fd         ; $9ec3: 20 fd a7  
             lda $73            ; $9ec6: a5 73     
@@ -3740,7 +3754,7 @@ tjump_nmi04:
             jsr __9712         ; $9fa6: 20 12 97  
             lda $73            ; $9fa9: a5 73     
             jsr __9712         ; $9fab: 20 12 97  
-            lda $c1            ; $9fae: a5 c1     
+            lda SEL_TYPE            ; $9fae: a5 c1     
             beq __9fe9         ; $9fb0: f0 37     
             lda #$20           ; $9fb2: a9 20     
             sta PPUADDR        ; $9fb4: 8d 06 20  
@@ -3785,7 +3799,7 @@ __9ffb:     jsr process_rom_data         ; $9ffb: 20 98 aa
 ;-------------------------------------------------------------------------------
             lda #$00           ; $a000: a9 00     
             sta TEMP2+1            ; $a002: 85 a9     
-            lda $c1            ; $a004: a5 c1     
+            lda SEL_TYPE            ; $a004: a5 c1     
             beq __a00c         ; $a006: f0 04     
             lda #$04           ; $a008: a9 04     
             sta TEMP2+1            ; $a00a: 85 a9     
@@ -3885,7 +3899,7 @@ __a0bc:     .hex 00 01 02 03   ; $a0bc: 00 01 02 03   Data
 ;-------------------------------------------------------------------------------
 __a0ee:     lda #$00           ; $a0ee: a9 00     
             sta $d5            ; $a0f0: 85 d5     
-            lda $c1            ; $a0f2: a5 c1     
+            lda SEL_TYPE            ; $a0f2: a5 c1     
             beq __a0fa         ; $a0f4: f0 04     
             lda #$04           ; $a0f6: a9 04     
             sta $d5            ; $a0f8: 85 d5     
@@ -3969,7 +3983,7 @@ __a16a:     sta $0700,x        ; $a16a: 9d 00 07
 
 ;-------------------------------------------------------------------------------
 __a192:     sta TEMP2            ; $a192: 85 a8     
-            lda $c1            ; $a194: a5 c1     
+            lda SEL_TYPE            ; $a194: a5 c1     
             beq __a19f         ; $a196: f0 07     
             lda #$18           ; $a198: a9 18     
             clc                ; $a19a: 18        
@@ -3997,7 +4011,7 @@ __a1a3:     lda TEMP2            ; $a1a3: a5 a8
 
 ;-------------------------------------------------------------------------------
 __a1c1:     tax                ; $a1c1: aa        
-            lda $c1            ; $a1c2: a5 c1     
+            lda SEL_TYPE            ; $a1c2: a5 c1     
             beq __a1cb         ; $a1c4: f0 05     
             txa                ; $a1c6: 8a        
             clc                ; $a1c7: 18        
@@ -4015,7 +4029,7 @@ __a1cb:     lda $0730,x        ; $a1cb: bd 30 07
 
 ;-------------------------------------------------------------------------------
 __a1e0:     tax                ; $a1e0: aa        
-            lda $c1            ; $a1e1: a5 c1     
+            lda SEL_TYPE            ; $a1e1: a5 c1     
             beq __a1ea         ; $a1e3: f0 05     
             txa                ; $a1e5: 8a        
             clc                ; $a1e6: 18        
@@ -4036,7 +4050,7 @@ __a201:     inc $8000         ; $a201: ee 00 80
             lda #$10           ; $a204: a9 10     
             jsr MMCsetreg0         ; $a206: 20 a3 ac  
             lda #$09           ; $a209: a9 09     
-            jsr __9e07         ; $a20b: 20 07 9e  
+            jsr snd_setMUSIC         ; $a20b: 20 07 9e  
             lda #$02           ; $a20e: a9 02     
             sta NMI_FUNC_INDEX            ; $a210: 85 bd     
             jsr frame_PPU_rendering_off         ; $a212: 20 52 aa  
@@ -4059,7 +4073,7 @@ __a201:     inc $8000         ; $a201: ee 00 80
             sta PPUADDR        ; $a233: 8d 06 20  
             lda #$0a           ; $a236: a9 0a     
             clc                ; $a238: 18        
-            adc $c1            ; $a239: 65 c1     
+            adc SEL_TYPE            ; $a239: 65 c1     
             sta PPUDATA        ; $a23b: 8d 07 20  
             jsr __9ff2         ; $a23e: 20 f2 9f  
             lda #$02           ; $a241: a9 02     
@@ -4288,12 +4302,12 @@ __a3ef:     inc $a7            ; $a3ef: e6 a7
             rts                ; $a3f1: 60        
 
 ;-------------------------------------------------------------------------------
-            lda $c1            ; $a3f2: a5 c1     
+            lda SEL_TYPE            ; $a3f2: a5 c1     
             beq __a42b         ; $a3f4: f0 35     
             lda ST_LINES            ; $a3f6: a5 50     
             bne __a42b         ; $a3f8: d0 31     
             lda #$02           ; $a3fa: a9 02     
-            jsr __9e07         ; $a3fc: 20 07 9e  
+            jsr snd_setMUSIC         ; $a3fc: 20 07 9e  
             ldy #$46           ; $a3ff: a0 46     
             ldx #$00           ; $a401: a2 00     
 __a403:     lda __a42e,x       ; $a403: bd 2e a4  
@@ -4451,7 +4465,7 @@ __a515:     lda ($14),y        ; $a515: b1 14
 __a526:     rts                ; $a526: 60        
 
 ;-------------------------------------------------------------------------------
-__a527:     lda $c1            ; $a527: a5 c1     
+__a527:     lda SEL_TYPE            ; $a527: a5 c1     
             bne __a52e         ; $a529: d0 03     
             jmp __a9b1         ; $a52b: 4c b1 a9  
 
@@ -4898,7 +4912,7 @@ __a926:     jsr frame_PPU_rendering_off         ; $a926: 20 52 aa
             lda #$04           ; $a94f: a9 04     
             sta NMI_FUNC_INDEX            ; $a951: 85 bd     
             lda #$0a           ; $a953: a9 0a     
-            jsr __9e07         ; $a955: 20 07 9e  
+            jsr snd_setMUSIC         ; $a955: 20 07 9e  
             lda #$80           ; $a958: a9 80     
             jsr __a7fd         ; $a95a: 20 fd a7  
 __a95d:     jsr __a527         ; $a95d: 20 27 a5  
@@ -5511,7 +5525,7 @@ PALETTE_DATA_FUNC_LEGAL:
             .hex 0f 27 2a 2b 0f 3c 2a 22 0f 27 2c 29 0f 30 3a 15 ; 16 bytes of data
             .hex ff            ; end of data processing
 
-PALETTE_DATA_FUNC_TITLE:
+PALETTE_DATA_MODE1_2:
             .hex 3f 00
             .hex 14            ; control byte: VRAM line, ptr inc, 20bytes of data
             .hex 0f
@@ -5557,288 +5571,8 @@ data_ad67:  .hex 08 0f 17 01   ; $ad67: 08 0f 17 01   Data
 
 INCLUDE	legal_screen.as6
 INCLUDE title_screen.as6
+INCLUDE type_screen.as6
 
-            .hex 20   ; $b677: 0a 0a ff 20   Data
-            .hex 00 20 62 90   ; $b67b: 00 20 62 90   Data
-            .hex 73 80 41 83   ; $b67f: 73 80 41 83   Data
-            .hex 62 72 80 61   ; $b683: 62 72 80 61   Data
-            .hex 80 91 80 43   ; $b687: 80 91 80 43   Data
-            .hex 73 62 80 81   ; $b68b: 73 62 80 81   Data
-            .hex 81 83 90 81   ; $b68f: 81 83 90 81   Data
-            .hex 83 62 62 80   ; $b693: 83 62 62 80   Data
-            .hex 81 61 80 61   ; $b697: 81 61 80 61   Data
-            .hex 90 73 20 20   ; $b69b: 90 73 20 20   Data
-            .hex 20 72 72 62   ; $b69f: 20 72 72 62   Data
-            .hex 60 61 90 a1   ; $b6a3: 60 61 90 a1   Data
-            .hex 82 62 72 62   ; $b6a7: 82 62 72 62   Data
-            .hex a0 83 82 80   ; $b6ab: a0 83 82 80   Data
-            .hex 41 83 62 80   ; $b6af: 41 83 62 80   Data
-            .hex 61 82 80 81   ; $b6b3: 61 82 80 81   Data
-            .hex a1 72 60 61   ; $b6b7: a1 72 60 61   Data
-            .hex 82 62 72 72   ; $b6bb: 82 62 72 72   Data
-            .hex 62 20 40 20   ; $b6bf: 62 20 40 20   Data
-            .hex 72 82 72 70   ; $b6c3: 72 82 72 70   Data
-            .hex 71 82 80 81   ; $b6c7: 71 82 80 81   Data
-            .hex a1 82 a0 81   ; $b6cb: a1 82 a0 81   Data
-            .hex 83 80 81 81   ; $b6cf: 83 80 81 81   Data
-            .hex 83 a0 91 72   ; $b6d3: 83 a0 91 72   Data
-            .hex 80 43 73 80   ; $b6d7: 80 43 73 80   Data
-            .hex a1 70 71 90   ; $b6db: a1 70 71 90   Data
-            .hex a1 82 82 72   ; $b6df: a1 82 82 72   Data
-            .hex 20 60 20 82   ; $b6e3: 20 60 20 82   Data
-            .hex 62 72 30 31   ; $b6e7: 62 72 30 31   Data
-            .hex 31 31 31 31   ; $b6eb: 31 31 31 31   Data
-            .hex 31 31 31 31   ; $b6ef: 31 31 31 31   Data
-            .hex 31 31 31 32   ; $b6f3: 31 31 31 32   Data
-            .hex 62 82 82 62   ; $b6f7: 62 82 82 62   Data
-            .hex 82 60 61 62   ; $b6fb: 82 60 61 62   Data
-            .hex 60 61 82 80   ; $b6ff: 60 61 82 80   Data
-            .hex 91 80 a1 20   ; $b703: 91 80 a1 20   Data
-            .hex 80 20 80 42   ; $b707: 80 20 80 42   Data
-            .hex 82 33 ff 10   ; $b70b: 82 33 ff 10   Data
-            .hex 0a 16 0e ff   ; $b70f: 0a 16 0e ff   Data
-            .hex ff 1d 22 19   ; $b713: ff 1d 22 19   Data
-            .hex 0e ff 34 a0   ; $b717: 0e ff 34 a0   Data
-            .hex 81 83 a0 91   ; $b71b: 81 83 a0 91   Data
-            .hex 70 71 72 70   ; $b71f: 70 71 72 70   Data
-            .hex 71 90 73 a0   ; $b723: 71 90 73 a0   Data
-            .hex 83 62 20 a0   ; $b727: 83 62 20 a0   Data
-            .hex 20 62 82 62   ; $b72b: 20 62 82 62   Data
-            .hex 35 36 36 36   ; $b72f: 35 36 36 36   Data
-            .hex 36 36 36 36   ; $b733: 36 36 36 36   Data
-            .hex 36 36 36 36   ; $b737: 36 36 36 36   Data
-            .hex 36 37 90 73   ; $b73b: 36 37 90 73   Data
-            .hex 80 91 82 62   ; $b73f: 80 91 82 62   Data
-            .hex 80 a1 60 61   ; $b743: 80 a1 60 61   Data
-            .hex 72 60 61 80   ; $b747: 72 60 61 80   Data
-            .hex 42 20 c0 20   ; $b74b: 42 20 c0 20   Data
-            .hex 40 73 a0 81   ; $b74f: 40 73 a0 81   Data
-            .hex 83 80 43 73   ; $b753: 83 80 43 73   Data
-            .hex 80 81 81 83   ; $b757: 80 81 81 83   Data
-            .hex 80 81 81 83   ; $b75b: 80 81 81 83   Data
-            .hex 80 a1 90 73   ; $b75f: 80 a1 90 73   Data
-            .hex a0 83 a0 81   ; $b763: a0 83 a0 81   Data
-            .hex 83 70 71 82   ; $b767: 83 70 71 82   Data
-            .hex 70 71 62 82   ; $b76b: 70 71 62 82   Data
-            .hex 20 e0 20 82   ; $b76f: 20 e0 20 82   Data
-            .hex 90 73 90 73   ; $b773: 90 73 90 73   Data
-            .hex 62 82 38 39   ; $b777: 62 82 38 39   Data
-            .hex 39 39 39 39   ; $b77b: 39 39 39 39   Data
-            .hex 39 39 39 3a   ; $b77f: 39 39 39 3a   Data
-            .hex 62 72 38 39   ; $b783: 62 72 38 39   Data
-            .hex 39 39 39 39   ; $b787: 39 39 39 39   Data
-            .hex 39 39 39 3a   ; $b78b: 39 39 39 3a   Data
-            .hex 90 a1 62 21   ; $b78f: 90 a1 62 21   Data
-            .hex 00 20 80 a1   ; $b793: 00 20 80 a1   Data
-            .hex 80 a1 80 41   ; $b797: 80 a1 80 41   Data
-            .hex 83 3b ff 0a   ; $b79b: 83 3b ff 0a   Data
-            .hex 24 1d 22 19   ; $b79f: 24 1d 22 19   Data
-            .hex 0e ff 3c 72   ; $b7a3: 0e ff 3c 72   Data
-            .hex 82 3b ff 0b   ; $b7a7: 82 3b ff 0b   Data
-            .hex 24 1d 22 19   ; $b7ab: 24 1d 22 19   Data
-            .hex 0e ff 3c 82   ; $b7af: 0e ff 3c 82   Data
-            .hex 80 42 21 20   ; $b7b3: 80 42 21 20   Data
-            .hex 20 90 73 62   ; $b7b7: 20 90 73 62   Data
-            .hex 80 81 61 62   ; $b7bb: 80 81 61 62   Data
-            .hex 3d 3e 3e 3e   ; $b7bf: 3d 3e 3e 3e   Data
-            .hex 3e 3e 3e 3e   ; $b7c3: 3e 3e 3e 3e   Data
-            .hex 3e 3f a0 73   ; $b7c7: 3e 3f a0 73   Data
-            .hex 3d 3e 3e 3e   ; $b7cb: 3d 3e 3e 3e   Data
-            .hex 3e 3e 3e 3e   ; $b7cf: 3e 3e 3e 3e   Data
-            .hex 3e 3f 90 73   ; $b7d3: 3e 3f 90 73   Data
-            .hex 82 21 40 20   ; $b7d7: 82 21 40 20   Data
-            .hex 72 80 41 83   ; $b7db: 72 80 41 83   Data
-            .hex 62 82 a0 91   ; $b7df: 62 82 a0 91   Data
-            .hex 60 61 60 61   ; $b7e3: 60 61 60 61   Data
-            .hex 62 80 81 61   ; $b7e7: 62 80 81 61   Data
-            .hex 60 61 80 81   ; $b7eb: 60 61 80 81   Data
-            .hex 81 83 62 80   ; $b7ef: 81 83 62 80   Data
-            .hex 61 90 81 83   ; $b7f3: 61 90 81 83   Data
-            .hex 80 a1 80 61   ; $b7f7: 80 a1 80 61   Data
-            .hex 21 60 20 82   ; $b7fb: 21 60 20 82   Data
-            .hex 90 81 83 a0   ; $b7ff: 90 81 83 a0   Data
-            .hex 81 83 82 70   ; $b803: 81 83 82 70   Data
-            .hex 71 70 71 a0   ; $b807: 71 70 71 a0   Data
-            .hex 81 83 82 70   ; $b80b: 81 83 82 70   Data
-            .hex 71 62 80 81   ; $b80f: 71 62 80 81   Data
-            .hex 61 a0 91 72   ; $b813: 61 a0 91 72   Data
-            .hex 82 62 80 81   ; $b817: 82 62 80 81   Data
-            .hex 81 83 72 21   ; $b81b: 81 83 72 21   Data
-            .hex 80 20 62 82   ; $b81f: 80 20 62 82   Data
-            .hex 62 30 31 31   ; $b823: 62 30 31 31   Data
-            .hex 31 31 31 31   ; $b827: 31 31 31 31   Data
-            .hex 31 31 31 31   ; $b82b: 31 31 31 31   Data
-            .hex 31 31 32 80   ; $b82f: 31 31 32 80   Data
-            .hex 41 83 62 82   ; $b833: 41 83 62 82   Data
-            .hex 62 82 82 80   ; $b837: 62 82 82 80   Data
-            .hex 42 90 73 80   ; $b83b: 42 90 73 80   Data
-            .hex 91 82 21 a0   ; $b83f: 91 82 21 a0   Data
-            .hex 20 72 80 42   ; $b843: 20 72 80 42   Data
-            .hex 33 ff 16 1e   ; $b847: 33 ff 16 1e   Data
-            .hex 1c 12 0c ff   ; $b84b: 1c 12 0c ff   Data
-            .hex 1d 22 19 0e   ; $b84f: 1d 22 19 0e   Data
-            .hex ff 34 80 43   ; $b853: ff 34 80 43   Data
-            .hex 73 a0 91 72   ; $b857: 73 a0 91 72   Data
-            .hex 80 81 61 82   ; $b85b: 80 81 61 82   Data
-            .hex 72 90 73 a0   ; $b85f: 72 90 73 a0   Data
-            .hex 83 21 c0 20   ; $b863: 83 21 c0 20   Data
-            .hex a0 73 82 35   ; $b867: a0 73 82 35   Data
-            .hex 36 36 36 36   ; $b86b: 36 36 36 36   Data
-            .hex 36 36 36 36   ; $b86f: 36 36 36 36   Data
-            .hex 36 36 36 36   ; $b873: 36 36 36 36   Data
-            .hex 37 62 82 80   ; $b877: 37 62 82 80   Data
-            .hex 91 82 72 60   ; $b87b: 91 82 72 60   Data
-            .hex 61 82 62 82   ; $b87f: 61 82 62 82   Data
-            .hex 72 80 81 61   ; $b883: 72 80 81 61   Data
-            .hex 21 e0 20 60   ; $b887: 21 e0 20 60   Data
-            .hex 61 62 80 81   ; $b88b: 61 62 80 81   Data
-            .hex 61 80 43 73   ; $b88f: 61 80 43 73   Data
-            .hex 80 81 81 83   ; $b893: 80 81 81 83   Data
-            .hex 80 81 81 83   ; $b897: 80 81 81 83   Data
-            .hex a0 81 83 a0   ; $b89b: a0 81 83 a0   Data
-            .hex 83 82 70 71   ; $b89f: 83 82 70 71   Data
-            .hex 80 41 83 82   ; $b8a3: 80 41 83 82   Data
-            .hex 80 91 82 22   ; $b8a7: 80 91 82 22   Data
-            .hex 00 20 70 71   ; $b8ab: 00 20 70 71   Data
-            .hex a0 81 83 82   ; $b8af: a0 81 83 82   Data
-            .hex 62 82 80 81   ; $b8b3: 62 82 80 81   Data
-            .hex 61 62 28 29   ; $b8b7: 61 62 28 29   Data
-            .hex 29 29 29 29   ; $b8bb: 29 29 29 29   Data
-            .hex 29 29 29 29   ; $b8bf: 29 29 29 29   Data
-            .hex 29 2a 80 81   ; $b8c3: 29 2a 80 81   Data
-            .hex 81 83 60 61   ; $b8c7: 81 83 60 61   Data
-            .hex a0 83 22 20   ; $b8cb: a0 83 22 20   Data
-            .hex 20 81 83 60   ; $b8cf: 20 81 83 60   Data
-            .hex 61 62 62 a0   ; $b8d3: 61 62 62 a0   Data
-            .hex 81 83 62 82   ; $b8d7: 81 83 62 82   Data
-            .hex 72 2b ff ff   ; $b8db: 72 2b ff ff   Data
-            .hex ff ff ff ff   ; $b8df: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b8e3: ff ff ff ff   Data
-            .hex 2c 80 81 81   ; $b8e7: 2c 80 81 81   Data
-            .hex 83 70 71 80   ; $b8eb: 83 70 71 80   Data
-            .hex 81 22 40 20   ; $b8ef: 81 22 40 20   Data
-            .hex 61 62 70 71   ; $b8f3: 61 62 70 71   Data
-            .hex 72 40 73 90   ; $b8f7: 72 40 73 90   Data
-            .hex 73 40 73 72   ; $b8fb: 73 40 73 72   Data
-            .hex 2b ff 16 1e   ; $b8ff: 2b ff 16 1e   Data
-            .hex 1c 12 0c 53   ; $b903: 1c 12 0c 53   Data
-            .hex 54 01 ff 2c   ; $b907: 54 01 ff 2c   Data
-            .hex 62 80 61 60   ; $b90b: 62 80 61 60   Data
-            .hex 61 90 81 83   ; $b90f: 61 90 81 83   Data
-            .hex 22 60 20 82   ; $b913: 22 60 20 82   Data
-            .hex a0 91 62 72   ; $b917: a0 91 62 72   Data
-            .hex 82 62 72 62   ; $b91b: 82 62 72 62   Data
-            .hex 82 62 82 2b   ; $b91f: 82 62 82 2b   Data
-            .hex ff ff ff ff   ; $b923: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b927: ff ff ff ff   Data
-            .hex ff ff 2c a0   ; $b92b: ff ff 2c a0   Data
-            .hex 91 72 70 71   ; $b92f: 91 72 70 71   Data
-            .hex 82 62 62 22   ; $b933: 82 62 62 22   Data
-            .hex 80 20 73 62   ; $b937: 80 20 73 62   Data
-            .hex 82 72 82 90   ; $b93b: 82 72 82 90   Data
-            .hex a1 82 40 73   ; $b93f: a1 82 40 73   Data
-            .hex a0 91 2b ff   ; $b943: a0 91 2b ff   Data
-            .hex 16 1e 1c 12   ; $b947: 16 1e 1c 12   Data
-            .hex 0c 53 54 02   ; $b94b: 0c 53 54 02   Data
-            .hex ff 2c 62 82   ; $b94f: ff 2c 62 82   Data
-            .hex 82 62 60 61   ; $b953: 82 62 60 61   Data
-            .hex 72 a0 22 a0   ; $b957: 72 a0 22 a0   Data
-            .hex 20 83 40 73   ; $b95b: 20 83 40 73   Data
-            .hex a0 73 82 60   ; $b95f: a0 73 82 60   Data
-            .hex 61 82 60 61   ; $b963: 61 82 60 61   Data
-            .hex 82 2b ff ff   ; $b967: 82 2b ff ff   Data
-            .hex ff ff ff ff   ; $b96b: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b96f: ff ff ff ff   Data
-            .hex 2c 40 73 80   ; $b973: 2c 40 73 80   Data
-            .hex 42 70 71 a0   ; $b977: 42 70 71 a0   Data
-            .hex 73 22 c0 20   ; $b97b: 73 22 c0 20   Data
-            .hex 61 82 80 81   ; $b97f: 61 82 80 81   Data
-            .hex 81 83 70 71   ; $b983: 81 83 70 71   Data
-            .hex 62 70 71 62   ; $b987: 62 70 71 62   Data
-            .hex 2b ff 16 1e   ; $b98b: 2b ff 16 1e   Data
-            .hex 1c 12 0c 53   ; $b98f: 1c 12 0c 53   Data
-            .hex 54 03 ff 2c   ; $b993: 54 03 ff 2c   Data
-            .hex 82 90 73 82   ; $b997: 82 90 73 82   Data
-            .hex 62 80 81 61   ; $b99b: 62 80 81 61   Data
-            .hex 22 e0 20 71   ; $b99f: 22 e0 20 71   Data
-            .hex 90 81 83 80   ; $b9a3: 90 81 83 80   Data
-            .hex 81 61 80 42   ; $b9a7: 81 61 80 42   Data
-            .hex 80 81 a1 2b   ; $b9ab: 80 81 a1 2b   Data
-            .hex ff ff ff ff   ; $b9af: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b9b3: ff ff ff ff   Data
-            .hex ff ff 2c 80   ; $b9b7: ff ff 2c 80   Data
-            .hex a1 80 81 a1   ; $b9bb: a1 80 81 a1   Data
-            .hex 90 73 82 23   ; $b9bf: 90 73 82 23   Data
-            .hex 00 20 61 82   ; $b9c3: 00 20 61 82   Data
-            .hex 80 43 73 62   ; $b9c7: 80 43 73 62   Data
-            .hex 82 62 82 80   ; $b9cb: 82 62 82 80   Data
-            .hex 81 61 2b ff   ; $b9cf: 81 61 2b ff   Data
-            .hex ff ff 18 0f   ; $b9d3: ff ff 18 0f   Data
-            .hex 0f ff ff ff   ; $b9d7: 0f ff ff ff   Data
-            .hex ff 2c 80 81   ; $b9db: ff 2c 80 81   Data
-            .hex 81 83 80 a1   ; $b9df: 81 83 80 a1   Data
-            .hex 60 61 23 20   ; $b9e3: 60 61 23 20   Data
-            .hex 20 82 60 61   ; $b9e7: 20 82 60 61   Data
-            .hex 82 90 a1 80   ; $b9eb: 82 90 a1 80   Data
-            .hex 41 83 62 62   ; $b9ef: 41 83 62 62   Data
-            .hex 82 2b ff ff   ; $b9f3: 82 2b ff ff   Data
-            .hex ff ff ff ff   ; $b9f7: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $b9fb: ff ff ff ff   Data
-            .hex 2c 60 61 62   ; $b9ff: 2c 60 61 62   Data
-            .hex 62 80 61 70   ; $ba03: 62 80 61 70   Data
-            .hex 71 23 40 20   ; $ba07: 71 23 40 20   Data
-            .hex 62 70 71 62   ; $ba0b: 62 70 71 62   Data
-            .hex 82 90 81 83   ; $ba0f: 82 90 81 83   Data
-            .hex 62 72 40 73   ; $ba13: 62 72 40 73   Data
-            .hex 2d 2e 2e 2e   ; $ba17: 2d 2e 2e 2e   Data
-            .hex 2e 2e 2e 2e   ; $ba1b: 2e 2e 2e 2e   Data
-            .hex 2e 2e 2e 2f   ; $ba1f: 2e 2e 2e 2f   Data
-            .hex 70 71 72 40   ; $ba23: 70 71 72 40   Data
-            .hex 73 72 80 81   ; $ba27: 73 72 80 81   Data
-            .hex 23 60 20 72   ; $ba2b: 23 60 20 72   Data
-            .hex 62 80 41 83   ; $ba2f: 62 80 41 83   Data
-            .hex 82 60 61 72   ; $ba33: 82 60 61 72   Data
-            .hex 72 82 62 80   ; $ba37: 72 82 62 80   Data
-            .hex 81 81 83 62   ; $ba3b: 81 81 83 62   Data
-            .hex 80 61 90 81   ; $ba3f: 80 61 90 81   Data
-            .hex 83 90 73 60   ; $ba43: 83 90 73 60   Data
-            .hex 61 72 82 62   ; $ba47: 61 72 82 62   Data
-            .hex 82 62 62 23   ; $ba4b: 82 62 62 23   Data
-            .hex 80 20 72 a0   ; $ba4f: 80 20 72 a0   Data
-            .hex 81 83 62 62   ; $ba53: 81 83 62 62   Data
-            .hex 70 71 72 82   ; $ba57: 70 71 72 82   Data
-            .hex 90 a1 62 60   ; $ba5b: 90 a1 62 60   Data
-            .hex 61 80 41 83   ; $ba5f: 61 80 41 83   Data
-            .hex 72 82 62 80   ; $ba63: 72 82 62 80   Data
-            .hex a1 62 70 71   ; $ba67: a1 62 70 71   Data
-            .hex 82 80 42 90   ; $ba6b: 82 80 42 90   Data
-            .hex a1 72 23 a0   ; $ba6f: a1 72 23 a0   Data
-            .hex 20 82 80 81   ; $ba73: 20 82 80 81   Data
-            .hex 61 72 72 90   ; $ba77: 61 72 72 90   Data
-            .hex 73 82 62 82   ; $ba7b: 73 82 62 82   Data
-            .hex 62 72 70 71   ; $ba7f: 62 72 70 71   Data
-            .hex 80 43 73 82   ; $ba83: 80 43 73 82   Data
-            .hex 80 41 83 80   ; $ba87: 80 41 83 80   Data
-            .hex 41 83 80 81   ; $ba8b: 41 83 80 81   Data
-            .hex 61 82 82 80   ; $ba8f: 61 82 82 80   Data
-            .hex a1 23 c0 20   ; $ba93: a1 23 c0 20   Data
-            .hex 2a 0a 0a 0a   ; $ba97: 2a 0a 0a 0a   Data
-            .hex 8a aa aa aa   ; $ba9b: 8a aa aa aa   Data
-            .hex a2 60 50 50   ; $ba9f: a2 60 50 50   Data
-            .hex 98 aa aa aa   ; $baa3: 98 aa aa aa   Data
-            .hex 6a 56 55 55   ; $baa7: 6a 56 55 55   Data
-            .hex 19 0a 0a 8a   ; $baab: 19 0a 0a 8a   Data
-            .hex 22 00 00 00   ; $baaf: 22 00 00 00   Data
-            .hex 88 aa aa aa   ; $bab3: 88 aa aa aa   Data
-            .hex 23 e0 20 aa   ; $bab7: 23 e0 20 aa   Data
-            .hex aa aa 00 00   ; $babb: aa aa 00 00   Data
-            .hex 00 aa aa aa   ; $babf: 00 aa aa aa   Data
-            .hex aa aa 00 00   ; $bac3: aa aa 00 00   Data
-            .hex 00 aa aa aa   ; $bac7: 00 aa aa aa   Data
-            .hex aa aa 00 00   ; $bacb: aa aa 00 00   Data
-            .hex 00 aa aa 0a   ; $bacf: 00 aa aa 0a   Data
-            .hex 0a 0a 0a 0a   ; $bad3: 0a 0a 0a 0a   Data
-            .hex 0a 0a 0a ff   ; $bad7: 0a 0a 0a ff   Data
             .hex 20 00 20 60   ; $badb: 20 00 20 60   Data
             .hex 61 60 61 62   ; $badf: 61 60 61 62   Data
             .hex 82 62 90 83   ; $bae3: 82 62 90 83   Data
@@ -8925,7 +8659,7 @@ __e4f3:     .hex 69 a8 69 a8   ; $e4f3: 69 a8 69 a8   Data
 __e580:     jmp snd_reset         ; $e580: 4c 44 e2  
 
 ;-------------------------------------------------------------------------------
-__e583:     lda $06f5          ; $e583: ad f5 06  
+__e583:     lda sndMUSIC          ; $e583: ad f5 06  
             tay                ; $e586: a8        
             cmp #$ff           ; $e587: c9 ff     
             beq __e580         ; $e589: f0 f5     
