@@ -21,9 +21,11 @@ TETR_OR              = $42      ; Orientation of current tetrimino
 ST_LINES             = $50      ; 2 byte little endian BCD nr of cleared lines
 ST_SCORE             = $53      ; 3 byte little endian BCD score
 DAS_TIMER            = $46      ; timer for delayed auto shift when holding left/right
+SPR_PTR_INDEX        = $a2      ; index to spr pointer data
 TEMP2                = $a8      ; 2 byte temporary
 B1                   = $ae      ; byte variable
 FRAMECOUNT           = $b1      ; 16bit frame counter
+OAM_USED             = $b3      ; sprite memory used
 BUTTONS_NEW          = $b5      ; bits for just pressed buttons
 BUTTONS              = $b6      ; bits for buttons pressed A B Select Start Up Down Left Right
 NMI_FUNC_INDEX       = $bd      ; index of function called from NMI
@@ -43,7 +45,7 @@ vPPUMASK             = $fe
 CTRL                 = $ff
 
 ; page 1
-; $0100-$0104
+; $0100-$0104, stack $01ff grows down
 
 ; page 2
 ; $0200-$02FF sprite info
@@ -54,6 +56,8 @@ CTRL                 = $ff
 ; byte2	- attributes: bit0-bit1 pallette(4 to 7), bit5 priority (0 in front of bg), bit6 flip h, bit7 flip v 
 ; byte3	- x position of left side of sprite	
 
+OAMBASE              = $0200
+
 ; page 4
 ; $0400-$04C7 1024-1223 10x20 playfield in row major order
 
@@ -62,6 +66,8 @@ PLAYFIELD            = $0400
 ; page 6
 ; sound related
 ; $068a $068c $069c $06c8-$06ca $06f8-$06fd
+
+sndEFFECT            = $06f1
 sndMUSIC             = $06f5
 
 ; page 7
@@ -103,7 +109,7 @@ nmi:        pha
             tya
             pha
             lda #$00
-            sta $b3            ; $800c: 85 b3     
+            sta OAM_USED            ; $800c: 85 b3     
             jsr table_jump_nmi ; call function dependend on NMI_FUNC_INDEX
             dec COUNTDOWN      ; countdown
             lda COUNTDOWN
@@ -442,12 +448,12 @@ mode_func_title:
             jmp @loop          ; end of title screen loop
 
 @skip1:     lda #$02           ; $829f: a9 02     
-            sta $06f1          ; sound related?
+            sta sndEFFECT      ; sound related?
             inc GAME_MODE
             rts                ; exit to game type selection after start is pressed
 
 @skip2:     lda #$02           ; $82a7: a9 02     
-            sta $06f1          ; sound related?
+            sta sndEFFECT      ; sound related?
             lda #MODE_SETUP_DEMO
             sta GAME_MODE
             rts                ; exit to MODE_SETUP_DEMO after about 5*256 frames
@@ -500,98 +506,97 @@ mode_func_type:
             jsr frame_clear_sprite_ram
             jsr frame_PPU_rendering_on
             jsr frame_clear_sprite_ram
-            ldx SEL_MUSIC            ; $8303: a6 c2     
-            lda MUSIC_TABLE,x       ; $8305: bd d2 85  
-            jsr snd_setMUSIC         ; $8308: 20 07 9e
+            ldx SEL_MUSIC
+            lda MUSIC_TABLE,x
+            jsr snd_setMUSIC
   
 loop__830b: lda #$ff
             ldx #$02
             ldy #$02
-            jsr memset         ; set sprite data to $ff
+            jsr memset
             lda JOY1_RAW
             cmp #BUTTON_R
             bne skip1          ; if (BUTTON_R) {
-            lda #TYPE_B           ; $831a: a9 01     
-            sta SEL_TYPE            ; $831c: 85 c1     
-            lda #$01           ; $831e: a9 01     
-            sta $06f1          ; $8320: 8d f1 06  
-            jmp skip2          ; $8323: 4c 35 83  
+            lda #TYPE_B
+            sta SEL_TYPE
+            lda #$01
+            sta sndEFFECT
+            jmp skip2
 
-;-------------------------------------------------------------------------------
-skip1:      lda JOY1_RAW            ; $8326: a5 f5     
+skip1:      lda JOY1_RAW
             cmp #BUTTON_L
             bne skip2          ; } else if (BUTTON_L) {
-            lda #TYPE_A           ; $832c: a9 00     
-            sta SEL_TYPE            ; $832e: 85 c1     
-            lda #$01           ; $8330: a9 01     
-            sta $06f1          ; $8332: 8d f1 06
+            lda #TYPE_A
+            sta SEL_TYPE
+            lda #$01
+            sta sndEFFECT
                                ; } endif  
-skip2:      lda JOY1_RAW            ; $8335: a5 f5     
+skip2:      lda JOY1_RAW
             cmp #BUTTON_D
-            bne skip3         ; $8339: d0 15     
-            lda #$01           ; $833b: a9 01     
-            sta $06f1          ; $833d: 8d f1 06  
-            lda SEL_MUSIC            ; $8340: a5 c2     
-            cmp #$03           ; $8342: c9 03     
-            beq skip4         ; $8344: f0 23     
-            inc SEL_MUSIC            ; $8346: e6 c2     
-            ldx SEL_MUSIC            ; $8348: a6 c2     
-            lda MUSIC_TABLE,x       ; $834a: bd d2 85  
-            jsr snd_setMUSIC         ; $834d: 20 07 9e  
-skip3:      lda JOY1_RAW            ; $8350: a5 f5     
-            cmp #BUTTON_U
-            bne skip4         ; $8354: d0 13     
-            lda #$01           ; $8356: a9 01     
-            sta $06f1          ; $8358: 8d f1 06  
-            lda SEL_MUSIC            ; $835b: a5 c2     
-            beq skip4         ; $835d: f0 0a     
-            dec SEL_MUSIC            ; $835f: c6 c2     
-            ldx SEL_MUSIC            ; $8361: a6 c2     
-            lda MUSIC_TABLE,x       ; $8363: bd d2 85  
-            jsr snd_setMUSIC         ; $8366: 20 07 9e  
-skip4:      lda JOY1_RAW            ; $8369: a5 f5     
+            bne skip3          ; if (BUTTON_D) {
+            lda #$01
+            sta sndEFFECT
+            lda SEL_MUSIC
+            cmp #$03
+            beq skip4          ;   if (SEL_MUSIC != 3) {
+            inc SEL_MUSIC
+            ldx SEL_MUSIC
+            lda MUSIC_TABLE,x
+            jsr snd_setMUSIC   ;     set next music} endif
+			       ; } endif (Button_D)
+skip3:      lda JOY1_RAW 
+            cmp #BUTTON_U      ; if (BUTTON_U) {
+            bne skip4
+            lda #$01
+            sta sndEFFECT
+            lda SEL_MUSIC
+            beq skip4          ;   if (SEL_MUSIC != 0)
+            dec SEL_MUSIC
+            ldx SEL_MUSIC
+            lda MUSIC_TABLE,x
+            jsr snd_setMUSIC   ;     set prev music} endif
+                               ; } endif (Button_U)
+skip4:      lda JOY1_RAW
             cmp #BUTTON_START
-            bne __8377         ; $836d: d0 08     
-            lda #$02           ; $836f: a9 02     
-            sta $06f1          ; $8371: 8d f1 06  
-            inc GAME_MODE      ; go to level selection
-            rts                ; $8376: 60        
+            bne @skip5         ; if (BUTTON_Start) {
+            lda #$02
+            sta sndEFFECT
+            inc GAME_MODE      ;   go to level selection
+            rts                ; } endif
 
-;-------------------------------------------------------------------------------
-__8377:     lda JOY1_RAW            ; $8377: a5 f5     
-            cmp #$40           ; $8379: c9 40     
-            bne __8389         ; $837b: d0 0c     
-            lda #$02           ; $837d: a9 02     
-            sta $06f1          ; $837f: 8d f1 06  
-            lda #$00           ; $8382: a9 00     
-            sta FRAMECOUNT+1            ; $8384: 85 b2     
-            dec GAME_MODE      ; go back to title screen
-            rts                ; $8388: 60        
+@skip5:     lda JOY1_RAW
+            cmp #BUTTON_B      ; if (BUTTON_B) {
+            bne @skip6
+            lda #$02
+            sta sndEFFECT
+            lda #$00
+            sta FRAMECOUNT+1
+            dec GAME_MODE      ;   go back to title screen
+            rts                ; } endif
 
-;-------------------------------------------------------------------------------
-__8389:     ldy #$00           ; $8389: a0 00     
-            lda SEL_TYPE            ; $838b: a5 c1     
-            asl                ; $838d: 0a        
-            sta TEMP2            ; $838e: 85 a8     
-            asl                ; $8390: 0a        
-            adc TEMP2            ; $8391: 65 a8     
-            asl                ; $8393: 0a        
-            asl                ; $8394: 0a        
-            asl                ; $8395: 0a        
-            asl                ; $8396: 0a        
-            clc                ; $8397: 18        
-            adc #$3f           ; $8398: 69 3f     
-            sta $a0            ; $839a: 85 a0     
+@skip6:     ldy #$00
+            lda SEL_TYPE
+            asl
+            sta TEMP2
+            asl
+            adc TEMP2
+            asl
+            asl
+            asl
+            asl                ; A *= 96 (A = 0 or 96) //TODO reduce to conditional assign
+            clc
+            adc #$3f           ; +=63
+            sta $a0            ; $a0 = 63 or 159
             lda #$3f           ; $839c: a9 3f     
             sta $a1            ; $839e: 85 a1     
-            lda #$01           ; $83a0: a9 01     
-            sta $a2            ; $83a2: 85 a2     
-            lda FRAMECOUNT            ; $83a4: a5 b1     
+            lda #$01
+            sta SPR_PTR_INDEX
+            lda FRAMECOUNT     ; $83a4: a5 b1     
             and #$03           ; $83a6: 29 03     
-            bne __83ae         ; $83a8: d0 04     
-            lda #$02           ; $83aa: a9 02     
-            sta $a2            ; $83ac: 85 a2     
-__83ae:     jsr __8c27         ; $83ae: 20 27 8c  
+            bne @skip7         ; every 4th frame do {
+            lda #$02           ;   SPR_PTR_INDEX= 2
+            sta SPR_PTR_INDEX  ; } else SPR_PTR_INDEX = 1     
+@skip7:     jsr spr_drawtoMem         ; $83ae: 20 27 8c  
             lda SEL_MUSIC            ; $83b1: a5 c2     
             asl                ; $83b3: 0a        
             asl                ; $83b4: 0a        
@@ -601,15 +606,15 @@ __83ae:     jsr __8c27         ; $83ae: 20 27 8c
             adc #$8f           ; $83b8: 69 8f     
             sta $a1            ; $83ba: 85 a1     
             lda #$53           ; $83bc: a9 53     
-            sta $a2            ; $83be: 85 a2     
+            sta SPR_PTR_INDEX            ; $83be: 85 a2     
             lda #$67           ; $83c0: a9 67     
             sta $a0            ; $83c2: 85 a0     
             lda FRAMECOUNT            ; $83c4: a5 b1     
             and #$03           ; $83c6: 29 03     
             bne __83ce         ; $83c8: d0 04     
             lda #$02           ; $83ca: a9 02     
-            sta $a2            ; $83cc: 85 a2     
-__83ce:     jsr __8c27         ; $83ce: 20 27 8c  
+            sta SPR_PTR_INDEX            ; $83cc: 85 a2     
+__83ce:     jsr spr_drawtoMem         ; $83ce: 20 27 8c  
             jsr frame_clear_sprite_ram         ; $83d1: 20 2f aa  
             jmp loop__830b         ; $83d4: 4c 0b 83  
 
@@ -692,7 +697,7 @@ __8436:     lda #$00           ; $8436: a9 00
 __846c:     lda #$00           ; $846c: a9 00     
             sta $a7            ; $846e: 85 a7     
             lda #$02           ; $8470: a9 02     
-            sta $06f1          ; $8472: 8d f1 06  
+            sta sndEFFECT          ; $8472: 8d f1 06  
             inc GAME_MODE            ; $8475: e6 c0     
             rts                ; $8477: 60        
 
@@ -701,7 +706,7 @@ __8478:     lda JOY1_RAW            ; $8478: a5 f5
             cmp #BUTTON_B
             bne __8486         ; $847c: d0 08     
             lda #$02           ; $847e: a9 02     
-            sta $06f1          ; $8480: 8d f1 06  
+            sta sndEFFECT          ; $8480: 8d f1 06  
             dec GAME_MODE            ; $8483: c6 c0     
             rts                ; $8485: 60        
 
@@ -730,7 +735,7 @@ __84ae:     lda BUTTONS_NEW           ; $84ae: a5 b5
             cmp #$01           ; $84b0: c9 01     
             bne __84d0         ; $84b2: d0 1c     
             lda #$01           ; $84b4: a9 01     
-            sta $06f1          ; $84b6: 8d f1 06  
+            sta sndEFFECT          ; $84b6: 8d f1 06  
             lda $ad            ; $84b9: a5 ad     
             bne __84c8         ; $84bb: d0 0b     
             lda $47            ; $84bd: a5 47     
@@ -748,7 +753,7 @@ __84d0:     lda BUTTONS_NEW           ; $84d0: a5 b5
             cmp #$02           ; $84d2: c9 02     
             bne __84ee         ; $84d4: d0 18     
             lda #$01           ; $84d6: a9 01     
-            sta $06f1          ; $84d8: 8d f1 06  
+            sta sndEFFECT          ; $84d8: 8d f1 06  
             lda $ad            ; $84db: a5 ad     
             bne __84e8         ; $84dd: d0 09     
             lda $47            ; $84df: a5 47     
@@ -764,7 +769,7 @@ __84ee:     lda BUTTONS_NEW           ; $84ee: a5 b5
             cmp #$04           ; $84f0: c9 04     
             bne __8517         ; $84f2: d0 23     
             lda #$01           ; $84f4: a9 01     
-            sta $06f1          ; $84f6: 8d f1 06  
+            sta sndEFFECT          ; $84f6: 8d f1 06  
             lda $ad            ; $84f9: a5 ad     
             bne __850b         ; $84fb: d0 0e     
             lda $47            ; $84fd: a5 47     
@@ -786,7 +791,7 @@ __8517:     lda BUTTONS_NEW           ; $8517: a5 b5
             cmp #$08           ; $8519: c9 08     
             bne __8540         ; $851b: d0 23     
             lda #$01           ; $851d: a9 01     
-            sta $06f1          ; $851f: 8d f1 06  
+            sta sndEFFECT          ; $851f: 8d f1 06  
             lda $ad            ; $8522: a5 ad     
             bne __8534         ; $8524: d0 0e     
             lda $47            ; $8526: a5 47     
@@ -810,7 +815,7 @@ __8540:     lda SEL_TYPE            ; $8540: a5 c1
             cmp #$80           ; $8546: c9 80     
             bne __8555         ; $8548: d0 0b     
             lda #$01           ; $854a: a9 01     
-            sta $06f1          ; $854c: 8d f1 06  
+            sta sndEFFECT          ; $854c: 8d f1 06  
             lda $ad            ; $854f: a5 ad     
             eor #$01           ; $8551: 49 01     
             sta $ad            ; $8553: 85 ad     
@@ -823,7 +828,7 @@ __855f:     ldx $47            ; $855f: a6 47
             lda __85b2,x       ; $8561: bd b2 85  
             sta $a1            ; $8564: 85 a1     
             lda #$00           ; $8566: a9 00     
-            sta $a2            ; $8568: 85 a2     
+            sta SPR_PTR_INDEX            ; $8568: 85 a2     
             ldx $47            ; $856a: a6 47     
             lda __85bc,x       ; $856c: bd bc 85  
             sta $a0            ; $856f: 85 a0     
@@ -834,7 +839,7 @@ __855f:     ldx $47            ; $855f: a6 47
             lda $a1            ; $8578: a5 a1     
             adc #ST_LINES           ; $857a: 69 50     
             sta $a1            ; $857c: 85 a1     
-__857e:     jsr __8c27         ; $857e: 20 27 8c  
+__857e:     jsr spr_drawtoMem         ; $857e: 20 27 8c  
 __8581:     lda SEL_TYPE            ; $8581: a5 c1     
             beq __85b1         ; $8583: f0 2c     
             lda $ad            ; $8585: a5 ad     
@@ -846,7 +851,7 @@ __858f:     ldx $59            ; $858f: a6 59
             lda __85c6,x       ; $8591: bd c6 85  
             sta $a1            ; $8594: 85 a1     
             lda #$00           ; $8596: a9 00     
-            sta $a2            ; $8598: 85 a2     
+            sta SPR_PTR_INDEX            ; $8598: 85 a2     
             ldx $59            ; $859a: a6 59     
             lda __85cc,x       ; $859c: bd cc 85  
             sta $a0            ; $859f: 85 a0     
@@ -857,7 +862,7 @@ __858f:     ldx $59            ; $858f: a6 59
             lda $a1            ; $85a8: a5 a1     
             adc #ST_LINES           ; $85aa: 69 50     
             sta $a1            ; $85ac: 85 a1     
-__85ae:     jsr __8c27         ; $85ae: 20 27 8c  
+__85ae:     jsr spr_drawtoMem         ; $85ae: 20 27 8c  
 __85b1:     rts                ; $85b1: 60        
 
 ;-------------------------------------------------------------------------------
@@ -1228,7 +1233,7 @@ __887c:     .hex ef 7b ef 7c   ; $887c: ef 7b ef 7c   Data
             lda #$03           ; $8889: a9 03     
             jsr MMCsetreg2         ; $888b: 20 cb ac  
             lda #$00           ; $888e: a9 00     
-            sta $b3            ; $8890: 85 b3     
+            sta OAM_USED            ; $8890: 85 b3     
             inc $65            ; $8892: e6 65     
             inc $85            ; $8894: e6 85     
             lda $a4            ; $8896: a5 a4     
@@ -1262,7 +1267,7 @@ rotate_tetr:
             jsr __948b         ;   test for valid orientation
             bne restoreOR      ;   if (not valid) restore orientation
             lda #$05           ; $88c7: a9 05     
-            sta $06f1          ; $88c9: 8d f1 06  
+            sta sndEFFECT          ; $88c9: 8d f1 06  
             jmp __88ed         ;   return
 
                                ; else
@@ -1275,7 +1280,7 @@ __88cf:     lda BUTTONS_NEW           ; button value
             jsr __948b         ;  test for valid orientation
             bne restoreOR      ;  if (not valid) restore orientation
             lda #$05           ; $88e1: a9 05     
-            sta $06f1          ; $88e3: 8d f1 06  
+            sta sndEFFECT          ; $88e3: 8d f1 06  
             jmp __88ed         ;  return
 
 restoreOR:  lda B1            ; $88e9: a5 ae     
@@ -1416,7 +1421,7 @@ __89d7:     lda $b6            ; $89d7: a5 b6
             jsr __948b         ; $89df: 20 8b 94  
             bne __8a01         ; $89e2: d0 1d     
             lda #$03           ; $89e4: a9 03     
-            sta $06f1          ; $89e6: 8d f1 06  
+            sta sndEFFECT          ; $89e6: 8d f1 06  
             jmp __8a09         ; $89e9: 4c 09 8a  
 
 ;-------------------------------------------------------------------------------
@@ -1427,7 +1432,7 @@ __89ec:     lda $b6            ; $89ec: a5 b6
             jsr __948b         ; $89f4: 20 8b 94  
             bne __8a01         ; $89f7: d0 08     
             lda #$03           ; $89f9: a9 03     
-            sta $06f1          ; $89fb: 8d f1 06  
+            sta sndEFFECT          ; $89fb: 8d f1 06  
             jmp __8a09         ; $89fe: 4c 09 8a  
 
 ;-------------------------------------------------------------------------------
@@ -1474,7 +1479,7 @@ __8a2c:     clc                ; $8a2c: 18
             rol                ; $8a41: 2a        
             adc TEMP2            ; $8a42: 65 a8     
             tax                ; $8a44: aa        
-            ldy $b3            ; $8a45: a4 b3     
+            ldy OAM_USED            ; $8a45: a4 b3     
             lda #$04           ; $8a47: a9 04     
             sta TEMP2+1            ; $8a49: 85 a9     
 __8a4b:     lda __8a9c,x       ; $8a4b: bd 9c 8a  
@@ -1483,33 +1488,33 @@ __8a4b:     lda __8a9c,x       ; $8a4b: bd 9c 8a
             asl                ; $8a50: 0a        
             clc                ; $8a51: 18        
             adc $ab            ; $8a52: 65 ab     
-            sta $0200,y        ; $8a54: 99 00 02  
+            sta OAMBASE,y        ; $8a54: 99 00 02  
             sta B1            ; $8a57: 85 ae     
-            inc $b3            ; $8a59: e6 b3     
+            inc OAM_USED            ; $8a59: e6 b3     
             iny                ; $8a5b: c8        
             inx                ; $8a5c: e8        
             lda __8a9c,x       ; $8a5d: bd 9c 8a  
-            sta $0200,y        ; $8a60: 99 00 02  
-            inc $b3            ; $8a63: e6 b3     
+            sta OAMBASE,y        ; $8a60: 99 00 02  
+            inc OAM_USED            ; $8a63: e6 b3     
             iny                ; $8a65: c8        
             inx                ; $8a66: e8        
             lda #$02           ; $8a67: a9 02     
-            sta $0200,y        ; $8a69: 99 00 02  
+            sta OAMBASE,y        ; $8a69: 99 00 02  
             lda B1            ; $8a6c: a5 ae     
             cmp #$2f           ; $8a6e: c9 2f     
             bcs __8a84         ; $8a70: b0 12     
-            inc $b3            ; $8a72: e6 b3     
+            inc OAM_USED            ; $8a72: e6 b3     
             dey                ; $8a74: 88        
             lda #$ff           ; $8a75: a9 ff     
-            sta $0200,y        ; $8a77: 99 00 02  
+            sta OAMBASE,y        ; $8a77: 99 00 02  
             iny                ; $8a7a: c8        
             iny                ; $8a7b: c8        
             lda #$00           ; $8a7c: a9 00     
-            sta $0200,y        ; $8a7e: 99 00 02  
+            sta OAMBASE,y        ; $8a7e: 99 00 02  
             jmp __8a93         ; $8a81: 4c 93 8a  
 
 ;-------------------------------------------------------------------------------
-__8a84:     inc $b3            ; $8a84: e6 b3     
+__8a84:     inc OAM_USED            ; $8a84: e6 b3     
             iny                ; $8a86: c8        
             lda __8a9c,x       ; $8a87: bd 9c 8a  
             asl                ; $8a8a: 0a        
@@ -1517,8 +1522,8 @@ __8a84:     inc $b3            ; $8a84: e6 b3
             asl                ; $8a8c: 0a        
             clc                ; $8a8d: 18        
             adc $aa            ; $8a8e: 65 aa     
-            sta $0200,y        ; $8a90: 99 00 02  
-__8a93:     inc $b3            ; $8a93: e6 b3     
+            sta OAMBASE,y        ; $8a90: 99 00 02  
+__8a93:     inc OAM_USED            ; $8a93: e6 b3     
             iny                ; $8a95: c8        
             inx                ; $8a96: e8        
             dec TEMP2+1            ; $8a97: c6 a9     
@@ -1608,8 +1613,8 @@ __8bce:     lda $df            ; $8bce: a5 df
             sta $a1            ; $8bd8: 85 a1     
             ldx $bf            ; $8bda: a6 bf     
             lda __8be5,x       ; $8bdc: bd e5 8b  
-            sta $a2            ; $8bdf: 85 a2     
-            jmp __8c27         ; $8be1: 4c 27 8c  
+            sta SPR_PTR_INDEX            ; $8bdf: 85 a2     
+            jmp spr_drawtoMem         ; $8be1: 4c 27 8c  
 
 ;-------------------------------------------------------------------------------
 __8be4:     rts                ; $8be4: 60        
@@ -1634,51 +1639,54 @@ __8be5:     .hex 00 00 06 00   ; $8be5: 00 00 06 00   Data
             .hex 12 13         ; $8c25: 12 13         Data
 
 ;-------------------------------------------------------------------------------
-__8c27:     clc                ; $8c27: 18        
-            lda $a2            ; $8c28: a5 a2     
-            rol                ; $8c2a: 2a        
-            tax                ; $8c2b: aa        
-            lda __8c6c,x       ; $8c2c: bd 6c 8c  
-            sta TEMP2            ; $8c2f: 85 a8     
-            inx                ; $8c31: e8        
-            lda __8c6c,x       ; $8c32: bd 6c 8c  
-            sta TEMP2+1            ; $8c35: 85 a9     
-            ldx $b3            ; $8c37: a6 b3     
-            ldy #$00           ; $8c39: a0 00     
-__8c3b:     lda (TEMP2),y        ; $8c3b: b1 a8     
-            cmp #$ff           ; $8c3d: c9 ff     
-            beq __8c6b         ; $8c3f: f0 2a     
+; read SPR_PTR_INDEX
+; draw this sprite of one or multiple tiles to RAM
+spr_drawtoMem:  
+            clc
+            lda SPR_PTR_INDEX  ; 
+            rol                ; //TODO clc+rol -> asl     
+            tax                ; X = 2*SPR_PTR_INDEX
+            lda sprPTR__table,x
+            sta TEMP2
+            inx
+            lda sprPTR__table,x
+            sta TEMP2+1        ; get PTR to sprite to TEMP2     
+            ldx OAM_USED       ; get offset to OAMBASE to X
+            ldy #$00
+@loop:      lda (TEMP2),y      ; while (*TEMP2 != FF) do {
+            cmp #$ff
+            beq @skip
             clc                ; $8c41: 18        
             adc $a1            ; $8c42: 65 a1     
-            sta $0200,x        ; $8c44: 9d 00 02  
+            sta OAMBASE,x        ; write sprite y
             inx                ; $8c47: e8        
             iny                ; $8c48: c8        
-            lda (TEMP2),y        ; $8c49: b1 a8     
-            sta $0200,x        ; $8c4b: 9d 00 02  
+            lda (TEMP2),y      ; $8c49: b1 a8     
+            sta OAMBASE,x        ; write sprite index
             inx                ; $8c4e: e8        
             iny                ; $8c4f: c8        
-            lda (TEMP2),y        ; $8c50: b1 a8     
-            sta $0200,x        ; $8c52: 9d 00 02  
+            lda (TEMP2),y      ; $8c50: b1 a8     
+            sta OAMBASE,x        ; write sprite attributes
             inx                ; $8c55: e8        
             iny                ; $8c56: c8        
             lda (TEMP2),y        ; $8c57: b1 a8     
             clc                ; $8c59: 18        
             adc $a0            ; $8c5a: 65 a0     
-            sta $0200,x        ; $8c5c: 9d 00 02  
+            sta OAMBASE,x        ; write sprite x
             inx                ; $8c5f: e8        
             iny                ; $8c60: c8        
             lda #$04           ; $8c61: a9 04     
             clc                ; $8c63: 18        
-            adc $b3            ; $8c64: 65 b3     
-            sta $b3            ; $8c66: 85 b3     
-            jmp __8c3b         ; $8c68: 4c 3b 8c  
+            adc OAM_USED            ; $8c64: 65 b3     
+            sta OAM_USED            ; $8c66: 85 b3     
+            jmp @loop          ; } end while
+@skip:      rts
 
 ;-------------------------------------------------------------------------------
-__8c6b:     rts                ; $8c6b: 60        
-
-;-------------------------------------------------------------------------------
-__8c6c:     .hex 20 8d 31 8d   ; $8c6c: 20 8d 31 8d   Data
-            .hex 3a 8d 3f 8d   ; $8c70: 3a 8d 3f 8d   Data
+; contains pointers to sprite definitions
+sprPTR__table:
+            DW sprPTR0, sprPTR1    ; $8c6c: 20 8d 31 8d   Data
+            DW sprPTR2, sprPTR3 ; $8c70: 3a 8d 3f 8d   Data
             .hex 54 8d 54 8d   ; $8c74: 54 8d 54 8d   Data
             .hex 69 8d 7a 8d   ; $8c78: 69 8d 7a 8d   Data
             .hex 8b 8d 9c 8d   ; $8c7c: 8b 8d 9c 8d   Data
@@ -1722,19 +1730,28 @@ __8c6c:     .hex 20 8d 31 8d   ; $8c6c: 20 8d 31 8d   Data
             .hex 39 94 62 94   ; $8d14: 39 94 62 94   Data
             .hex 8b 94 8b 94   ; $8d18: 8b 94 8b 94   Data
             .hex 8b 94 8b 94   ; $8d1c: 8b 94 8b 94   Data
-            .hex 00 fc 20 00   ; $8d20: 00 fc 20 00   Data
-            .hex 00 fc 20 08   ; $8d24: 00 fc 20 08   Data
-            .hex 08 fc 20 00   ; $8d28: 08 fc 20 00   Data
-            .hex 08 fc 20 08   ; $8d2c: 08 fc 20 08   Data
-            .hex ff 00 27 00   ; $8d30: ff 00 27 00   Data
-            .hex 00 00 27 40   ; $8d34: 00 00 27 40   Data
-            .hex 3a ff 00 ff   ; $8d38: 3a ff 00 ff   Data
-            .hex 00 00 ff 00   ; $8d3c: 00 00 ff 00   Data
-            .hex 19 02 00 00   ; $8d40: 19 02 00 00   Data
-            .hex 0a 02 08 00   ; $8d44: 0a 02 08 00   Data
-            .hex 1e 02 10 00   ; $8d48: 1e 02 10 00   Data
-            .hex 1c 02 18 00   ; $8d4c: 1c 02 18 00   Data
-            .hex 0e 02 20 ff   ; $8d50: 0e 02 20 ff   Data
+
+; definition of sprite0
+            ;    y_off	index	attribute	x_off 
+sprPTR0:    .hex 00 	fc 	20 		00   ; $8d20: 00 fc 20 00   Data
+            .hex 00 	fc 	20 		08   ; $8d24: 00 fc 20 08   Data
+            .hex 08 	fc 	20 		00   ; $8d28: 08 fc 20 00   Data
+            .hex 08 	fc 	20 		08   ; $8d2c: 08 fc 20 08   Data
+            .hex ff            ; end marker
+
+            ;    y_off	index	attribute	x_off 
+sprPTR1:    .hex 00 	27 	00 		00
+            .hex 00 	27 	40 		3a
+            .hex ff            ; endMarker
+
+sprPTR2:    .hex 00	ff	00 		00
+            .hex ff
+sprPTR3:    .hex 00 19 02 00
+            .hex 00 0a 02 08
+            .hex 00 1e 02 10
+            .hex 00 1c 02 18
+            .hex 00 0e 02 20
+            .hex ff
             .hex 00 19 00 00   ; $8d54: 00 19 00 00   Data
             .hex 00 0a 00 08   ; $8d58: 00 0a 00 08   Data
             .hex 00 1e 00 10   ; $8d5c: 00 1e 00 10   Data
@@ -2461,7 +2478,7 @@ __9673:     lda #$3f           ; $9673: a9 3f
             and #$07           ; $968f: 29 07     
             bne __9698         ; $9691: d0 05     
             lda #$09           ; $9693: a9 09     
-            sta $06f1          ; $9695: 8d f1 06  
+            sta sndEFFECT          ; $9695: 8d f1 06  
 __9698:     stx PPUDATA        ; $9698: 8e 07 20  
             ldy #$00           ; $969b: a0 00     
             sty HSCROLL            ; $969d: 84 fd     
@@ -3025,7 +3042,7 @@ __9a8f:     lda ($b8),y        ; $9a8f: b1 b8
             dex                ; $9a96: ca        
             bne __9a8f         ; $9a97: d0 f6     
             lda #$0a           ; $9a99: a9 0a     
-            sta $06f1          ; $9a9b: 8d f1 06  
+            sta sndEFFECT          ; $9a9b: 8d f1 06  
             inc $56            ; $9a9e: e6 56     
             ldx $57            ; $9aa0: a6 57     
             lda TEMP2+1            ; $9aa2: a5 a9     
@@ -3071,13 +3088,13 @@ __9ad2:     inc $57            ; $9ad2: e6 57
             cmp #$04           ; $9aec: c9 04     
             bne __9af5         ; $9aee: d0 05     
             lda #$04           ; $9af0: a9 04     
-            sta $06f1          ; $9af2: 8d f1 06  
+            sta sndEFFECT          ; $9af2: 8d f1 06  
 __9af5:     inc $48            ; $9af5: e6 48     
             lda $56            ; $9af7: a5 56     
             bne __9b02         ; $9af9: d0 07     
             inc $48            ; $9afb: e6 48     
             lda #$07           ; $9afd: a9 07     
-            sta $06f1          ; $9aff: 8d f1 06  
+            sta sndEFFECT          ; $9aff: 8d f1 06  
 __9b02:     rts                ; $9b02: 60        
 
 ;-------------------------------------------------------------------------------
@@ -3216,7 +3233,7 @@ __9bd0:     lda ST_LINES+1            ; $9bd0: a5 51
             bpl __9bfb         ; $9bec: 10 0d     
             inc $44            ; $9bee: e6 44     
             lda #$06           ; $9bf0: a9 06     
-            sta $06f1          ; $9bf2: 8d f1 06  
+            sta sndEFFECT          ; $9bf2: 8d f1 06  
             lda $a3            ; $9bf5: a5 a3     
             ora #$02           ; $9bf7: 09 02     
             sta $a3            ; $9bf9: 85 a3     
@@ -3570,7 +3587,7 @@ __9e1f:     jsr snd_reset_call         ; $9e1f: 20 03 e0
 
 ;-------------------------------------------------------------------------------
 __9e3a:     lda #$02           ; $9e3a: a9 02     
-            sta $a2            ; $9e3c: 85 a2     
+            sta SPR_PTR_INDEX            ; $9e3c: 85 a2     
             lda #$04           ; $9e3e: a9 04     
             sta NMI_FUNC_INDEX            ; $9e40: 85 bd     
             lda SEL_TYPE            ; $9e42: a5 c1     
@@ -3645,7 +3662,7 @@ __9ea4:     jsr process_rom_data         ; $9ea4: 20 98 aa
             lda $75            ; $9ece: a5 75     
             sta $de            ; $9ed0: 85 de     
             lda #$02           ; $9ed2: a9 02     
-            sta $06f1          ; $9ed4: 8d f1 06  
+            sta sndEFFECT          ; $9ed4: 8d f1 06  
             lda #$00           ; $9ed7: a9 00     
             sta $73            ; $9ed9: 85 73     
             sta $74            ; $9edb: 85 74     
@@ -3666,7 +3683,7 @@ __9ee8:     dec $ab            ; $9ee8: c6 ab
 __9efa:     lda $ab            ; $9efa: a5 ab     
             jsr __9f62         ; $9efc: 20 62 9f  
             lda #$01           ; $9eff: a9 01     
-            sta $06f1          ; $9f01: 8d f1 06  
+            sta sndEFFECT          ; $9f01: 8d f1 06  
             lda #$02           ; $9f04: a9 02     
             jsr __a7fd         ; $9f06: 20 fd a7  
             lda $ab            ; $9f09: a5 ab     
@@ -3687,13 +3704,13 @@ __9f16:     dec $ac            ; $9f16: c6 ac
 __9f28:     lda $ac            ; $9f28: a5 ac     
             jsr __9f62         ; $9f2a: 20 62 9f  
             lda #$01           ; $9f2d: a9 01     
-            sta $06f1          ; $9f2f: 8d f1 06  
+            sta sndEFFECT          ; $9f2f: 8d f1 06  
             lda #$02           ; $9f32: a9 02     
             jsr __a7fd         ; $9f34: 20 fd a7  
             lda $ac            ; $9f37: a5 ac     
             bne __9f16         ; $9f39: d0 db     
             lda #$02           ; $9f3b: a9 02     
-            sta $06f1          ; $9f3d: 8d f1 06  
+            sta sndEFFECT          ; $9f3d: 8d f1 06  
             lda #$40           ; $9f40: a9 40     
             jsr __a7fd         ; $9f42: 20 fd a7  
 __9f45:     jsr __a527         ; $9f45: 20 27 a5  
@@ -4091,30 +4108,30 @@ __a201:     inc $8000         ; $a201: ee 00 80
             sta $d6            ; $a25a: 85 d6     
             lda #$00           ; $a25c: a9 00     
             sta $d4            ; $a25e: 85 d4     
-            sta $0200          ; $a260: 8d 00 02  
+            sta OAMBASE          ; $a260: 8d 00 02  
             lda $d5            ; $a263: a5 d5     
             and #$03           ; $a265: 29 03     
             tax                ; $a267: aa        
             lda __a33b,x       ; $a268: bd 3b a3  
             sta $a1            ; $a26b: 85 a1     
 __a26d:     lda #$00           ; $a26d: a9 00     
-            sta $0200          ; $a26f: 8d 00 02  
+            sta OAMBASE          ; $a26f: 8d 00 02  
             ldx $d4            ; $a272: a6 d4     
             lda __a33e,x       ; $a274: bd 3e a3  
             sta $a0            ; $a277: 85 a0     
             lda #$0e           ; $a279: a9 0e     
-            sta $a2            ; $a27b: 85 a2     
+            sta SPR_PTR_INDEX           ; $a27b: 85 a2     
             lda FRAMECOUNT            ; $a27d: a5 b1     
             and #$03           ; $a27f: 29 03     
             bne __a287         ; $a281: d0 04     
             lda #$02           ; $a283: a9 02     
-            sta $a2            ; $a285: 85 a2     
-__a287:     jsr __8c27         ; $a287: 20 27 8c  
+            sta SPR_PTR_INDEX           ; $a285: 85 a2     
+__a287:     jsr spr_drawtoMem         ; $a287: 20 27 8c  
             lda JOY1_RAW            ; $a28a: a5 f5     
             and #BUTTON_START
             beq __a298         ; $a28e: f0 08     
             lda #$02           ; $a290: a9 02     
-            sta $06f1          ; $a292: 8d f1 06  
+            sta sndEFFECT          ; $a292: 8d f1 06  
             jmp __a337         ; $a295: 4c 37 a3  
 
 ;-------------------------------------------------------------------------------
@@ -4122,7 +4139,7 @@ __a298:     lda JOY1_RAW            ; $a298: a5 f5
             and #$81           ; $a29a: 29 81     
             beq __a2af         ; $a29c: f0 11     
             lda #$01           ; $a29e: a9 01     
-            sta $06f1          ; $a2a0: 8d f1 06  
+            sta sndEFFECT          ; $a2a0: 8d f1 06  
             inc $d4            ; $a2a3: e6 d4     
             lda $d4            ; $a2a5: a5 d4     
             cmp #$06           ; $a2a7: c9 06     
@@ -4133,7 +4150,7 @@ __a2af:     lda JOY1_RAW            ; $a2af: a5 f5
             and #BUTTON_B|BUTTON_L
             beq __a2c4         ; $a2b3: f0 0f     
             lda #$01           ; $a2b5: a9 01     
-            sta $06f1          ; $a2b7: 8d f1 06  
+            sta sndEFFECT          ; $a2b7: 8d f1 06  
             dec $d4            ; $a2ba: c6 d4     
             lda $d4            ; $a2bc: a5 d4     
             bpl __a2c4         ; $a2be: 10 04     
@@ -4146,7 +4163,7 @@ __a2c4:     lda $f7            ; $a2c4: a5 f7
             and #$07           ; $a2cc: 29 07     
             bne __a2f2         ; $a2ce: d0 22     
             lda #$01           ; $a2d0: a9 01     
-            sta $06f1          ; $a2d2: 8d f1 06  
+            sta sndEFFECT          ; $a2d2: 8d f1 06  
             lda $d6            ; $a2d5: a5 d6     
             sta TEMP2            ; $a2d7: 85 a8     
             clc                ; $a2d9: 18        
@@ -4169,7 +4186,7 @@ __a2f2:     lda $f7            ; $a2f2: a5 f7
             and #$07           ; $a2fa: 29 07     
             bne __a322         ; $a2fc: d0 24     
             lda #$01           ; $a2fe: a9 01     
-            sta $06f1          ; $a300: 8d f1 06  
+            sta sndEFFECT          ; $a300: 8d f1 06  
             lda $d6            ; $a303: a5 d6     
             sta TEMP2            ; $a305: 85 a8     
             clc                ; $a307: 18        
@@ -4282,8 +4299,8 @@ __a3c4:     lda #$70           ; $a3c4: a9 70
             lda #$77           ; $a3c8: a9 77     
             sta $a1            ; $a3ca: 85 a1     
             lda #$05           ; $a3cc: a9 05     
-            sta $a2            ; $a3ce: 85 a2     
-            jsr __8c27         ; $a3d0: 20 27 8c  
+            sta SPR_PTR_INDEX           ; $a3ce: 85 a2     
+            jsr spr_drawtoMem         ; $a3d0: 20 27 8c  
             lda JOY1_RAW            ; $a3d3: a5 f5     
             cmp #BUTTON_START
             beq __a3df         ; $a3d7: f0 06     
@@ -4367,7 +4384,7 @@ __a463:     lda #$00           ; $a463: a9 00
             sta $c5            ; $a467: 85 c5     
             sta $cd            ; $a469: 85 cd     
             lda #$02           ; $a46b: a9 02     
-            sta $a2            ; $a46d: 85 a2     
+            sta SPR_PTR_INDEX           ; $a46d: 85 a2     
             lda $44            ; $a46f: a5 44     
             cmp #$09           ; $a471: c9 09     
             bne __a49a         ; $a473: d0 25     
@@ -4499,12 +4516,12 @@ __a53b:     lda $79            ; $a53b: a5 79
             lsr                ; $a55a: 4a        
             clc                ; $a55b: 18        
             adc #$21           ; $a55c: 69 21     
-            sta $a2            ; $a55e: 85 a2     
-            jsr __8c27         ; $a560: 20 27 8c  
+            sta SPR_PTR_INDEX           ; $a55e: 85 a2     
+            jsr spr_drawtoMem         ; $a560: 20 27 8c  
             lda #$a0           ; $a563: a9 a0     
             sta $a0            ; $a565: 85 a0     
             lda #$27           ; $a567: a9 27     
-            sta $a2            ; $a569: 85 a2     
+            sta SPR_PTR_INDEX           ; $a569: 85 a2     
             lda FRAMECOUNT            ; $a56b: a5 b1     
             and #$18           ; $a56d: 29 18     
             lsr                ; $a56f: 4a        
@@ -4516,8 +4533,8 @@ __a53b:     lda $79            ; $a53b: a5 79
             cmp #$97           ; $a578: c9 97     
             beq __a580         ; $a57a: f0 04     
             lda #$28           ; $a57c: a9 28     
-            sta $a2            ; $a57e: 85 a2     
-__a580:     jsr __8c27         ; $a580: 20 27 8c  
+            sta SPR_PTR_INDEX           ; $a57e: 85 a2     
+__a580:     jsr spr_drawtoMem         ; $a580: 20 27 8c  
 __a583:     lda #$c0           ; $a583: a9 c0     
             sta $a0            ; $a585: 85 a0     
             lda $c4            ; $a587: a5 c4     
@@ -4536,8 +4553,8 @@ __a599:     tax                ; $a599: aa
             lda __a80e,x       ; $a59a: bd 0e a8  
             sta $a1            ; $a59d: 85 a1     
             lda __a818,x       ; $a59f: bd 18 a8  
-            sta $a2            ; $a5a2: 85 a2     
-            jsr __8c27         ; $a5a4: 20 27 8c  
+            sta SPR_PTR_INDEX           ; $a5a2: 85 a2     
+            jsr spr_drawtoMem         ; $a5a4: 20 27 8c  
             inc $c4            ; $a5a7: e6 c4     
             lda #$30           ; $a5a9: a9 30     
             sta $a0            ; $a5ab: 85 a0     
@@ -4551,8 +4568,8 @@ __a599:     tax                ; $a599: aa
             lsr                ; $a5b8: 4a        
             clc                ; $a5b9: 18        
             adc #$1f           ; $a5ba: 69 1f     
-            sta $a2            ; $a5bc: 85 a2     
-            jsr __8c27         ; $a5be: 20 27 8c  
+            sta SPR_PTR_INDEX           ; $a5bc: 85 a2     
+            jsr spr_drawtoMem         ; $a5be: 20 27 8c  
             lda #$40           ; $a5c1: a9 40     
             sta $a0            ; $a5c3: 85 a0     
             lda #$77           ; $a5c5: a9 77     
@@ -4565,8 +4582,8 @@ __a599:     tax                ; $a599: aa
             lsr                ; $a5d0: 4a        
             clc                ; $a5d1: 18        
             adc #$1d           ; $a5d2: 69 1d     
-            sta $a2            ; $a5d4: 85 a2     
-            jsr __8c27         ; $a5d6: 20 27 8c  
+            sta SPR_PTR_INDEX           ; $a5d4: 85 a2     
+            jsr spr_drawtoMem         ; $a5d6: 20 27 8c  
             lda #$a8           ; $a5d9: a9 a8     
             sta $a0            ; $a5db: 85 a0     
             lda #$d7           ; $a5dd: a9 d7     
@@ -4579,8 +4596,8 @@ __a599:     tax                ; $a599: aa
             lsr                ; $a5e8: 4a        
             clc                ; $a5e9: 18        
             adc #$1a           ; $a5ea: 69 1a     
-            sta $a2            ; $a5ec: 85 a2     
-            jsr __8c27         ; $a5ee: 20 27 8c  
+            sta SPR_PTR_INDEX           ; $a5ec: 85 a2     
+            jsr spr_drawtoMem         ; $a5ee: 20 27 8c  
             lda #$c8           ; $a5f1: a9 c8     
             sta $a0            ; $a5f3: 85 a0     
             lda #$d7           ; $a5f5: a9 d7     
@@ -4593,8 +4610,8 @@ __a599:     tax                ; $a599: aa
             lsr                ; $a600: 4a        
             clc                ; $a601: 18        
             adc #$18           ; $a602: 69 18     
-            sta $a2            ; $a604: 85 a2     
-            jsr __8c27         ; $a606: 20 27 8c  
+            sta SPR_PTR_INDEX           ; $a604: 85 a2     
+            jsr spr_drawtoMem         ; $a606: 20 27 8c  
             lda #$28           ; $a609: a9 28     
             sta $a0            ; $a60b: 85 a0     
             lda #$77           ; $a60d: a9 77     
@@ -4607,8 +4624,8 @@ __a599:     tax                ; $a599: aa
             lsr                ; $a618: 4a        
             clc                ; $a619: 18        
             adc #$16           ; $a61a: 69 16     
-            sta $a2            ; $a61c: 85 a2     
-            jsr __8c27         ; $a61e: 20 27 8c  
+            sta SPR_PTR_INDEX           ; $a61c: 85 a2     
+            jsr spr_drawtoMem         ; $a61e: 20 27 8c  
             jsr __a6bc         ; $a621: 20 bc a6  
             rts                ; $a624: 60        
 
@@ -4628,7 +4645,7 @@ __a62e:     ldx $44            ; $a62e: a6 44
             jsr __a6ae         ; $a63f: 20 ae a6  
             lda __a7b7,x       ; $a642: bd b7 a7  
             sta $a1            ; $a645: 85 a1     
-            jsr __8c27         ; $a647: 20 27 8c  
+            jsr spr_drawtoMem         ; $a647: 20 27 8c  
             ldx $44            ; $a64a: a6 44     
             lda __a753,x       ; $a64c: bd 53 a7  
             cmp $cd            ; $a64f: c5 cd     
@@ -4679,7 +4696,7 @@ __a690:     inc $c4            ; $a690: e6 c4
 __a6a5:     lda __a7f3,x       ; $a6a5: bd f3 a7  
             clc                ; $a6a8: 18        
             adc $c5            ; $a6a9: 65 c5     
-            sta $a2            ; $a6ab: 85 a2     
+            sta SPR_PTR_INDEX           ; $a6ab: 85 a2     
             rts                ; $a6ad: 60        
 
 ;-------------------------------------------------------------------------------
@@ -4730,8 +4747,8 @@ __a6f7:     lda TEMP2            ; $a6f7: a5 a8
             lda __a739,x       ; $a6fd: bd 39 a7  
             sta $a0            ; $a700: 85 a0     
             lda __a741,x       ; $a702: bd 41 a7  
-            sta $a2            ; $a705: 85 a2     
-            jsr __8c27         ; $a707: 20 27 8c  
+            sta SPR_PTR_INDEX           ; $a705: 85 a2     
+            jsr spr_drawtoMem         ; $a707: 20 27 8c  
             ldx $cc            ; $a70a: a6 cc     
             lda $c8,x          ; $a70c: b5 c8     
             sta TEMP2            ; $a70e: 85 a8     
@@ -4747,8 +4764,8 @@ __a6f7:     lda TEMP2            ; $a6f7: a5 a8
             lsr                ; $a723: 4a        
             clc                ; $a724: 18        
             adc #$51           ; $a725: 69 51     
-            sta $a2            ; $a727: 85 a2     
-            jsr __8c27         ; $a729: 20 27 8c  
+            sta SPR_PTR_INDEX           ; $a727: 85 a2     
+            jsr spr_drawtoMem         ; $a729: 20 27 8c  
 __a72c:     inc $cc            ; $a72c: e6 cc     
             lda $cc            ; $a72e: a5 cc     
             cmp #$04           ; $a730: c9 04     
@@ -4969,8 +4986,8 @@ __a9b1:     lda $c5            ; $a9b1: a5 c5
             lda __aa25,x       ; $a9bd: bd 25 aa  
             sta $a0            ; $a9c0: 85 a0     
             lda __aa11,x       ; $a9c2: bd 11 aa  
-            sta $a2            ; $a9c5: 85 a2     
-            jsr __8c27         ; $a9c7: 20 27 8c  
+            sta SPR_PTR_INDEX           ; $a9c5: 85 a2     
+            jsr spr_drawtoMem         ; $a9c7: 20 27 8c  
             lda $c4            ; $a9ca: a5 c4     
             asl                ; $a9cc: 0a        
             sta TEMP2           ; $a9cd: 85 a8     
@@ -4981,13 +4998,13 @@ __a9b1:     lda $c5            ; $a9b1: a5 c5
             adc TEMP2           ; $a9d5: 65 a8     
             tax                ; $a9d7: aa        
             lda __aa16,x       ; $a9d8: bd 16 aa  
-            sta $a2            ; $a9db: 85 a2     
+            sta SPR_PTR_INDEX           ; $a9db: 85 a2     
             ldx $c4            ; $a9dd: a6 c4     
             lda __aa20,x       ; $a9df: bd 20 aa  
             clc                ; $a9e2: 18        
             adc $a0            ; $a9e3: 65 a0     
             sta $a0            ; $a9e5: 85 a0     
-            jsr __8c27         ; $a9e7: 20 27 8c  
+            jsr spr_drawtoMem         ; $a9e7: 20 27 8c  
             lda $c6            ; $a9ea: a5 c6     
             cmp #$f0           ; $a9ec: c9 f0     
             bne __aa0e         ; $a9ee: d0 1e     
