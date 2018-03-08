@@ -1,0 +1,32 @@
+; overwrites some parts of level_screen_data
+LEVEL_SCREEN_DATA2:
+            .hex 3f 0a         ; address $3f0a pallette
+            .hex 01            ; 1 byte
+            .hex 16            ; Data
+            .hex 20 6d         ; address $206d
+            .hex 01            ; 1 byte
+            .hex 0a            ; Data
+            .hex 20 f3         ; address $20f3
+            .hex 48            ; don't inc ptr, 8bytes
+            .hex ff            ; $c965: 20 f3 48 ff   Data
+            .hex 21 13
+            .hex 48 
+            .hex ff           ; Data
+            .hex 21 33
+            .hex 48
+            .hex ff            ; Data
+            .hex 21 53 47 ff   ; $c971: 21 53 47 ff   Data
+            .hex 21 73 47 ff   ; $c975: 21 73 47 ff   Data
+            .hex 21 93 47 ff   ; $c979: 21 93 47 ff   Data
+            .hex 21 b3 47 ff   ; $c97d: 21 b3 47 ff   Data
+            .hex 21 d3 47 ff   ; $c981: 21 d3 47 ff   Data
+            .hex 22 33 48 ff   ; $c985: 22 33 48 ff   Data
+            .hex 22 53 48 ff   ; $c989: 22 53 48 ff   Data
+            .hex 22 73 48 ff   ; $c98d: 22 73 48 ff   Data
+            .hex 22 93 47 ff   ; $c991: 22 93 47 ff   Data
+            .hex 22 b3 47 ff   ; $c995: 22 b3 47 ff   Data
+            .hex 22 d3 47 ff   ; $c999: 22 d3 47 ff   Data
+            .hex 22 f3 47 ff   ; $c99d: 22 f3 47 ff   Data
+            .hex 23 13 47 ff   ; $c9a1: 23 13 47 ff   Data
+            .hex ff
+; end of data

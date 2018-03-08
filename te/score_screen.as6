@@ -1,0 +1,111 @@
+; screen data for score table from line 17..25            
+SCORE_SCREEN_DATA:            
+            .hex 22 20		; line 17
+            .hex 20   ; $c7fd: ff 22 20 20   Data
+            .hex a0 81 83 3b   ; $c801: a0 81 83 3b   Data
+            .hex ff 28 29 29   ; $c805: ff 28 29 29   Data
+            .hex 29 29 29 29   ; $c809: 29 29 29 29   Data
+            .hex 29 29 29 29   ; $c80d: 29 29 29 29   Data
+            .hex 29 29 29 29   ; $c811: 29 29 29 29   Data
+            .hex 29 29 29 29   ; $c815: 29 29 29 29   Data
+            .hex 29 29 2a ff   ; $c819: 29 29 2a ff   Data
+            .hex 3c 60 61 72   ; $c81d: 3c 60 61 72   Data
+            .hex 22 40
+            .hex 20
+            .hex 62   ; $c821: 22 40 20 62   Data
+            .hex 80 91 3b ff   ; $c825: 80 91 3b ff   Data
+            .hex 2b ff ff ff   ; $c829: 2b ff ff ff   Data
+            .hex ff 17 0a 16   ; $c82d: ff 17 0a 16   Data
+            .hex 0e ff ff 1c   ; $c831: 0e ff ff 1c   Data
+            .hex 0c 18 1b 0e   ; $c835: 0c 18 1b 0e   Data
+            .hex ff ff 15 1f   ; $c839: ff ff 15 1f   Data
+            .hex ff 2c ff 3c   ; $c83d: ff 2c ff 3c   Data
+            .hex 70 71 82
+            .hex 22 60
+            .hex 20
+            .hex 42 62   ; $c845: 60 20 42 62   Data
+            .hex 72 3b ff 4c   ; $c849: 72 3b ff 4c   Data
+            .hex 2e 2e 2e 2e   ; $c84d: 2e 2e 2e 2e   Data
+            .hex 2e 2e 2e 2e   ; $c851: 2e 2e 2e 2e   Data
+            .hex 2e 2e 2e 2e   ; $c855: 2e 2e 2e 2e   Data
+            .hex 2e 2e 2e 2e   ; $c859: 2e 2e 2e 2e   Data
+            .hex 2e 2e 2e 2e   ; $c85d: 2e 2e 2e 2e   Data
+            .hex 4e ff 3c 80   ; $c861: 4e ff 3c 80   Data
+            .hex 81 91
+            .hex 22 80   ; $c865: 81 91 22 80   Data
+            .hex 20
+            .hex 82 72 82   ; $c869: 20 82 72 82   Data
+            .hex 3b ff 2b ff   ; $c86d: 3b ff 2b ff   Data
+            .hex 01 ff ff ff   ; $c871: 01 ff ff ff   Data
+            .hex ff ff ff ff   ; $c875: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c879: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c87d: ff ff ff ff   Data
+            .hex ff ff ff 2c   ; $c881: ff ff ff 2c   Data
+            .hex ff 3c 62 62   ; $c885: ff 3c 62 62   Data
+            .hex 82
+            .hex 22 a0
+            .hex 20   ; $c889: 82 22 a0 20   Data
+            .hex 80 a1 62 3b   ; $c88d: 80 a1 62 3b   Data
+            .hex ff 2b ff ff   ; $c891: ff 2b ff ff   Data
+            .hex ff ff ff ff   ; $c895: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c899: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c89d: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c8a1: ff ff ff ff   Data
+            .hex ff ff 2c ff   ; $c8a5: ff ff 2c ff   Data
+            .hex 3c 72 a0 91   ; $c8a9: 3c 72 a0 91   Data
+            .hex 22 c0
+            .hex 20
+            .hex 60   ; $c8ad: 22 c0 20 60   Data
+            .hex 61 72 3b ff   ; $c8b1: 61 72 3b ff   Data
+            .hex 2b ff 02 ff   ; $c8b5: 2b ff 02 ff   Data
+            .hex ff ff ff ff   ; $c8b9: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c8bd: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c8c1: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c8c5: ff ff ff ff   Data
+            .hex ff 2c ff 3c   ; $c8c9: ff 2c ff 3c   Data
+            .hex 72 62 82
+            .hex 22 e0
+            .hex 20
+            .hex 70 71   ; $c8d1: e0 20 70 71   Data
+            .hex 72 3b ff 2b   ; $c8d5: 72 3b ff 2b   Data
+            .hex ff ff ff ff   ; $c8d9: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c8dd: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c8e1: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c8e5: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c8e9: ff ff ff ff   Data
+            .hex 2c ff 3c 82   ; $c8ed: 2c ff 3c 82   Data
+            .hex 72 80
+            .hex 23 00   ; $c8f1: 72 80 23 00   Data
+            .hex 20
+            .hex 62 62 82   ; $c8f5: 20 62 62 82   Data
+            .hex 3b ff 2b ff   ; $c8f9: 3b ff 2b ff   Data
+            .hex 03 ff ff ff   ; $c8fd: 03 ff ff ff   Data
+            .hex ff ff ff ff   ; $c901: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c905: ff ff ff ff   Data
+            .hex ff ff ff ff   ; $c909: ff ff ff ff   Data
+            .hex ff ff ff 2c   ; $c90d: ff ff ff 2c   Data
+            .hex ff 3c 62 a0   ; $c911: ff 3c 62 a0   Data
+            .hex 83
+            .hex 23 20
+            .hex 20		; line 25
+            .hex 72 40 73 3b   ; $c919: 72 40 73 3b   Data
+            .hex ff 2d 2e 2e   ; $c91d: ff 2d 2e 2e   Data
+            .hex 2e 2e 2e 2e   ; $c921: 2e 2e 2e 2e   Data
+            .hex 2e 2e 2e 2e   ; $c925: 2e 2e 2e 2e   Data
+            .hex 2e 2e 2e 2e   ; $c929: 2e 2e 2e 2e   Data
+            .hex 2e 2e 2e 2e   ; $c92d: 2e 2e 2e 2e   Data
+            .hex 2e 2e 2f ff   ; $c931: 2e 2e 2f ff   Data
+            .hex 3c a0 81 83   ; $c935: 3c a0 81 83   Data
+            .hex 23 e0
+            .hex 20
+            .hex aa   ; $c939: 23 e0 20 aa   Data
+            .hex 00 00 00 00   ; $c93d: 00 00 00 00   Data
+            .hex 00 00 aa aa   ; $c941: 00 00 aa aa   Data
+            .hex 00 00 00 00   ; $c945: 00 00 00 00   Data
+            .hex 00 00 aa aa   ; $c949: 00 00 aa aa   Data
+            .hex a0 a0 a0 a0   ; $c94d: a0 a0 a0 a0   Data
+            .hex a0 a0 aa 0a   ; $c951: a0 a0 aa 0a   Data
+            .hex 0a 0a 0a 0a   ; $c955: 0a 0a 0a 0a   Data
+            .hex 0a 0a 0a
+            .hex ff   ; $c959: 0a 0a 0a ff   Data
+; end of data

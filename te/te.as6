@@ -73,7 +73,13 @@ sndEFFECT            = $06f1
 sndMUSIC             = $06f5
 
 ; page 7
+; high score data
 ; $700-$754
+
+HS_DATA              = $0700
+HS_NAMES             = $0700
+HS_POINTS            = $0730
+HS_LEVEL             = $0748
 
 ;-------------------------------------------------------------------------------
 ; iNES Header
@@ -170,30 +176,31 @@ clear_loop: sta (TEMP1),y
             bpl clear_loop     ; continue down to page 0
             lda $0750
             cmp #$12
-            bne d700_init
+            bne HS_init
             lda $0751
             cmp #$34
-            bne d700_init
+            bne HS_init
             lda $0752
             cmp #$56
-            bne d700_init
+            bne HS_init
             lda $0753
             cmp #$78
-            bne d700_init
+            bne HS_init
             lda $0754
             cmp #$9a
-            bne d700_init      ; test if data $750-$754 is initialized
+            bne HS_init        ; test if data $750-$754 is initialized
             jmp skip_d700init  ; skip initialization  
 
-            ldx #$00           ; //TODO dead code?     
-d700_init:  lda data_ad67,x    ; x is still 0
+            ldx #$00           ; //TODO dead code?
+  
+HS_init:    lda HS_INIT_DATA,x    ; x is still 0
             cmp #$ff
-            beq d700_init2
-            sta $0700,x
+            beq HS_init2
+            sta HS_DATA,x
             inx
-            jmp d700_init      ; copy data from ROM $ad67 to RAM $0700 until end marker $FF is read (80 bytes $700-$749)
+            jmp HS_init      ; copy data from ROM $ad67 to RAM $0700 until end marker $FF is read (80 bytes $700-$749)
 
-d700_init2: lda #$12
+HS_init2:   lda #$12
             sta $0750
             lda #$34
             sta $0751
@@ -375,10 +382,10 @@ mode_func_legal:
             lda #$00
             jsr MMCsetreg2
             
-            jsr process_rom_data
+            jsr PPU_copy_data
             DW PALETTE_DATA_FUNC_LEGAL
 
-            jsr process_rom_data
+            jsr PPU_copy_data
             DW LEGAL_SCREEN_DATA
 
             jsr PPU_enableNMI
@@ -423,10 +430,10 @@ mode_func_title:
             lda #$00
             jsr MMCsetreg2
 
-            jsr process_rom_data
+            jsr PPU_copy_data
             DW PALETTE_DATA_MODE1_2_3
             
-            jsr process_rom_data
+            jsr PPU_copy_data
             DW TITLE_SCREEN_DATA
 
             jsr PPU_enableNMI
@@ -494,10 +501,10 @@ mode_func_type:
             jsr frame_PPU_rendering_off
             jsr PPU_disableNMI
 
-            jsr process_rom_data
+            jsr PPU_copy_data
             DW PALETTE_DATA_MODE1_2_3
             
-            jsr process_rom_data
+            jsr PPU_copy_data
             DW TYPE_SCREEN_DATA
 
             lda #$00
@@ -636,19 +643,19 @@ mode_func_level:
             lda #$00
             jsr MMCsetreg2     ; CHR bank 0
   
-            jsr process_rom_data
+            jsr PPU_copy_data
             DW PALETTE_DATA_MODE1_2_3
 
-            jsr process_rom_data         ; $83fb: 20 98 aa  
-            DW LEVEL_SCREEN_DATA ;.hex db ba         ; $83fe: db ba         Data
+            jsr PPU_copy_data
+            DW LEVEL_SCREEN_DATA
 
-            lda SEL_TYPE            ; $8400: a5 c1     
-            bne __8409         ; $8402: d0 05     
-            jsr process_rom_data         ; $8404: 20 98 aa  
+            lda SEL_TYPE
+            bne @skip1
+                               ; if (type A) user level_screen_data2
+            jsr PPU_copy_data
+            DW LEVEL_SCREEN_DATA2
 
-;-------------------------------------------------------------------------------
-            .hex 5d c9         ; $8407: 5d c9         Data
-__8409:     jsr __9ff2         ; $8409: 20 f2 9f  
+@skip1:     jsr PPU_writeHSdata         ; $8409: 20 f2 9f  
             jsr PPU_enableNMI         ; $840c: 20 6b aa  
             jsr frame_clear_sprite_ram         ; $840f: 20 2f aa  
             lda #$00           ; $8412: a9 00     
@@ -909,11 +916,11 @@ PPU_reset_scrolling:
             jsr MMCsetreg1         ; $85f8: 20 b7 ac  
             lda #$03           ; $85fb: a9 03     
             jsr MMCsetreg2         ; $85fd: 20 cb ac  
-            jsr process_rom_data         ; $8600: 20 98 aa  
+            jsr PPU_copy_data         ; $8600: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex f3 ac         ; $8603: f3 ac         Data
-            jsr process_rom_data         ; $8605: 20 98 aa  
+            jsr PPU_copy_data         ; $8605: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex 3c bf         ; $8608: 3c bf         Data
@@ -929,12 +936,12 @@ PPU_reset_scrolling:
             sta PPUADDR        ; $861f: 8d 06 20  
 __8622:     lda #$b8           ; $8622: a9 b8     
             sta PPUADDR        ; $8624: 8d 06 20  
-            lda $0730          ; $8627: ad 30 07  
-            jsr __9712         ; $862a: 20 12 97  
+            lda HS_POINTS          ; $8627: ad 30 07  
+            jsr PPUwrite_packedBCD         ; $862a: 20 12 97  
             lda $0731          ; $862d: ad 31 07  
-            jsr __9712         ; $8630: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $8630: 20 12 97  
             lda $0732          ; $8633: ad 32 07  
-            jsr __9712         ; $8636: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $8636: 20 12 97  
             jmp __8693         ; $8639: 4c 93 86  
 
 ;-------------------------------------------------------------------------------
@@ -945,11 +952,11 @@ __863c:     lda #$0b           ; $863c: a9 0b
             lda #$b8           ; $8646: a9 b8     
             sta PPUADDR        ; $8648: 8d 06 20  
             lda $073c          ; $864b: ad 3c 07  
-            jsr __9712         ; $864e: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $864e: 20 12 97  
             lda $073d          ; $8651: ad 3d 07  
-            jsr __9712         ; $8654: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $8654: 20 12 97  
             lda $073e          ; $8657: ad 3e 07  
-            jsr __9712         ; $865a: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $865a: 20 12 97  
             ldx #$00           ; $865d: a2 00     
 __865f:     lda __86b0,x       ; $865f: bd b0 86  
             inx                ; $8662: e8        
@@ -2382,7 +2389,7 @@ __958c:     lda $a3            ; $958c: a5 a3
             lda $71            ; $95a2: a5 71     
             sta PPUDATA        ; $95a4: 8d 07 20  
             lda $70            ; $95a7: a5 70     
-            jsr __9712         ; $95a9: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $95a9: 20 12 97  
             lda $a3            ; $95ac: a5 a3     
             and #$fe           ; $95ae: 29 fe     
             sta $a3            ; $95b0: 85 a3     
@@ -2396,7 +2403,7 @@ __95b5:     lda #$20           ; $95b5: a9 20
             lda $71            ; $95bf: a5 71     
             sta PPUDATA        ; $95c1: 8d 07 20  
             lda $70            ; $95c4: a5 70     
-            jsr __9712         ; $95c6: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $95c6: 20 12 97  
             lda #$20           ; $95c9: a9 20     
             sta PPUADDR        ; $95cb: 8d 06 20  
             lda #$7a           ; $95ce: a9 7a     
@@ -2404,7 +2411,7 @@ __95b5:     lda #$20           ; $95b5: a9 20
             lda $91            ; $95d3: a5 91     
             sta PPUDATA        ; $95d5: 8d 07 20  
             lda $90            ; $95d8: a5 90     
-            jsr __9712         ; $95da: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $95da: 20 12 97  
             lda $a3            ; $95dd: a5 a3     
             and #$fe           ; $95df: 29 fe     
             sta $a3            ; $95e1: 85 a3     
@@ -2422,7 +2429,7 @@ __95e3:     lda $a3            ; $95e3: a5 a3
             lda #$ba           ; $95fb: a9 ba     
             sta PPUADDR        ; $95fd: 8d 06 20  
             lda TEMP2            ; $9600: a5 a8     
-            jsr __9712         ; $9602: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $9602: 20 12 97  
             jsr __9808         ; $9605: 20 08 98  
             lda $a3            ; $9608: a5 a3     
             and #$fd           ; $960a: 29 fd     
@@ -2438,11 +2445,11 @@ __960e:     lda N_PLR            ; $960e: a5 be
             lda #$18           ; $961f: a9 18     
             sta PPUADDR        ; $9621: 8d 06 20  
             lda $75            ; $9624: a5 75     
-            jsr __9712         ; $9626: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $9626: 20 12 97  
             lda $74            ; $9629: a5 74     
-            jsr __9712         ; $962b: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $962b: 20 12 97  
             lda $73            ; $962e: a5 73     
-            jsr __9712         ; $9630: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $9630: 20 12 97  
             lda $a3            ; $9633: a5 a3     
             and #$fb           ; $9635: 29 fb     
             sta $a3            ; $9637: 85 a3     
@@ -2464,7 +2471,7 @@ __9649:     lda $b0            ; $9649: a5 b0
             lda $03f1,x        ; $9659: bd f1 03  
             sta PPUDATA        ; $965c: 8d 07 20  
             lda $03f0,x        ; $965f: bd f0 03  
-            jsr __9712         ; $9662: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $9662: 20 12 97  
             inc $b0            ; $9665: e6 b0     
             lda $b0            ; $9667: a5 b0     
             cmp #$07           ; $9669: c9 07     
@@ -2529,17 +2536,19 @@ __96ea:     .hex c6 20 e6 20   ; $96ea: c6 20 e6 20   Data
             .hex 06 23 26 23   ; $970e: 06 23 26 23   Data
 
 ;-------------------------------------------------------------------------------
-__9712:     sta TEMP2            ; $9712: 85 a8     
-            and #$f0           ; $9714: 29 f0     
-            lsr                ; $9716: 4a        
-            lsr                ; $9717: 4a        
-            lsr                ; $9718: 4a        
-            lsr                ; $9719: 4a        
-            sta PPUDATA        ; $971a: 8d 07 20  
-            lda TEMP2            ; $971d: a5 a8     
-            and #$0f           ; $971f: 29 0f     
-            sta PPUDATA        ; $9721: 8d 07 20  
-            rts                ; $9724: 60        
+; write packed BCD
+; writes 2 decimal digits coded in high and low 4 bits of A to screen
+PPUwrite_packedBCD:     sta TEMP2
+            and #$f0
+            lsr
+            lsr
+            lsr
+            lsr
+            sta PPUDATA
+            lda TEMP2
+            and #$0f
+            sta PPUDATA
+            rts
 
 ;-------------------------------------------------------------------------------
 __9725:     ldx $49            ; $9725: a6 49     
@@ -3634,7 +3643,7 @@ __9e49:     ldx $64            ; $9e49: a6 64
             jsr MMCsetreg1         ; $9e78: 20 b7 ac  
             lda #$01           ; $9e7b: a9 01     
             jsr MMCsetreg2         ; $9e7d: 20 cb ac  
-            jsr process_rom_data         ; $9e80: 20 98 aa  
+            jsr PPU_copy_data         ; $9e80: 20 98 aa  
             ldx $c9            ; $9e83: a6 c9     
             jmp __9ea4         ; $9e85: 4c a4 9e  
 
@@ -3650,9 +3659,9 @@ __9e96:     txa                ; $9e96: 8a
             jsr MMCsetreg1         ; $9e97: 20 b7 ac  
             lda #$02           ; $9e9a: a9 02     
             jsr MMCsetreg2         ; $9e9c: 20 cb ac  
-            jsr process_rom_data         ; $9e9f: 20 98 aa  
+            jsr PPU_copy_data         ; $9e9f: 20 98 aa  
             .hex 07 ce         ; $9ea2: 07 ce     Invalid Opcode - SLO $ce
-__9ea4:     jsr process_rom_data         ; $9ea4: 20 98 aa  
+__9ea4:     jsr PPU_copy_data         ; $9ea4: 20 98 aa  
             .hex 43 ad         ; $9ea7: 43 ad     Invalid Opcode - SRE ($ad,x)
             jsr __a463         ; $9ea9: 20 63 a4  
             jsr PPU_enableNMI         ; $9eac: 20 6b aa  
@@ -3776,11 +3785,11 @@ tjump_nmi04:
             lda #$8e           ; $9f9a: a9 8e     
             sta PPUADDR        ; $9f9c: 8d 06 20  
             lda $75            ; $9f9f: a5 75     
-            jsr __9712         ; $9fa1: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $9fa1: 20 12 97  
             lda $74            ; $9fa4: a5 74     
-            jsr __9712         ; $9fa6: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $9fa6: 20 12 97  
             lda $73            ; $9fa9: a5 73     
-            jsr __9712         ; $9fab: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $9fab: 20 12 97  
             lda SEL_TYPE            ; $9fae: a5 c1     
             beq __9fe9         ; $9fb0: f0 37     
             lda #$20           ; $9fb2: a9 20     
@@ -3788,116 +3797,119 @@ tjump_nmi04:
             lda #$b0           ; $9fb7: a9 b0     
             sta PPUADDR        ; $9fb9: 8d 06 20  
             lda $ab            ; $9fbc: a5 ab     
-            jsr __9712         ; $9fbe: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $9fbe: 20 12 97  
             lda #$20           ; $9fc1: a9 20     
             sta PPUADDR        ; $9fc3: 8d 06 20  
             lda #$d0           ; $9fc6: a9 d0     
             sta PPUADDR        ; $9fc8: 8d 06 20  
             lda $ac            ; $9fcb: a5 ac     
-            jsr __9712         ; $9fcd: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $9fcd: 20 12 97  
             lda #$21           ; $9fd0: a9 21     
             sta PPUADDR        ; $9fd2: 8d 06 20  
             lda #$2e           ; $9fd5: a9 2e     
             sta PPUADDR        ; $9fd7: 8d 06 20  
             lda $de            ; $9fda: a5 de     
-            jsr __9712         ; $9fdc: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $9fdc: 20 12 97  
             lda $dd            ; $9fdf: a5 dd     
-            jsr __9712         ; $9fe1: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $9fe1: 20 12 97  
             lda $dc            ; $9fe4: a5 dc     
-            jsr __9712         ; $9fe6: 20 12 97  
+            jsr PPUwrite_packedBCD         ; $9fe6: 20 12 97  
 __9fe9:     ldy #$00           ; $9fe9: a0 00     
             sty PPUSCROLL      ; $9feb: 8c 05 20  
             sty PPUSCROLL      ; $9fee: 8c 05 20  
             rts                ; $9ff1: 60        
 
 ;-------------------------------------------------------------------------------
-__9ff2:     lda N_PLR            ; $9ff2: a5 be     
-            cmp #$01           ; $9ff4: c9 01     
-            beq __9ffb         ; $9ff6: f0 03     
-            jmp __a085         ; $9ff8: 4c 85 a0  
+PPU_writeHSdata:
+            lda N_PLR
+            cmp #$01
+            beq @onePLR
+            jmp @return
+
+@onePLR:    jsr PPU_copy_data
+            DW SCORE_SCREEN_DATA
+
+            lda #$00
+            sta TEMP2+1
+            lda SEL_TYPE
+            beq @skip1
+            lda #$04
+            sta TEMP2+1        ; if (type = A) TEMP2+1=0 else TEMP2+1=4
+@loop:     
+@skip1:     lda TEMP2+1
+            and #$03           ; mod 4
+            asl                ; *2
+            tax                ; index = (A mod 4) * 2; (0 2 4 6)
+            lda HS_PPUadr_table,x  ; table read  
+            sta PPUADDR        ; write high byte  
+            lda TEMP2+1               
+            and #$03
+            asl
+            tax                ; recompute index //TODO necessary?
+            inx
+            lda HS_PPUadr_table,x       ; read low byte
+            sta PPUADDR        ; write low byte  
+            lda TEMP2+1
+            asl                ; *2
+            sta TEMP2
+            asl                ; *4
+            clc
+            adc TEMP2          ; *6
+            tay                ; index = A * 6 (one table entry has 6 bytes, first entry typeA: 0, typeB: 24)
+            ldx #$06           ; loop counter
+@loop2:     lda HS_NAMES,y     ; read index to table from RAM
+            sty TEMP2
+            tay
+            lda HS_CHAR_TABLE,y ; read table data
+            ldy TEMP2
+            sta PPUDATA        ; write tile
+            iny
+            dex
+            bne @loop2         ; write 6 tiles to screen (high score name)
+            lda #$ff
+            sta PPUDATA        ; write ' '
+            lda TEMP2+1
+            sta TEMP2
+            asl                ; *2
+            clc
+            adc TEMP2          ; *3
+            tay                ; index = A * 6 (one table entry has 3 bytes)
+            lda HS_POINTS,y
+            jsr PPUwrite_packedBCD
+            iny
+            lda HS_POINTS,y
+            jsr PPUwrite_packedBCD
+            iny
+            lda HS_POINTS,y
+            jsr PPUwrite_packedBCD  ; write score
+            lda #$ff
+            sta PPUDATA        ; write ' '
+            ldy TEMP2+1    
+            lda HS_LEVEL,y
+            tax
+            lda HS_LEVEL_TABLE,x
+            jsr PPUwrite_packedBCD ; write level  
+            inc TEMP2+1
+            lda TEMP2+1            ; inc counter
+            cmp #$03
+            beq @return
+            cmp #$07
+            beq @return
+            jmp @loop         ; loop until counter=3 (typeA) or counter=7 (typeB)
+
+@return:     rts
 
 ;-------------------------------------------------------------------------------
-__9ffb:     jsr process_rom_data         ; $9ffb: 20 98 aa  
+; table of screen addresses
+; 3 16bit entries
+HS_PPUadr_table:
+            .hex 22 89 22 c9   ; 9,20; 9,22
+            .hex 23 09         ; 9,24
 
-;-------------------------------------------------------------------------------
-            .hex fe            ; $9ffe: fe            Data
-            .hex c7            ; $9fff: c7            Data
-
-;-------------------------------------------------------------------------------
-            lda #$00           ; $a000: a9 00     
-            sta TEMP2+1            ; $a002: 85 a9     
-            lda SEL_TYPE            ; $a004: a5 c1     
-            beq __a00c         ; $a006: f0 04     
-            lda #$04           ; $a008: a9 04     
-            sta TEMP2+1            ; $a00a: 85 a9     
-__a00c:     lda TEMP2+1            ; $a00c: a5 a9     
-            and #$03           ; $a00e: 29 03     
-            asl                ; $a010: 0a        
-            tax                ; $a011: aa        
-            lda __a086,x       ; $a012: bd 86 a0  
-            sta PPUADDR        ; $a015: 8d 06 20  
-            lda TEMP2+1            ; $a018: a5 a9     
-            and #$03           ; $a01a: 29 03     
-            asl                ; $a01c: 0a        
-            tax                ; $a01d: aa        
-            inx                ; $a01e: e8        
-            lda __a086,x       ; $a01f: bd 86 a0  
-            sta PPUADDR        ; $a022: 8d 06 20  
-            lda TEMP2+1            ; $a025: a5 a9     
-            asl                ; $a027: 0a        
-            sta TEMP2            ; $a028: 85 a8     
-            asl                ; $a02a: 0a        
-            clc                ; $a02b: 18        
-            adc TEMP2            ; $a02c: 65 a8     
-            tay                ; $a02e: a8        
-            ldx #$06           ; $a02f: a2 06     
-__a031:     lda $0700,y        ; $a031: b9 00 07  
-            sty TEMP2            ; $a034: 84 a8     
-            tay                ; $a036: a8        
-            lda __a08c,y       ; $a037: b9 8c a0  
-            ldy TEMP2            ; $a03a: a4 a8     
-            sta PPUDATA        ; $a03c: 8d 07 20  
-            iny                ; $a03f: c8        
-            dex                ; $a040: ca        
-            bne __a031         ; $a041: d0 ee     
-            lda #$ff           ; $a043: a9 ff     
-            sta PPUDATA        ; $a045: 8d 07 20  
-            lda TEMP2+1            ; $a048: a5 a9     
-            sta TEMP2            ; $a04a: 85 a8     
-            asl                ; $a04c: 0a        
-            clc                ; $a04d: 18        
-            adc TEMP2            ; $a04e: 65 a8     
-            tay                ; $a050: a8        
-            lda $0730,y        ; $a051: b9 30 07  
-            jsr __9712         ; $a054: 20 12 97  
-            iny                ; $a057: c8        
-            lda $0730,y        ; $a058: b9 30 07  
-            jsr __9712         ; $a05b: 20 12 97  
-            iny                ; $a05e: c8        
-            lda $0730,y        ; $a05f: b9 30 07  
-            jsr __9712         ; $a062: 20 12 97  
-            lda #$ff           ; $a065: a9 ff     
-            sta PPUDATA        ; $a067: 8d 07 20  
-            ldy TEMP2+1            ; $a06a: a4 a9     
-            lda $0748,y        ; $a06c: b9 48 07  
-            tax                ; $a06f: aa        
-            lda __a0bc,x       ; $a070: bd bc a0  
-            jsr __9712         ; $a073: 20 12 97  
-            inc TEMP2+1            ; $a076: e6 a9     
-            lda TEMP2+1            ; $a078: a5 a9     
-            cmp #$03           ; $a07a: c9 03     
-            beq __a085         ; $a07c: f0 07     
-            cmp #$07           ; $a07e: c9 07     
-            beq __a085         ; $a080: f0 03     
-            jmp __a00c         ; $a082: 4c 0c a0  
-
-;-------------------------------------------------------------------------------
-__a085:     rts                ; $a085: 60        
-
-;-------------------------------------------------------------------------------
-__a086:     .hex 22 89 22 c9   ; $a086: 22 89 22 c9   Data
-            .hex 23 09         ; $a08a: 23 09         Data
-__a08c:     .hex 24 0a 0b 0c   ; $a08c: 24 0a 0b 0c   Data
+; table of chars for name in high score list
+; propably 44 entries
+HS_CHAR_TABLE:
+            .hex 24 0a 0b 0c   ; $a08c: 24 0a 0b 0c   Data
             .hex 0d 0e 0f 10   ; $a090: 0d 0e 0f 10   Data
             .hex 11 12 13 14   ; $a094: 11 12 13 14   Data
             .hex 15 16 17 18   ; $a098: 15 16 17 18   Data
@@ -3908,8 +3920,15 @@ __a08c:     .hex 24 0a 0b 0c   ; $a08c: 24 0a 0b 0c   Data
             .hex 05 06 07 08   ; $a0ac: 05 06 07 08   Data
             .hex 09 25 4f 5e   ; $a0b0: 09 25 4f 5e   Data
             .hex 5f 6e 6f ff   ; $a0b4: 5f 6e 6f ff   Data
+
+;//TODO filler?
             .hex 00 00 00 00   ; $a0b8: 00 00 00 00   Data
-__a0bc:     .hex 00 01 02 03   ; $a0bc: 00 01 02 03   Data
+
+; table of levels for HS list
+; table[i] return packed_bcd(i) for i==0..49
+; //TODO shorten table? limit maxlevel 
+HS_LEVEL_TABLE:
+            .hex 00 01 02 03   ; $a0bc: 00 01 02 03   Data
             .hex 04 05 06 07   ; $a0c0: 04 05 06 07   Data
             .hex 08 09 10 11   ; $a0c4: 08 09 10 11   Data
             .hex 12 13 14 15   ; $a0c8: 12 13 14 15   Data
@@ -3936,19 +3955,19 @@ __a0fa:     lda $d5            ; $a0fa: a5 d5
             clc                ; $a0ff: 18        
             adc TEMP2+1            ; $a100: 65 a9     
             tay                ; $a102: a8        
-            lda $0730,y        ; $a103: b9 30 07  
+            lda HS_POINTS,y        ; $a103: b9 30 07  
             cmp $75            ; $a106: c5 75     
             beq __a10e         ; $a108: f0 04     
             bcs __a124         ; $a10a: b0 18     
             bcc __a134         ; $a10c: 90 26     
 __a10e:     iny                ; $a10e: c8        
-            lda $0730,y        ; $a10f: b9 30 07  
+            lda HS_POINTS,y        ; $a10f: b9 30 07  
             cmp $74            ; $a112: c5 74     
             beq __a11a         ; $a114: f0 04     
             bcs __a124         ; $a116: b0 0c     
             bcc __a134         ; $a118: 90 1a     
 __a11a:     iny                ; $a11a: c8        
-            lda $0730,y        ; $a11b: b9 30 07  
+            lda HS_POINTS,y        ; $a11b: b9 30 07  
             cmp $73            ; $a11e: c5 73     
             beq __a134         ; $a120: f0 12     
             bcc __a134         ; $a122: 90 10     
@@ -3988,7 +4007,7 @@ __a160:     ldx $d5            ; $a160: a6 d5
             tax                ; $a165: aa        
             ldy #$06           ; $a166: a0 06     
             lda #$00           ; $a168: a9 00     
-__a16a:     sta $0700,x        ; $a16a: 9d 00 07  
+__a16a:     sta HS_NAMES,x        ; $a16a: 9d 00 07  
             inx                ; $a16d: e8        
             dey                ; $a16e: 88        
             bne __a16a         ; $a16f: d0 f9     
@@ -3996,16 +4015,16 @@ __a16a:     sta $0700,x        ; $a16a: 9d 00 07
             lda __a1f9,x       ; $a173: bd f9 a1  
             tax                ; $a176: aa        
             lda $75            ; $a177: a5 75     
-            sta $0730,x        ; $a179: 9d 30 07  
+            sta HS_POINTS,x        ; $a179: 9d 30 07  
             inx                ; $a17c: e8        
             lda $74            ; $a17d: a5 74     
-            sta $0730,x        ; $a17f: 9d 30 07  
+            sta HS_POINTS,x        ; $a17f: 9d 30 07  
             inx                ; $a182: e8        
             lda $73            ; $a183: a5 73     
-            sta $0730,x        ; $a185: 9d 30 07  
+            sta HS_POINTS,x        ; $a185: 9d 30 07  
             ldx $d5            ; $a188: a6 d5     
             lda $64            ; $a18a: a5 64     
-            sta $0748,x        ; $a18c: 9d 48 07  
+            sta HS_LEVEL,x        ; $a18c: 9d 48 07  
             jmp __a201         ; $a18f: 4c 01 a2  
 
 ;-------------------------------------------------------------------------------
@@ -4022,14 +4041,14 @@ __a1a3:     lda TEMP2            ; $a1a3: a5 a8
             clc                ; $a1a5: 18        
             adc TEMP2+1            ; $a1a6: 65 a9     
             tax                ; $a1a8: aa        
-            lda $0700,x        ; $a1a9: bd 00 07  
+            lda HS_NAMES,x        ; $a1a9: bd 00 07  
             sta $aa            ; $a1ac: 85 aa     
             txa                ; $a1ae: 8a        
             clc                ; $a1af: 18        
             adc #$06           ; $a1b0: 69 06     
             tax                ; $a1b2: aa        
             lda $aa            ; $a1b3: a5 aa     
-            sta $0700,x        ; $a1b5: 9d 00 07  
+            sta HS_NAMES,x        ; $a1b5: 9d 00 07  
             dec TEMP2+1            ; $a1b8: c6 a9     
             lda TEMP2+1            ; $a1ba: a5 a9     
             cmp #$ff           ; $a1bc: c9 ff     
@@ -4044,13 +4063,13 @@ __a1c1:     tax                ; $a1c1: aa
             clc                ; $a1c7: 18        
             adc #$0c           ; $a1c8: 69 0c     
             tax                ; $a1ca: aa        
-__a1cb:     lda $0730,x        ; $a1cb: bd 30 07  
+__a1cb:     lda HS_POINTS,x        ; $a1cb: bd 30 07  
             sta $0733,x        ; $a1ce: 9d 33 07  
             inx                ; $a1d1: e8        
-            lda $0730,x        ; $a1d2: bd 30 07  
+            lda HS_POINTS,x        ; $a1d2: bd 30 07  
             sta $0733,x        ; $a1d5: 9d 33 07  
             inx                ; $a1d8: e8        
-            lda $0730,x        ; $a1d9: bd 30 07  
+            lda HS_POINTS,x        ; $a1d9: bd 30 07  
             sta $0733,x        ; $a1dc: 9d 33 07  
             rts                ; $a1df: 60        
 
@@ -4062,7 +4081,7 @@ __a1e0:     tax                ; $a1e0: aa
             clc                ; $a1e6: 18        
             adc #$04           ; $a1e7: 69 04     
             tax                ; $a1e9: aa        
-__a1ea:     lda $0748,x        ; $a1ea: bd 48 07  
+__a1ea:     lda HS_LEVEL,x        ; $a1ea: bd 48 07  
             sta $0749,x        ; $a1ed: 9d 49 07  
             rts                ; $a1f0: 60        
 
@@ -4086,11 +4105,11 @@ __a201:     inc $8000         ; $a201: ee 00 80
             jsr MMCsetreg1         ; $a21a: 20 b7 ac  
             lda #$00           ; $a21d: a9 00     
             jsr MMCsetreg2         ; $a21f: 20 cb ac  
-            jsr process_rom_data         ; $a222: 20 98 aa  
+            jsr PPU_copy_data         ; $a222: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex 2b ad         ; $a225: 2b ad         Data
-            jsr process_rom_data         ; $a227: 20 98 aa  
+            jsr PPU_copy_data         ; $a227: 20 98 aa  
 
 ;-------------------------------------------------------------------------------
             .hex 9d c3         ; $a22a: 9d c3         Data
@@ -4102,7 +4121,7 @@ __a201:     inc $8000         ; $a201: ee 00 80
             clc                ; $a238: 18        
             adc SEL_TYPE            ; $a239: 65 c1     
             sta PPUDATA        ; $a23b: 8d 07 20  
-            jsr __9ff2         ; $a23e: 20 f2 9f  
+            jsr PPU_writeHSdata         ; $a23e: 20 f2 9f  
             lda #$02           ; $a241: a9 02     
             sta NMI_FUNC_INDEX            ; $a243: 85 bd     
             jsr PPU_enableNMI         ; $a245: 20 6b aa  
@@ -4179,7 +4198,7 @@ __a2c4:     lda $f7            ; $a2c4: a5 f7
             clc                ; $a2d9: 18        
             adc $d4            ; $a2da: 65 d4     
             tax                ; $a2dc: aa        
-            lda $0700,x        ; $a2dd: bd 00 07  
+            lda HS_NAMES,x        ; $a2dd: bd 00 07  
             sta TEMP2            ; $a2e0: 85 a8     
             dec TEMP2            ; $a2e2: c6 a8     
             lda TEMP2            ; $a2e4: a5 a8     
@@ -4188,7 +4207,7 @@ __a2c4:     lda $f7            ; $a2c4: a5 f7
             adc #$2c           ; $a2e9: 69 2c     
             sta TEMP2            ; $a2eb: 85 a8     
 __a2ed:     lda TEMP2            ; $a2ed: a5 a8     
-            sta $0700,x        ; $a2ef: 9d 00 07  
+            sta HS_NAMES,x        ; $a2ef: 9d 00 07  
 __a2f2:     lda $f7            ; $a2f2: a5 f7     
             and #$08           ; $a2f4: 29 08     
             beq __a322         ; $a2f6: f0 2a     
@@ -4202,7 +4221,7 @@ __a2f2:     lda $f7            ; $a2f2: a5 f7
             clc                ; $a307: 18        
             adc $d4            ; $a308: 65 d4     
             tax                ; $a30a: aa        
-            lda $0700,x        ; $a30b: bd 00 07  
+            lda HS_NAMES,x        ; $a30b: bd 00 07  
             sta TEMP2            ; $a30e: 85 a8     
             inc TEMP2            ; $a310: e6 a8     
             lda TEMP2            ; $a312: a5 a8     
@@ -4212,12 +4231,12 @@ __a2f2:     lda $f7            ; $a2f2: a5 f7
             sbc #$2c           ; $a319: e9 2c     
             sta TEMP2            ; $a31b: 85 a8     
 __a31d:     lda TEMP2            ; $a31d: a5 a8     
-            sta $0700,x        ; $a31f: 9d 00 07  
+            sta HS_NAMES,x        ; $a31f: 9d 00 07  
 __a322:     lda $d6            ; $a322: a5 d6     
             clc                ; $a324: 18        
             adc $d4            ; $a325: 65 d4     
             tax                ; $a327: aa        
-            lda $0700,x        ; $a328: bd 00 07  
+            lda HS_NAMES,x        ; $a328: bd 00 07  
             sta $d7            ; $a32b: 85 d7     
             lda #$80           ; $a32d: a9 80     
             sta $a3            ; $a32f: 85 a3     
@@ -4243,20 +4262,20 @@ tjump_nmi02:
             and #$03           ; $a34c: 29 03     
             asl                ; $a34e: 0a        
             tax                ; $a34f: aa        
-            lda __a086,x       ; $a350: bd 86 a0  
+            lda HS_PPUadr_table,x       ; $a350: bd 86 a0  
             sta PPUADDR        ; $a353: 8d 06 20  
             lda $d5            ; $a356: a5 d5     
             and #$03           ; $a358: 29 03     
             asl                ; $a35a: 0a        
             tax                ; $a35b: aa        
             inx                ; $a35c: e8        
-            lda __a086,x       ; $a35d: bd 86 a0  
+            lda HS_PPUadr_table,x       ; $a35d: bd 86 a0  
             sta TEMP2            ; $a360: 85 a8     
             clc                ; $a362: 18        
             adc $d4            ; $a363: 65 d4     
             sta PPUADDR        ; $a365: 8d 06 20  
             ldx $d7            ; $a368: a6 d7     
-            lda __a08c,x       ; $a36a: bd 8c a0  
+            lda HS_CHAR_TABLE,x       ; $a36a: bd 8c a0  
             sta PPUDATA        ; $a36d: 8d 07 20  
             lda #$00           ; $a370: a9 00     
             sta HSCROLL            ; $a372: 85 fd     
@@ -4926,10 +4945,10 @@ __a926:     jsr frame_PPU_rendering_off         ; $a926: 20 52 aa
             jsr MMCsetreg1         ; $a92e: 20 b7 ac  
             lda #$02           ; $a931: a9 02     
             jsr MMCsetreg2         ; $a933: 20 cb ac  
-            jsr process_rom_data         ; $a936: 20 98 aa  
+            jsr PPU_copy_data         ; $a936: 20 98 aa  
             pla                ; $a939: 68        
             .hex d2            ; $a93a: d2        Invalid Opcode - KIL 
-            jsr process_rom_data         ; $a93b: 20 98 aa  
+            jsr PPU_copy_data         ; $a93b: 20 98 aa  
             .hex 43 ad         ; $a93e: 43 ad     Invalid Opcode - SRE ($ad,x)
             jsr __a96e         ; $a940: 20 6e a9  
             jsr PPU_enableNMI         ; $a943: 20 6b aa  
@@ -5134,11 +5153,13 @@ PPU_resetSCROLL:
             rts
 
 ;-------------------------------------------------------------------------------
-process_rom_data:     jsr get_pointer    ; read ROM stored pointer to TEMP1
-            jmp __aaf2_entry         ; $aa9b: 4c f2 aa  
+PPU_copy_data:     
+            jsr get_pointer    ; read ROM stored pointer to TEMP1
+            jmp process_data         ; $aa9b: 4c f2 aa  
 
 ;-------------------------------------------------------------------------------
-__aa9e:     pha                ; save high byte PPU address read from TEMP1 pointer
+copy_PPU_bytes:     
+            pha                ; save high byte PPU address read from TEMP1 pointer
             sta PPUADDR
             iny
             lda (TEMP1),y      ; read next byte from TEMP1 pointer
@@ -5156,13 +5177,16 @@ __aa9e:     pha                ; save high byte PPU address read from TEMP1 poin
             pla                ; restore A
             asl                ; A *= 2, original bit 6 to carry
             php                ; save flags
-            bcc @skip2 
-            ora #$02           ; A: set bit 2, controls increment of TEMP1 ptr
-            iny
+
+            bcc @skip2         ; if (bit6 of control byte) {
+            ora #$02           ;   A: set bit 2, controls increment of TEMP1 ptr
+            iny                ;   shift read index from control to data byte (not incremented in read loop)
+                               ; } endif
+
 @skip2:     plp                ; restore flags (flags after 2 asl of original A)
             clc
             bne @skip3
-            sec                ; if lower 6bits of original A clear set carry else clear
+            sec                ; if lower 6bits of original A clear set carry else clear (0 means write 128bytes)
 @skip3:     ror                ; rotate carry to bit 7
             lsr                ; carry is in bit 6 bits 0..5 are equal to original A, carry is ptr increment flag
             tax                ; initialize counter
@@ -5174,21 +5198,22 @@ __aa9e:     pha                ; save high byte PPU address read from TEMP1 poin
             bne @loop          ; read X bytes from TEMP1 ptr carry controls if ptr is incremented, write to PPUDATA
             pla                ; restore high byte of PPU address
             cmp #$3f
-            bne __aae6         ; if pallette address {
+            bne next_address         ; if pallette address {
             sta PPUADDR
             stx PPUADDR        ; set PPU address to $3F00
             stx PPUADDR
             stx PPUADDR        ; set PPU address to $0000 //TODO 4 writes to PPUADDR?
                                ; } endif
 
-__aae6:     sec                ; $aae6: 38        
-            tya                ; $aae7: 98        
-            adc TEMP1            ; A = Y + 1
-            sta TEMP1            ; $aaea: 85 00     
-            lda #$00           ; $aaec: a9 00     
-            adc TEMP1+1            ; $aaee: 65 01     
-            sta TEMP1+1         ; 
-__aaf2_entry:
+next_address:
+            sec
+            tya
+            adc TEMP1
+            sta TEMP1
+            lda #$00
+            adc TEMP1+1
+            sta TEMP1+1         ; add number of bytes read to TEMP1 ptr
+process_data:
 @loop:      ldx PPUSTATUS      ; reset PPU address latch
             ldy #$00           ; Y=0
             lda (TEMP1),y
@@ -5202,10 +5227,10 @@ __aaf2_entry:
             pla
             sta TEMP1
             ldy #$02           ; TEMP1 = pop; Y=2
-            bne __aae6         ; always jump
+            bne next_address   ; always jump
 
 @skip2:     cmp #$4c
-            bne __aa9e         ; if (*TEMP1 == $4c)
+            bne copy_PPU_bytes ; if (*TEMP1 == $4c)
             lda TEMP1
             pha
             lda TEMP1+1
@@ -5220,9 +5245,9 @@ __aaf2_entry:
             bcs @loop          ; end while
 
 ;-------------------------------------------------------------------------------
-; called from process_rom_data
-; read pointer which is stored at return address of process_rom_data caller to TEMP1
-; set return address for process_rom_data caller after ROM stored pointer 
+; called from PPU_copy_data
+; read pointer which is stored at return address of PPU_copy_data caller to TEMP1
+; set return address for PPU_copy_data caller after ROM stored pointer 
 get_pointer:
             tsx                ; get stack pointer
             lda $0103,x
@@ -5574,7 +5599,7 @@ PALETTE_DATA_MODE1_2_3:
             .hex 0f 15 37 ff   ; $ad63: 0f 15 37 ff   Data
 
 ; 80 bytes of data copied to page 7 $700-$749
-data_ad67:  .hex 08 0f 17 01   ; $ad67: 08 0f 17 01   Data
+HS_INIT_DATA:  .hex 08 0f 17 01   ; $ad67: 08 0f 17 01   Data
             .hex 12 04 0f 14   ; $ad6b: 12 04 0f 14   Data
             .hex 01 13 01 0e   ; $ad6f: 01 13 01 0e   Data
             .hex 0c 01 0e 03   ; $ad73: 0c 01 0e 03   Data
@@ -6162,113 +6187,12 @@ __c1a5:     .hex ff ff ff 34   ; $c1a5: ff ff ff 34   Data
             .hex a0 a0 a0 aa   ; $c7f1: a0 a0 a0 aa   Data
             .hex 0a 0a 0a 0a   ; $c7f5: 0a 0a 0a 0a   Data
             .hex 0a 0a 0a 0a   ; $c7f9: 0a 0a 0a 0a   Data
-            .hex ff 22 20 20   ; $c7fd: ff 22 20 20   Data
-            .hex a0 81 83 3b   ; $c801: a0 81 83 3b   Data
-            .hex ff 28 29 29   ; $c805: ff 28 29 29   Data
-            .hex 29 29 29 29   ; $c809: 29 29 29 29   Data
-            .hex 29 29 29 29   ; $c80d: 29 29 29 29   Data
-            .hex 29 29 29 29   ; $c811: 29 29 29 29   Data
-            .hex 29 29 29 29   ; $c815: 29 29 29 29   Data
-            .hex 29 29 2a ff   ; $c819: 29 29 2a ff   Data
-            .hex 3c 60 61 72   ; $c81d: 3c 60 61 72   Data
-__c821:     .hex 22 40 20 62   ; $c821: 22 40 20 62   Data
-            .hex 80 91 3b ff   ; $c825: 80 91 3b ff   Data
-            .hex 2b ff ff ff   ; $c829: 2b ff ff ff   Data
-            .hex ff 17 0a 16   ; $c82d: ff 17 0a 16   Data
-            .hex 0e ff ff 1c   ; $c831: 0e ff ff 1c   Data
-            .hex 0c 18 1b 0e   ; $c835: 0c 18 1b 0e   Data
-            .hex ff ff 15 1f   ; $c839: ff ff 15 1f   Data
-            .hex ff 2c ff 3c   ; $c83d: ff 2c ff 3c   Data
-            .hex 70 71 82 22   ; $c841: 70 71 82 22   Data
-            .hex 60 20 42 62   ; $c845: 60 20 42 62   Data
-            .hex 72 3b ff 4c   ; $c849: 72 3b ff 4c   Data
-            .hex 2e 2e 2e 2e   ; $c84d: 2e 2e 2e 2e   Data
-            .hex 2e 2e 2e 2e   ; $c851: 2e 2e 2e 2e   Data
-            .hex 2e 2e 2e 2e   ; $c855: 2e 2e 2e 2e   Data
-            .hex 2e 2e 2e 2e   ; $c859: 2e 2e 2e 2e   Data
-            .hex 2e 2e 2e 2e   ; $c85d: 2e 2e 2e 2e   Data
-            .hex 4e ff 3c 80   ; $c861: 4e ff 3c 80   Data
-            .hex 81 91 22 80   ; $c865: 81 91 22 80   Data
-            .hex 20 82 72 82   ; $c869: 20 82 72 82   Data
-            .hex 3b ff 2b ff   ; $c86d: 3b ff 2b ff   Data
-            .hex 01 ff ff ff   ; $c871: 01 ff ff ff   Data
-            .hex ff ff ff ff   ; $c875: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c879: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c87d: ff ff ff ff   Data
-            .hex ff ff ff 2c   ; $c881: ff ff ff 2c   Data
-            .hex ff 3c 62 62   ; $c885: ff 3c 62 62   Data
-            .hex 82 22 a0 20   ; $c889: 82 22 a0 20   Data
-            .hex 80 a1 62 3b   ; $c88d: 80 a1 62 3b   Data
-            .hex ff 2b ff ff   ; $c891: ff 2b ff ff   Data
-            .hex ff ff ff ff   ; $c895: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c899: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c89d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c8a1: ff ff ff ff   Data
-            .hex ff ff 2c ff   ; $c8a5: ff ff 2c ff   Data
-            .hex 3c 72 a0 91   ; $c8a9: 3c 72 a0 91   Data
-            .hex 22 c0 20 60   ; $c8ad: 22 c0 20 60   Data
-            .hex 61 72 3b ff   ; $c8b1: 61 72 3b ff   Data
-            .hex 2b ff 02 ff   ; $c8b5: 2b ff 02 ff   Data
-            .hex ff ff ff ff   ; $c8b9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c8bd: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c8c1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c8c5: ff ff ff ff   Data
-            .hex ff 2c ff 3c   ; $c8c9: ff 2c ff 3c   Data
-            .hex 72 62 82 22   ; $c8cd: 72 62 82 22   Data
-            .hex e0 20 70 71   ; $c8d1: e0 20 70 71   Data
-            .hex 72 3b ff 2b   ; $c8d5: 72 3b ff 2b   Data
-            .hex ff ff ff ff   ; $c8d9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c8dd: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c8e1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c8e5: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c8e9: ff ff ff ff   Data
-            .hex 2c ff 3c 82   ; $c8ed: 2c ff 3c 82   Data
-            .hex 72 80 23 00   ; $c8f1: 72 80 23 00   Data
-            .hex 20 62 62 82   ; $c8f5: 20 62 62 82   Data
-            .hex 3b ff 2b ff   ; $c8f9: 3b ff 2b ff   Data
-            .hex 03 ff ff ff   ; $c8fd: 03 ff ff ff   Data
-            .hex ff ff ff ff   ; $c901: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c905: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c909: ff ff ff ff   Data
-            .hex ff ff ff 2c   ; $c90d: ff ff ff 2c   Data
-            .hex ff 3c 62 a0   ; $c911: ff 3c 62 a0   Data
-            .hex 83 23 20 20   ; $c915: 83 23 20 20   Data
-            .hex 72 40 73 3b   ; $c919: 72 40 73 3b   Data
-            .hex ff 2d 2e 2e   ; $c91d: ff 2d 2e 2e   Data
-            .hex 2e 2e 2e 2e   ; $c921: 2e 2e 2e 2e   Data
-            .hex 2e 2e 2e 2e   ; $c925: 2e 2e 2e 2e   Data
-            .hex 2e 2e 2e 2e   ; $c929: 2e 2e 2e 2e   Data
-            .hex 2e 2e 2e 2e   ; $c92d: 2e 2e 2e 2e   Data
-            .hex 2e 2e 2f ff   ; $c931: 2e 2e 2f ff   Data
-            .hex 3c a0 81 83   ; $c935: 3c a0 81 83   Data
-            .hex 23 e0 20 aa   ; $c939: 23 e0 20 aa   Data
-            .hex 00 00 00 00   ; $c93d: 00 00 00 00   Data
-            .hex 00 00 aa aa   ; $c941: 00 00 aa aa   Data
-            .hex 00 00 00 00   ; $c945: 00 00 00 00   Data
-            .hex 00 00 aa aa   ; $c949: 00 00 aa aa   Data
-            .hex a0 a0 a0 a0   ; $c94d: a0 a0 a0 a0   Data
-            .hex a0 a0 aa 0a   ; $c951: a0 a0 aa 0a   Data
-            .hex 0a 0a 0a 0a   ; $c955: 0a 0a 0a 0a   Data
-            .hex 0a 0a 0a ff   ; $c959: 0a 0a 0a ff   Data
-            .hex 3f 0a 01 16   ; $c95d: 3f 0a 01 16   Data
-            .hex 20 6d 01 0a   ; $c961: 20 6d 01 0a   Data
-            .hex 20 f3 48 ff   ; $c965: 20 f3 48 ff   Data
-            .hex 21 13 48 ff   ; $c969: 21 13 48 ff   Data
-            .hex 21 33 48 ff   ; $c96d: 21 33 48 ff   Data
-            .hex 21 53 47 ff   ; $c971: 21 53 47 ff   Data
-            .hex 21 73 47 ff   ; $c975: 21 73 47 ff   Data
-            .hex 21 93 47 ff   ; $c979: 21 93 47 ff   Data
-            .hex 21 b3 47 ff   ; $c97d: 21 b3 47 ff   Data
-            .hex 21 d3 47 ff   ; $c981: 21 d3 47 ff   Data
-            .hex 22 33 48 ff   ; $c985: 22 33 48 ff   Data
-            .hex 22 53 48 ff   ; $c989: 22 53 48 ff   Data
-            .hex 22 73 48 ff   ; $c98d: 22 73 48 ff   Data
-            .hex 22 93 47 ff   ; $c991: 22 93 47 ff   Data
-            .hex 22 b3 47 ff   ; $c995: 22 b3 47 ff   Data
-            .hex 22 d3 47 ff   ; $c999: 22 d3 47 ff   Data
-            .hex 22 f3 47 ff   ; $c99d: 22 f3 47 ff   Data
-            .hex 23 13 47 ff   ; $c9a1: 23 13 47 ff   Data
-            .hex ff 20 00 20   ; $c9a5: ff 20 00 20   Data
+            .hex ff
+
+INCLUDE score_screen.as6
+INCLUDE level_screen2.as6
+            
+            .hex 20 00 20   ; $c9a5: ff 20 00 20   Data
             .hex ff ff ff ff   ; $c9a9: ff ff ff ff   Data
             .hex ff ff ff ff   ; $c9ad: ff ff ff ff   Data
             .hex ff ff ff ff   ; $c9b1: ff ff ff ff   Data
