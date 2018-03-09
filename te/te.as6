@@ -18,8 +18,10 @@ VBLANK               = $33      ; VBLANK flag
 TETR_X               = $40      ; X coordinate of current tetrimino
 TETR_Y               = $41      ; Y coordinate of current tetrimino
 TETR_OR              = $42      ; Orientation of current tetrimino
+SEL_LEVEL            = $47      ; selected level
 ST_LINES             = $50      ; 2 byte little endian BCD nr of cleared lines
 ST_SCORE             = $53      ; 3 byte little endian BCD score
+SEL_HEIGHT           = $59      ; selected height
 DAS_TIMER            = $46      ; timer for delayed auto shift when holding left/right
 SPR_X                = $a0      ; sprite x coord
 SPR_Y                = $a1      ; sprite y coord
@@ -77,9 +79,9 @@ sndMUSIC             = $06f5
 ; $700-$754
 
 HS_DATA              = $0700
-HS_NAMES             = $0700
-HS_POINTS            = $0730
-HS_LEVEL             = $0748
+HS_NAMES             = $0700	; 6 bytes per name, 48bytes, typeA from $0700, typeB from $0718
+HS_POINTS            = $0730	; 3 byte packed BCD (6digits), typeA from $0730, typeB from $073c
+HS_LEVEL             = $0748	; 1 byte, typeA from $0748, typeB from $074c
 
 ;-------------------------------------------------------------------------------
 ; iNES Header
@@ -655,190 +657,188 @@ mode_func_level:
             jsr PPU_copy_data
             DW LEVEL_SCREEN_DATA2
 
-@skip1:     jsr PPU_writeHSdata         ; $8409: 20 f2 9f  
-            jsr PPU_enableNMI         ; $840c: 20 6b aa  
-            jsr frame_clear_sprite_ram         ; $840f: 20 2f aa  
-            lda #$00           ; $8412: a9 00     
-            sta PPUSCROLL      ; $8414: 8d 05 20  
-            lda #$00           ; $8417: a9 00     
-            sta PPUSCROLL      ; $8419: 8d 05 20  
-            jsr frame_PPU_rendering_on         ; $841c: 20 5f aa  
-            jsr frame_clear_sprite_ram         ; $841f: 20 2f aa  
-            lda #$00           ; $8422: a9 00     
-            sta B1            ; $8424: 85 ae     
-            sta $af            ; $8426: 85 af     
-__8428:     lda $67            ; $8428: a5 67     
-            cmp #$0a           ; $842a: c9 0a     
-            bcc __8436         ; $842c: 90 08     
-            sec                ; $842e: 38        
-            sbc #$0a           ; $842f: e9 0a     
-            sta $67            ; $8431: 85 67     
-            jmp __8428         ; $8433: 4c 28 84  
+@skip1:     jsr PPU_writeHSdata
+            jsr PPU_enableNMI
+            jsr frame_clear_sprite_ram
+            lda #$00
+            sta PPUSCROLL
+            lda #$00
+            sta PPUSCROLL
+            jsr frame_PPU_rendering_on
+            jsr frame_clear_sprite_ram
+            lda #$00
+            sta B1
+            sta $af
+@loop1:     lda $67
+            cmp #10
+            bcc @skip2         ; if (A < 10) skip2
+            sec
+            sbc #$0a
+            sta $67
+            jmp @loop1         ; $67 = $67 mod 10
 
-;-------------------------------------------------------------------------------
-__8436:     lda #$00           ; $8436: a9 00     
+@skip2:
+@loop0:     lda #$00           ; $8436: a9 00     
             sta $b7            ; $8438: 85 b7     
             lda $67            ; $843a: a5 67     
-            sta $47            ; $843c: 85 47     
+            sta SEL_LEVEL            ; $843c: 85 47     
             lda $79            ; $843e: a5 79     
-            sta $59            ; $8440: 85 59     
+            sta SEL_HEIGHT            ; $8440: 85 59     
             lda B1            ; $8442: a5 ae     
             sta $ad            ; $8444: 85 ad     
             lda JOY1_RAW            ; $8446: a5 f5     
             sta BUTTONS_NEW           ; $8448: 85 b5     
             jsr __84ae         ; $844a: 20 ae 84  
-            lda $47            ; $844d: a5 47     
+            lda SEL_LEVEL            ; $844d: a5 47     
             sta $67            ; $844f: 85 67     
-            lda $59            ; $8451: a5 59     
+            lda SEL_HEIGHT            ; $8451: a5 59     
             sta $79            ; $8453: 85 79     
             lda $ad            ; $8455: a5 ad     
             sta B1            ; $8457: 85 ae     
             lda JOY1_RAW            ; $8459: a5 f5     
             cmp #BUTTON_START
-            bne __8478         ; $845d: d0 19     
+            bne @not_start     ; if (BUTTON_Start) {
             lda $f7            ; $845f: a5 f7     
             cmp #$90           ; $8461: c9 90     
-            bne __846c         ; $8463: d0 07     
+            bne @skip3         ; $8463: d0 07     
             lda $67            ; $8465: a5 67     
             clc                ; $8467: 18        
             adc #$0a           ; $8468: 69 0a     
-            sta $67            ; $846a: 85 67     
-__846c:     lda #$00           ; $846c: a9 00     
+            sta $67            ; $67+=10
+@skip3:     lda #$00           ; $846c: a9 00     
             sta $a7            ; $846e: 85 a7     
             lda #$02           ; $8470: a9 02     
             sta sndEFFECT          ; $8472: 8d f1 06  
-            inc GAME_MODE            ; $8475: e6 c0     
-            rts                ; $8477: 60        
+            inc GAME_MODE       
+            rts                ; exit to next mode_game } endif
 
-;-------------------------------------------------------------------------------
-__8478:     lda JOY1_RAW            ; $8478: a5 f5     
+@not_start: lda JOY1_RAW            ; $8478: a5 f5     
             cmp #BUTTON_B
-            bne __8486         ; $847c: d0 08     
+            bne @not_B         ; if (BUTTON_B) {
             lda #$02           ; $847e: a9 02     
             sta sndEFFECT          ; $8480: 8d f1 06  
             dec GAME_MODE            ; $8483: c6 c0     
-            rts                ; $8485: 60        
+            rts                ; exit to previous mode_type } endif
 
-;-------------------------------------------------------------------------------
-__8486:     ldx #RANDOM           ; $8486: a2 17     
-            ldy #$02           ; $8488: a0 02     
-            jsr nextRandom         ; $848a: 20 47 ab  
-            lda RANDOM            ; $848d: a5 17     
-            and #$0f           ; $848f: 29 0f     
-            cmp #$0a           ; $8491: c9 0a     
-            bpl __8486         ; $8493: 10 f1     
+@not_B:
+@loop2:     ldx #RANDOM
+            ldy #$02
+            jsr nextRandom
+            lda RANDOM
+            and #$0f
+            cmp #$0a
+            bpl @loop2         ; get RANDOM < 10 (0..9)
             sta $7a            ; $8495: 85 7a     
-__8497:     ldx #RANDOM           ; $8497: a2 17     
-            ldy #$02           ; $8499: a0 02     
-            jsr nextRandom         ; $849b: 20 47 ab  
-            lda RANDOM            ; $849e: a5 17     
-            and #$0f           ; $84a0: 29 0f     
-            cmp #$0a           ; $84a2: c9 0a     
-            bpl __8497         ; $84a4: 10 f1     
+@loop3:     ldx #RANDOM
+            ldy #$02
+            jsr nextRandom
+            lda RANDOM
+            and #$0f
+            cmp #$0a
+            bpl @loop3         ; get RANDOM < 10 (0..9)
             sta $9a            ; $84a6: 85 9a     
-            jsr frame_clear_sprite_ram         ; $84a8: 20 2f aa  
-            jmp __8436         ; $84ab: 4c 36 84  
+            jsr frame_clear_sprite_ram
+            jmp @loop0
+
 
 ;-------------------------------------------------------------------------------
-__84ae:     lda BUTTONS_NEW           ; $84ae: a5 b5     
-            cmp #$01           ; $84b0: c9 01     
-            bne __84d0         ; $84b2: d0 1c     
-            lda #$01           ; $84b4: a9 01     
-            sta sndEFFECT          ; $84b6: 8d f1 06  
-            lda $ad            ; $84b9: a5 ad     
-            bne __84c8         ; $84bb: d0 0b     
-            lda $47            ; $84bd: a5 47     
-            cmp #$09           ; $84bf: c9 09     
-            beq __84d0         ; $84c1: f0 0d     
-            inc $47            ; $84c3: e6 47     
-            jmp __84d0         ; $84c5: 4c d0 84  
-
-;-------------------------------------------------------------------------------
-__84c8:     lda $59            ; $84c8: a5 59     
-            cmp #$05           ; $84ca: c9 05     
-            beq __84d0         ; $84cc: f0 02     
-            inc $59            ; $84ce: e6 59     
-__84d0:     lda BUTTONS_NEW           ; $84d0: a5 b5     
-            cmp #$02           ; $84d2: c9 02     
-            bne __84ee         ; $84d4: d0 18     
-            lda #$01           ; $84d6: a9 01     
-            sta sndEFFECT          ; $84d8: 8d f1 06  
-            lda $ad            ; $84db: a5 ad     
-            bne __84e8         ; $84dd: d0 09     
-            lda $47            ; $84df: a5 47     
-            beq __84ee         ; $84e1: f0 0b     
-            dec $47            ; $84e3: c6 47     
-            jmp __84ee         ; $84e5: 4c ee 84  
-
-;-------------------------------------------------------------------------------
-__84e8:     lda $59            ; $84e8: a5 59     
-            beq __84ee         ; $84ea: f0 02     
-            dec $59            ; $84ec: c6 59     
-__84ee:     lda BUTTONS_NEW           ; $84ee: a5 b5     
-            cmp #$04           ; $84f0: c9 04     
-            bne __8517         ; $84f2: d0 23     
-            lda #$01           ; $84f4: a9 01     
-            sta sndEFFECT          ; $84f6: 8d f1 06  
-            lda $ad            ; $84f9: a5 ad     
-            bne __850b         ; $84fb: d0 0e     
-            lda $47            ; $84fd: a5 47     
-            cmp #$05           ; $84ff: c9 05     
-            bpl __8517         ; $8501: 10 14     
-            clc                ; $8503: 18        
-            adc #$05           ; $8504: 69 05     
-            sta $47            ; $8506: 85 47     
-            jmp __8517         ; $8508: 4c 17 85  
-
-;-------------------------------------------------------------------------------
-__850b:     lda $59            ; $850b: a5 59     
-            cmp #$03           ; $850d: c9 03     
-            bpl __8517         ; $850f: 10 06     
-            inc $59            ; $8511: e6 59     
-            inc $59            ; $8513: e6 59     
-            inc $59            ; $8515: e6 59     
-__8517:     lda BUTTONS_NEW           ; $8517: a5 b5     
-            cmp #$08           ; $8519: c9 08     
-            bne __8540         ; $851b: d0 23     
-            lda #$01           ; $851d: a9 01     
-            sta sndEFFECT          ; $851f: 8d f1 06  
-            lda $ad            ; $8522: a5 ad     
-            bne __8534         ; $8524: d0 0e     
-            lda $47            ; $8526: a5 47     
-            cmp #$05           ; $8528: c9 05     
-            bmi __8540         ; $852a: 30 14     
-            sec                ; $852c: 38        
-            sbc #$05           ; $852d: e9 05     
-            sta $47            ; $852f: 85 47     
-            jmp __8540         ; $8531: 4c 40 85  
-
-;-------------------------------------------------------------------------------
-__8534:     lda $59            ; $8534: a5 59     
-            cmp #$03           ; $8536: c9 03     
-            bmi __8540         ; $8538: 30 06     
-            dec $59            ; $853a: c6 59     
-            dec $59            ; $853c: c6 59     
-            dec $59            ; $853e: c6 59     
-__8540:     lda SEL_TYPE            ; $8540: a5 c1     
-            beq __8555         ; $8542: f0 11     
-            lda BUTTONS_NEW           ; $8544: a5 b5     
-            cmp #$80           ; $8546: c9 80     
-            bne __8555         ; $8548: d0 0b     
-            lda #$01           ; $854a: a9 01     
-            sta sndEFFECT          ; $854c: 8d f1 06  
-            lda $ad            ; $854f: a5 ad     
-            eor #$01           ; $8551: 49 01     
-            sta $ad            ; $8553: 85 ad     
-__8555:     lda $ad            ; $8555: a5 ad     
-            bne __855f         ; $8557: d0 06     
+; $ad - flag: 0 level select, 1 height sel
+__84ae:     lda BUTTONS_NEW
+            cmp #BUTTON_R
+            bne @skip2         ; if (BUTTON_R) {
+            lda #$01
+            sta sndEFFECT
+            lda $ad
+            bne @skip1
+            lda SEL_LEVEL
+            cmp #$09
+            beq @skip2
+            inc SEL_LEVEL
+            jmp @skip2
+@skip1:     lda SEL_HEIGHT
+            cmp #$05
+            beq @skip2
+            inc SEL_HEIGHT     ;   increment level or height dependent on $ad up to maxvalue
+                               ; } endif      
+@skip2:     lda BUTTONS_NEW
+            cmp #BUTTON_L
+            bne @skip4         ; if (BUTTON_L) {
+            lda #$01
+            sta sndEFFECT
+            lda $ad
+            bne @skip3
+            lda SEL_LEVEL
+            beq @skip4
+            dec SEL_LEVEL
+            jmp @skip4
+@skip3:     lda SEL_HEIGHT
+            beq @skip4
+            dec SEL_HEIGHT     ;   decrement level or height dependent on $ad minvalue=0
+                               ; } endif
+@skip4:     lda BUTTONS_NEW
+            cmp #BUTTON_D
+            bne @skip6         ; if (BUTTON_D) {
+            lda #$01
+            sta sndEFFECT
+            lda $ad
+            bne @skip5
+            lda SEL_LEVEL
+            cmp #$05
+            bpl @skip6
+            clc
+            adc #$05
+            sta SEL_LEVEL
+            jmp @skip6
+@skip5:     lda SEL_HEIGHT
+            cmp #$03
+            bpl @skip6
+            inc SEL_HEIGHT
+            inc SEL_HEIGHT
+            inc SEL_HEIGHT     ;   next level or height row dependent on $ad //TODO clc adc sta vs 3x inc
+                               ; } endif
+@skip6:     lda BUTTONS_NEW
+            cmp #BUTTON_U
+            bne @skip8         ; if (BUTTON_U) {
+            lda #$01
+            sta sndEFFECT
+            lda $ad
+            bne @skip7
+            lda SEL_LEVEL
+            cmp #$05
+            bmi @skip8
+            sec
+            sbc #$05
+            sta SEL_LEVEL
+            jmp @skip8
+@skip7:     lda SEL_HEIGHT
+            cmp #$03
+            bmi @skip8
+            dec SEL_HEIGHT
+            dec SEL_HEIGHT
+            dec SEL_HEIGHT     ;   prev level or height row dependent on $ad //TODO sec sbc sta vs 3x dec
+                               ; } endif
+@skip8:     lda SEL_TYPE
+            beq @skip9
+            lda BUTTONS_NEW
+            cmp #BUTTON_A
+            bne @skip9         ; if (BUTTON_A && typeB) {
+            lda #$01
+            sta sndEFFECT
+            lda $ad
+            eor #$01
+            sta $ad            ;   toggle $ad flag
+                               ; } endif     
+@skip9:     lda $ad            ; $8555: a5 ad     
+            bne @skip10         ; $8557: d0 06     
             lda FRAMECOUNT            ; $8559: a5 b1     
             and #$03           ; $855b: 29 03     
             beq __8581         ; $855d: f0 22     
-__855f:     ldx $47            ; $855f: a6 47     
+@skip10:     ldx SEL_LEVEL            ; $855f: a6 47     
             lda __85b2,x       ; $8561: bd b2 85  
             sta SPR_Y            ; $8564: 85 a1     
             lda #$00           ; $8566: a9 00     
             sta SPR_PTR_INDEX            ; $8568: 85 a2     
-            ldx $47            ; $856a: a6 47     
+            ldx SEL_LEVEL            ; $856a: a6 47     
             lda __85bc,x       ; $856c: bd bc 85  
             sta SPR_X            ; $856f: 85 a0     
             lda $b7            ; $8571: a5 b7     
@@ -846,7 +846,7 @@ __855f:     ldx $47            ; $855f: a6 47
             bne __857e         ; $8575: d0 07     
             clc                ; $8577: 18        
             lda SPR_Y            ; $8578: a5 a1     
-            adc #ST_LINES           ; $857a: 69 50     
+            adc #$50           ; $857a: 69 50     
             sta SPR_Y            ; $857c: 85 a1     
 __857e:     jsr spr_drawtoMem         ; $857e: 20 27 8c  
 __8581:     lda SEL_TYPE            ; $8581: a5 c1     
@@ -856,12 +856,12 @@ __8581:     lda SEL_TYPE            ; $8581: a5 c1
             lda FRAMECOUNT            ; $8589: a5 b1     
             and #$03           ; $858b: 29 03     
             beq __85b1         ; $858d: f0 22     
-__858f:     ldx $59            ; $858f: a6 59     
+__858f:     ldx SEL_HEIGHT            ; $858f: a6 59     
             lda __85c6,x       ; $8591: bd c6 85  
             sta SPR_Y            ; $8594: 85 a1     
             lda #$00           ; $8596: a9 00     
             sta SPR_PTR_INDEX            ; $8598: 85 a2     
-            ldx $59            ; $859a: a6 59     
+            ldx SEL_HEIGHT            ; $859a: a6 59     
             lda __85cc,x       ; $859c: bd cc 85  
             sta SPR_X            ; $859f: 85 a0     
             lda $b7            ; $85a1: a5 b7     
@@ -869,7 +869,7 @@ __858f:     ldx $59            ; $858f: a6 59
             bne __85ae         ; $85a5: d0 07     
             clc                ; $85a7: 18        
             lda SPR_Y            ; $85a8: a5 a1     
-            adc #ST_LINES           ; $85aa: 69 50     
+            adc #$50           ; $85aa: 69 50     
             sta SPR_Y            ; $85ac: 85 a1     
 __85ae:     jsr spr_drawtoMem         ; $85ae: 20 27 8c  
 __85b1:     rts                ; $85b1: 60        
@@ -978,7 +978,7 @@ __867f:     lda #$23           ; $867f: a9 23
             sta PPUADDR        ; $8681: 8d 06 20  
             lda #$3b           ; $8684: a9 3b     
             sta PPUADDR        ; $8686: 8d 06 20  
-            lda $59            ; $8689: a5 59     
+            lda SEL_HEIGHT            ; $8689: a5 59     
             and #$0f           ; $868b: 29 0f     
             sta PPUDATA        ; $868d: 8d 07 20  
             jmp __8693         ; $8690: 4c 93 86  
@@ -3873,7 +3873,7 @@ PPU_writeHSdata:
             asl                ; *2
             clc
             adc TEMP2          ; *3
-            tay                ; index = A * 6 (one table entry has 3 bytes)
+            tay                ; index = A * 3 (one table entry has 3 bytes)
             lda HS_POINTS,y
             jsr PPUwrite_packedBCD
             iny
@@ -4697,7 +4697,7 @@ __a62e:     ldx $44            ; $a62e: a6 44
             sta $c6,x          ; $a673: 95 c6     
 __a675:     lda $cc            ; $a675: a5 cc     
             sta TEMP2            ; $a677: 85 a8     
-            cmp $59            ; $a679: c5 59     
+            cmp SEL_HEIGHT            ; $a679: c5 59     
             beq __a682         ; $a67b: f0 05     
             inc $cc            ; $a67d: e6 cc     
             jmp __a62e         ; $a67f: 4c 2e a6  
