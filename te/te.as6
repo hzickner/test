@@ -337,7 +337,8 @@ mode_func_gamedemo2:
 ; jump table used by mode_func_gamedemo2
             DW game_init_screen, game_func1
             ;.hex f0 85 dc 86   ; $81a0: f0 85 dc 86   Data
-            .hex 84 88 bf 9c   ; $81a4: 84 88 bf 9c   Data
+            DW game_func2, $9cbf
+            ;.hex 84 88 bf 9c   ; $81a4: 84 88 bf 9c   Data
             .hex 74 81 86 81   ; $81a8: 74 81 86 81   Data
             .hex 16 9e 7f a3   ; $81ac: 16 9e 7f a3   Data
             .hex 27 9e         ; $81b0: 27 9e         Data
@@ -1203,13 +1204,13 @@ __87ca:     lda $40,x          ; $87ca: b5 40
 init_start_lines:     
             lda SEL_TYPE
             bne @skip1
-            jmp __8875         ; if (typeA) return
+            jmp @skip4         ; if (typeA) return
 
 @skip1:     lda #12
             sta TEMP2
                                ; outer loop (12..0)     
 @loop1:     lda TEMP2
-            beq __884a         ; //TODO remove: checked at loop end
+            beq @skip3         ; //TODO remove: checked at loop end
             lda #20
             sec
             sbc TEMP2
@@ -1235,7 +1236,7 @@ init_start_lines:
             adc $aa            ; $8813: 65 aa     
             tay                ; $8815: a8        
             lda $ab            ; $8816: a5 ab     
-            sta PLAYFIELD,y    ; position = loop counter + table_value
+            sta PLAYFIELD,y    ; position = loop counter + 10*outer loop counter (80..199), store tile at position
             lda $aa
             beq @skip2         ; if (loop counter == 0) break
             dec $aa            ; dec loop counter
@@ -1255,37 +1256,43 @@ init_start_lines:
             adc $ac            ; $883b: 65 ac     
             tay                ; $883d: a8        
             lda #$ef           ; $883e: a9 ef     
-            sta PLAYFIELD,y        ; $8840: 99 00 04  
-            jsr frame_clear_sprite_ram         ; $8843: 20 2f aa  
-            dec TEMP2            ; $8846: c6 a8     
+            sta PLAYFIELD,y    ; position = rnd0..9 + 10*outer loop counter (80..199), store empty tile at position
+                               ; one empty tile per line
+            jsr frame_clear_sprite_ram ; next frame //TODO remove
+            dec TEMP2
             bne @loop1         ; while (TEMP2 > 0)
      
-__884a:     ldx #$c8           ; $884a: a2 c8     
-__884c:     lda PLAYFIELD,x        ; $884c: bd 00 04  
-            sta $0500,x        ; $884f: 9d 00 05  
-            dex                ; $8852: ca        
-            bne __884c         ; $8853: d0 f7     
-            ldx HEIGHT            ; $8855: a6 79     
-            lda __8876,x       ; $8857: bd 76 88  
-            tay                ; $885a: a8        
-            lda #$ef           ; $885b: a9 ef     
-__885d:     sta PLAYFIELD,y        ; $885d: 99 00 04  
-            dey                ; $8860: 88        
-            cpy #$ff           ; $8861: c0 ff     
-            bne __885d         ; $8863: d0 f8     
-            ldx $99            ; $8865: a6 99     
-            lda __8876,x       ; $8867: bd 76 88  
-            tay                ; $886a: a8        
-            lda #$ef           ; $886b: a9 ef     
-__886d:     sta $0500,y        ; $886d: 99 00 05  
-            dey                ; $8870: 88        
-            cpy #$ff           ; $8871: c0 ff     
-            bne __886d         ; $8873: d0 f8     
-__8875:     rts                ; $8875: 60        
+@skip3:     ldx #200
+@loop4:     lda PLAYFIELD,x
+            sta $0500,x
+            dex
+            bne @loop4         ; copy PLAYFIELD (1..200) to $0500 (1..200) //TODO used?
+            ldx HEIGHT
+            lda PF_CLEAR_BYTES,x  ; get number of bytes to clear from top of playfield  
+            tay
+            lda #$ef           ; clear value
+@loop5:     sta PLAYFIELD,y
+            dey
+            cpy #$ff
+            bne @loop5         ; clear top of playfield
+            ldx $99            ; height for 2nd PF //TODO what is $99?
+            lda PF_CLEAR_BYTES,x
+            tay
+            lda #$ef
+@loop6:     sta $0500,y
+            dey
+            cpy #$ff
+            bne @loop6         ; clear top of 2nd PF
+@skip4:     rts
 
 ;-------------------------------------------------------------------------------
-__8876:     .hex c8 aa 96 78   ; $8876: c8 aa 96 78   Data
-            .hex 64 50         ; $887a: 64 50         Data
+; returns number of playfield bytes to clear initially for height x 
+PF_CLEAR_BYTES:
+            DB 200, 170, 150, 120
+            DB 100, 80
+            ;.hex c8 aa 96 78   ; $8876: c8 aa 96 78   Data
+            ;.hex 64 50         ; $887a: 64 50         Data
+; 6bytes end of data
 
 ; tile values for starting lines written to playfield
 LINE_TILES: .hex ef 7b ef 7c   ; $887c: ef 7b ef 7c   Data
@@ -1293,25 +1300,26 @@ LINE_TILES: .hex ef 7b ef 7c   ; $887c: ef 7b ef 7c   Data
 ; 8 bytes end of data
 
 ;-------------------------------------------------------------------------------
-            lda #$03           ; $8884: a9 03     
-            jsr MMCsetreg1         ; $8886: 20 b7 ac  
-            lda #$03           ; $8889: a9 03     
-            jsr MMCsetreg2         ; $888b: 20 cb ac  
-            lda #$00           ; $888e: a9 00     
-            sta OAM_USED            ; $8890: 85 b3     
+game_func2:
+            lda #$03
+            jsr MMCsetreg1
+            lda #$03
+            jsr MMCsetreg2     ; CHR page 3 for bkg and sprites
+            lda #$00
+            sta OAM_USED       ; no sprites allocated
             inc $65            ; $8892: e6 65     
             inc $85            ; $8894: e6 85     
             lda $a4            ; $8896: a5 a4     
-            beq __889c         ; $8898: f0 02     
+            beq @skip1         ; $8898: f0 02     
             inc $a4            ; $889a: e6 a4     
-__889c:     lda JOY1_RAW            ; $889c: a5 f5     
+@skip1:     lda JOY1_RAW            ; $889c: a5 f5     
             and #BUTTON_SELECT
-            beq __88a8         ; $88a0: f0 06     
-            lda $df            ; $88a2: a5 df     
-            eor #$01           ; $88a4: 49 01     
-            sta $df            ; flip bit 0 in $df
-__88a8:     inc GAME_FUNC_INDEX            ; $88a8: e6 a7     
-            rts                ; $88aa: 60        
+            beq @skip2         ; if (not BUTTON_SELECT)
+            lda $df 
+            eor #$01
+            sta $df            ;      flip bit 0 in $df flag
+@skip2:     inc GAME_FUNC_INDEX  ; continue with game_func3
+            rts
 
 ;-------------------------------------------------------------------------------
 ; rotate tetrimino
