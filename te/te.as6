@@ -20,6 +20,7 @@ TETR_Y               = $41      ; Y coordinate of current tetrimino
 TETR_OR              = $42      ; Orientation of current tetrimino
 DAS_TIMER            = $46      ; timer for delayed auto shift when holding left/right
 SEL_LEVEL            = $47      ; selected level (selection)
+;                      $48      ; jump table index
 ST_LINES             = $50      ; 2 byte little endian BCD nr of cleared lines
 ST_SCORE             = $53      ; 3 byte little endian BCD score
 SEL_HEIGHT           = $59      ; selected height
@@ -42,6 +43,7 @@ SEL_TYPE             = $c1      ; selected game type A or B
 SEL_MUSIC            = $c2      ; selected music (1-3,off)
 COUNTDOWN            = $c3      ; ticks down to 0 every frame
 DEMO_COUNTER         = $d3      ; counter for demo mode
+PREVIEW_FLAG         = $df	; if true hide preview for next terimino
 PTR                  = $e6      ; 2 byte pointer
 P6INDEX              = $ed      ; values 0..4 used to access mem in page 6
 JOY1_RAW             = $f5      ; controller 1 value
@@ -309,13 +311,14 @@ table_jump_game_mode:
 ; end of jump table
 
 ;-------------------------------------------------------------------------------
+game_func4:
             jsr __8776         ; $8174: 20 76 87  
             jsr __81b2         ; $8177: 20 b2 81  
             jsr __8a0a         ; $817a: 20 0a 8a  
             jsr __87ae         ; $817d: 20 ae 87  
-            jsr __8bce         ; $8180: 20 ce 8b  
-            inc GAME_FUNC_INDEX            ; $8183: e6 a7     
-            rts                ; $8185: 60        
+            jsr write_tetr_preview         ; $8180: 20 ce 8b  
+            inc GAME_FUNC_INDEX ; continue with game_func5     
+            rts
 
 ;-------------------------------------------------------------------------------
             lda N_PLR            ; $8186: a5 be     
@@ -336,10 +339,9 @@ mode_func_gamedemo2:
 ;-------------------------------------------------------------------------------
 ; jump table used by mode_func_gamedemo2
             DW game_init_screen, game_func1
-            ;.hex f0 85 dc 86   ; $81a0: f0 85 dc 86   Data
-            DW game_func2, $9cbf
-            ;.hex 84 88 bf 9c   ; $81a4: 84 88 bf 9c   Data
-            .hex 74 81 86 81   ; $81a8: 74 81 86 81   Data
+            DW game_func2, game_func3
+            DW $8174, $8186
+            ;.hex 74 81 86 81   ; $81a8: 74 81 86 81   Data
             .hex 16 9e 7f a3   ; $81ac: 16 9e 7f a3   Data
             .hex 27 9e         ; $81b0: 27 9e         Data
 
@@ -437,7 +439,7 @@ mode_func_title:
             lda #$00
             sta NMI_FUNC_INDEX ; set nmi function for this mode, resets nametable nr and scroll every frame
             sta $d0            ; $8256: 85 d0     
-            sta $df            ; some kind of flag toggled by select
+            sta PREVIEW_FLAG
             jsr frame_PPU_rendering_off
             jsr PPU_disableNMI
             lda #$00
@@ -1136,6 +1138,7 @@ game_func1:
             rts
 
 ;-------------------------------------------------------------------------------
+; copy some variables
 __8776:     lda #$01           ; $8776: a9 01     
             sta $b7            ; $8778: 85 b7     
             lda #$04           ; $877a: a9 04     
@@ -1315,9 +1318,9 @@ game_func2:
 @skip1:     lda JOY1_RAW            ; $889c: a5 f5     
             and #BUTTON_SELECT
             beq @skip2         ; if (not BUTTON_SELECT)
-            lda $df 
+            lda PREVIEW_FLAG 
             eor #$01
-            sta $df            ;      flip bit 0 in $df flag
+            sta PREVIEW_FLAG            ;      flip bit 0 in PREVIEW_FLAG flag
 @skip2:     inc GAME_FUNC_INDEX  ; continue with game_func3
             rts
 
@@ -1390,7 +1393,7 @@ rot_table:  .hex 03  01        ;  Tl  Tr 0 is Tu
 __8914:     lda $4e            ; $8914: a5 4e     
             bpl __8922         ; $8916: 10 0a     
             lda BUTTONS_NEW           ; $8918: a5 b5     
-            and #$04           ; $891a: 29 04     
+            and #BUTTON_D           ; $891a: 29 04     
             beq __8989         ; $891c: f0 6b     
             lda #$00           ; $891e: a9 00     
             sta $4e            ; $8920: 85 4e     
@@ -1400,7 +1403,7 @@ __8922:     bne __8939         ; $8922: d0 15
             bne __8973         ; $8928: d0 49     
             lda BUTTONS_NEW           ; $892a: a5 b5     
             and #$0f           ; $892c: 29 0f     
-            cmp #$04           ; $892e: c9 04     
+            cmp #BUTTON_D           ; $892e: c9 04     
             bne __8973         ; $8930: d0 41     
             lda #$01           ; $8932: a9 01     
             sta $4e            ; $8934: 85 4e     
@@ -1678,22 +1681,24 @@ __8a9c:     .hex 00 7b ff  00 7b 00  00 7b 01  ff 7b 00   ; 00: T up
             .hex b3 60         ; $8bcc: b3 60         Data
 
 ;-------------------------------------------------------------------------------
-__8bce:     lda $df            ; $8bce: a5 df     
-            bne __8be4         ; $8bd0: d0 12     
-            lda #$c8           ; $8bd2: a9 c8     
-            sta SPR_X            ; $8bd4: 85 a0     
-            lda #$77           ; $8bd6: a9 77     
-            sta SPR_Y            ; $8bd8: 85 a1     
+; write preview tetr to sprite mem
+write_tetr_preview:
+            lda PREVIEW_FLAG
+            bne @skip1         ; if (flag set) exit
+            lda #$c8
+            sta SPR_X
+            lda #$77
+            sta SPR_Y          ; set coordinates
             ldx $bf            ; $8bda: a6 bf     
-            lda __8be5,x       ; $8bdc: bd e5 8b  
-            sta SPR_PTR_INDEX            ; $8bdf: 85 a2     
-            jmp spr_drawtoMem         ; $8be1: 4c 27 8c  
+            lda PREVIEW_SPRITE_TABLE,x       ; $8bdc: bd e5 8b  
+            sta SPR_PTR_INDEX
+            jmp spr_drawtoMem
+
+@skip1:     rts
 
 ;-------------------------------------------------------------------------------
-__8be4:     rts                ; $8be4: 60        
-
-;-------------------------------------------------------------------------------
-__8be5:     .hex 00 00 06 00   ; $8be5: 00 00 06 00   Data
+PREVIEW_SPRITE_TABLE:
+            .hex 00 00 06 00   ; $8be5: 00 00 06 00   Data
             .hex 00 00 00 09   ; $8be9: 00 00 00 09   Data
             .hex 08 00 0b 07   ; $8bed: 08 00 0b 07   Data
             .hex 00 00 0a 00   ; $8bf1: 00 00 0a 00   Data
@@ -3443,34 +3448,36 @@ __9cb8:     cmp $49            ; $9cb8: c5 49
 __9cbe:     rts                ; $9cbe: 60        
 
 ;-------------------------------------------------------------------------------
+; some code specific for 2players
+game_func3:
             lda #$05           ; $9cbf: a9 05     
             sta TEMP2+1            ; $9cc1: 85 a9     
             lda $68            ; $9cc3: a5 68     
             cmp #$00           ; $9cc5: c9 00     
-            beq __9cd9         ; $9cc7: f0 10     
+            beq @skip1         ; $9cc7: f0 10     
             lda N_PLR            ; $9cc9: a5 be     
             cmp #$01           ; $9ccb: c9 01     
-            beq __9d14         ; $9ccd: f0 45     
+            beq @skip4         ; if (1 player) exit to game_func4
+
             lda #$04           ; $9ccf: a9 04     
             sta TEMP2+1            ; $9cd1: 85 a9     
             lda $88            ; $9cd3: a5 88     
             cmp #$00           ; $9cd5: c9 00     
-            bne __9d14         ; $9cd7: d0 3b     
-__9cd9:     lda N_PLR            ; $9cd9: a5 be     
+            bne @skip4         ; $9cd7: d0 3b     
+@skip1:     lda N_PLR            ; $9cd9: a5 be     
             cmp #$01           ; $9cdb: c9 01     
-            beq __9ce4         ; $9cdd: f0 05     
+            beq @skip2         ; $9cdd: f0 05     
             lda #$09           ; $9cdf: a9 09     
             sta GAME_FUNC_INDEX            ; $9ce1: 85 a7     
             rts                ; $9ce3: 60        
 
-;-------------------------------------------------------------------------------
-__9ce4:     lda #$03           ; $9ce4: a9 03     
+@skip2:     lda #$03           ; $9ce4: a9 03     
             sta NMI_FUNC_INDEX            ; $9ce6: 85 bd     
             lda N_PLR            ; $9ce8: a5 be     
             cmp #$01           ; $9cea: c9 01     
-            bne __9cf1         ; $9cec: d0 03     
+            bne @skip3         ; $9cec: d0 03     
             jsr __a0ee         ; $9cee: 20 ee a0  
-__9cf1:     lda #$01           ; $9cf1: a9 01     
+@skip3:     lda #$01           ; $9cf1: a9 01     
             sta $68            ; $9cf3: 85 68     
             sta $88            ; $9cf5: 85 88     
             lda #$ef           ; $9cf7: a9 ef     
@@ -3488,8 +3495,7 @@ __9cf1:     lda #$01           ; $9cf1: a9 01
             sta GAME_MODE            ; $9d11: 85 c0     
             rts                ; $9d13: 60        
 
-;-------------------------------------------------------------------------------
-__9d14:     inc GAME_FUNC_INDEX            ; $9d14: e6 a7     
+@skip4:     inc GAME_FUNC_INDEX            ; $9d14: e6 a7     
             rts                ; $9d16: 60        
 
 ;-------------------------------------------------------------------------------
