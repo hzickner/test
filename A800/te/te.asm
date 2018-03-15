@@ -45,7 +45,23 @@ l1:	sta (TEMP1),y
 	iny
 	bne l1			; clear remaining zero page
 
+	ldy #>HS_BASE
+	sty TEMP+1
+	sta TEMP
 
+	lda SND_BASE
+	sec
+	sbc OAMBASE
+	tax
+	lda #0
+clearloop:	
+	sta (TEMP1),y
+	dey
+	bne clearloop
+	dec TEMP1+1
+	dex
+	bpl clearloop		; clear pages SND_BASE down to OAMBASE
+	
 ; main program continued
 ;main3:      ldy #>$0600
 ;            sty TEMP1+1
