@@ -1,0 +1,27 @@
+;-------------------------------------------------------------------------------
+; constants
+;-------------------------------------------------------------------------------
+MODE_LEGAL	EQU	0
+MODE_TITLE	EQU	1
+MODE_TYPE	EQU	2
+MODE_LEVEL	EQU	3
+MODE_GAME	EQU	4
+MODE_DEMO	EQU	5
+MODE_SETUP_DEMO	EQU	6
+
+TYPE_A		EQU	0
+TYPE_B		EQU	1
+
+MUSIC_1		EQU	0
+MUSIC_2		EQU	1
+MUSIC_3		EQU	2
+MUSIC_OFF	EQU	3
+
+BUTTON_R	EQU	%00000001
+BUTTON_L	EQU	%00000010
+BUTTON_D	EQU	%00000100
+BUTTON_U	EQU	%00001000
+BUTTON_START	EQU	%00010000
+BUTTON_SELECT	EQU	%00100000
+BUTTON_B	EQU	%01000000
+BUTTON_A	EQU	%10000000

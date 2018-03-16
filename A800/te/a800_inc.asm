@@ -3,6 +3,7 @@ RTCLOK		equ	$12		; high byte of 3byte frame counter
 SDMCTL		equ	$22F
 SDLSTL		equ	$230
 SDLSTH		equ	$231
+CHBAS		equ	$2F4
 ICPTL  		equ	$0346
 ICPTH  		equ	$0347
 
