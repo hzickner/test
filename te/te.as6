@@ -77,6 +77,9 @@ TYPE_COUNTERS        = $03f0	; 7 2byte 3digit counters in packed BCD format
 
 PLAYFIELD            = $0400
 
+; page 5
+PLAYFIELD2           = $0500
+
 ; page 6
 ; sound related
 ; $068a $068c $069c $06c8-$06ca $06f8-$06fd
@@ -93,6 +96,7 @@ HS_NAMES             = $0700	; 6 bytes per name, 48bytes, typeA from $0700, type
 HS_POINTS            = $0730	; 3 byte packed BCD (6digits), typeA from $0730, typeB from $073c
 HS_POINTSB           = $073c
 HS_LEVEL             = $0748	; 1 byte, typeA from $0748, typeB from $074c
+HS_INITMARK          = $0750    ; 5 bytes, if content is $12 $34 $56 $78 $9a init from defaults is skipped
 
 ;-------------------------------------------------------------------------------
 ; iNES Header
@@ -187,19 +191,19 @@ clear_loop: sta (TEMP1),y
             bne clear_loop     ; clear page 6 $600..$6FF RAM
             dec $01
             bpl clear_loop     ; continue down to page 0
-            lda $0750
+            lda HS_INITMARK
             cmp #$12
             bne HS_init
-            lda $0751
+            lda HS_INITMARK+1
             cmp #$34
             bne HS_init
-            lda $0752
+            lda HS_INITMARK+2
             cmp #$56
             bne HS_init
-            lda $0753
+            lda HS_INITMARK+3
             cmp #$78
             bne HS_init
-            lda $0754
+            lda HS_INITMARK+4
             cmp #$9a
             bne HS_init        ; test if data $750-$754 is initialized
             jmp skip_d700init  ; skip initialization  
@@ -214,15 +218,15 @@ HS_init:    lda HS_INIT_DATA,x    ; x is still 0
             jmp HS_init      ; copy data from ROM $ad67 to RAM $0700 until end marker $FF is read (80 bytes $700-$749)
 
 HS_init2:   lda #$12
-            sta $0750
+            sta HS_INITMARK
             lda #$34
-            sta $0751
+            sta HS_INITMARK+1
             lda #$56
-            sta $0752
+            sta HS_INITMARK+2
             lda #$78
-            sta $0753
+            sta HS_INITMARK+3
             lda #$9a
-            sta $0754          ; init $750-$754
+            sta HS_INITMARK+4          ; init $750-$754
 skip_d700init:
             ldx #$89           
             stx RANDOM
@@ -237,7 +241,7 @@ skip_d700init:
             lda #$90
             sta CTRL
             sta PPUCTRL        ; set PPUCTRL to 10010000  (NMI enabled, background table $1000)
-            lda #$06           ; $80d8: a9 06     
+            lda #%00000110     ; enable left row for SPR and BKG
             sta PPUMASK        ; set PPUMASK 110
             jsr APU_init
             jsr snd_reset_call         ; //TODO necessary? calls part of APU_init again
@@ -260,8 +264,8 @@ skip_d700init:
             lda #$2c
             jsr PPU_nameFF_attribute00         ; //TODO check mirroring, not necessary to fill 4 tables
             lda #$ef
-            ldx #$04
-            ldy #$05
+            ldx #>PLAYFIELD
+            ldy #>PLAYFIELD2
             jsr memset         ; fill page 4-5 with $ef
             jsr PPU_enableNMI
             jsr frame_clear_sprite_ram
@@ -270,16 +274,16 @@ skip_d700init:
             lda #$0e           ; $8126: a9 0e     
             sta $34            ; $8128: 85 34     
             lda #$00
-            sta GAME_FUNC_INDEX            ; $812c: 85 a7     
+            sta GAME_FUNC_INDEX
             sta GAME_MODE
             lda #$01
             sta N_PLR
-            lda #$00           ; $8134: a9 00     
-            sta FRAMECOUNT+1            ; $8136: 85 b2     
+            lda #$00
+            sta FRAMECOUNT+1
 @mainloop:  jsr table_jump_game_mode
-            cmp GAME_FUNC_INDEX            ; $813b: c5 a7     
-            bne @skip1         ; $813d: d0 03     
-            jsr frame_clear_sprite_ram         ; $813f: 20 2f aa  
+            cmp GAME_FUNC_INDEX
+            bne @skip1         ; if (ret_value of mode_func == GAME_FUNC_INDEX)
+            jsr frame_clear_sprite_ram ;  frame_clear_sprite ram
 @skip1:     lda GAME_MODE
             cmp #MODE_DEMO
             bne @skip2         ; if (MODE_DEMO) {
@@ -289,7 +293,7 @@ skip_d700init:
             lda #$dd           ; $814e: a9 dd     
             sta $d2            ; $8150: 85 d2     
             lda #$00           ; $8152: a9 00     
-            sta FRAMECOUNT+1            ; $8154: 85 b2     
+            sta FRAMECOUNT+1
             lda #MODE_TITLE
             sta GAME_MODE      ;  set GAME_MODE to MODE_TITLE
                                ; } endif     
@@ -389,6 +393,7 @@ __81d9:     lda $48            ; $81d9: a5 48
 ; 4.25s(255f) not interruptible
 ; 4.25s(255f) interruptible with start
 ; continue with title screen
+; ret value A = $FF
 mode_func_legal:
             jsr snd_reset_call
             lda #$00
@@ -5145,8 +5150,8 @@ frame_clear_sprite_ram:
 @loop :     lda VBLANK
             beq @loop          ; wait for vblank
             lda #$ff
-            ldx #$02
-            ldy #$02
+            ldx #>OAMBASE
+            ldy #>OAMBASE
             jsr memset         ; set sprite data to $ff
             rts
 
