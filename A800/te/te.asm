@@ -8,6 +8,7 @@
 TEMP1		.DS	2
 TEMP2		.DS	2
 B1		.DS	1
+B2		.DS	1
 COUNTDOWN	.DS	1
 GAME_FUNC_INDEX	.DS	1
 GAME_MODE	.DS	1
@@ -16,6 +17,7 @@ N_PLR		.DS	1
 NMI_DIS		.DS	1
 NMI_FUNC_INDEX	.DS	1
 OAM_USED	.DS	1
+PREVIEW_FLAG	.DS	1
 
 ;-------------------------------------------------------------------------------
 ; variables
@@ -59,10 +61,10 @@ HS_INITMARK	=	HS_BASE+$50
 	rts
 	
 jt_h: 
-	.DB >(mode_func_legal-1)
+	.DB >(mode_func_legal-1), >(mode_func_title-1)
 
 jt_l:
-	.DB <(mode_func_legal-1)	
+	.DB <(mode_func_legal-1), <(mode_func_title-1)	
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -126,12 +128,123 @@ loop	jsr frame_clear_sprite_ram
 	rts
 .endp
 .proc frame_GR_rendering_on
-	lda #NARROW_PF | PLAYER_DMA | MISSILE_DMA | FETCH_DMA | PLAYER_ONELINE
+	lda #NARROW_PF | FETCH_DMA | PLAYER_ONELINE
 	sta SDMCTL
 	jsr frame_func
 	
 	rts
 .endp	
+
+;-------------------------------------------------------------------------------
+; copy data to screen
+; SRC pointer in AX
+; TEMP1 - src, TEMP2 - dst, B1 - addrinc	
+.proc GR_copy_data
+	sta TEMP1
+	stx TEMP1+1		; get src pointer to TEMP1
+	ldy #$00		; Y=0
+	jmp process_data
+	
+copy_bytes:
+	sta TEMP2+1		; set high byte of dst     
+	
+	inc TEMP1
+	bne @+
+	inc TEMP1+1		; inc source pointer
+@			
+	lda (TEMP1),y		; read next byte from TEMP1 pointer
+	sta TEMP2		; set low byte of dst
+
+	inc TEMP1
+	bne @+
+	inc TEMP1+1		; inc source pointer
+@	
+	
+	lda (TEMP1),y		; read next byte from TEMP1 pointer (bit7 VRAM inc line, bit6 ptr inc off, bit 0..5 byte counter)
+	asl			; A *= 2, bit7 to carry, toggles VRAM address increment
+	pha			; save A
+	lda #32
+	bcs skip
+	lda #1			; VRAM address increment: right
+skip:	sta B1			; set VRAM address increment
+
+	pla			; restore A
+	asl			; A *= 2, original bit 6 to carry
+	php			; save flags
+	ldx #0
+	bcc skip2		; if (bit6 of control byte) {
+	ldx #01
+	inc TEMP1
+	bne @+
+	inc TEMP1+1		; inc source pointer
+@				;   shift read index from control to data byte (not incremented in read loop)
+				; } endif
+
+skip2:
+	stx B2			; store inc src flag
+	plp			; restore flags (flags after 2 asl of original A)
+	clc
+	bne skip3
+	sec			; if lower 6bits of original A clear set carry else clear (0 means write 128bytes)
+skip3:	ror			; rotate carry to bit 7
+	lsr			; carry is in bit 6 bits 0..5 are equal to original A
+	tax			; initialize counter
+loop:	
+	lda B2
+	bne skip4
+	inc TEMP1
+	bne @+
+	inc TEMP1+1		; inc source pointer
+@				; if !carry increment pointer
+skip4:	lda (TEMP1),y
+	sta (TEMP2),y
+	clc
+	lda b1
+	adc TEMP2
+	sta TEMP2
+	lda #0
+	adc TEMP2+1
+	sta TEMP2+1		; increment dst pointer by 1 or 32
+	dex			; dec loop counter
+	bne loop		; read X bytes from TEMP1 ptr carry controls if ptr is incremented, write to TEMP2
+
+	inc TEMP1
+	bne @+
+	inc TEMP1+1		; inc source pointer
+@	
+
+process_data:
+
+	lda (TEMP1),y
+	bpl copy_bytes
+	rts			; until bit7 set in read byte
+
+;skip5:      
+;            cmp #$60
+;            bne @skip2         ; if (*TEMP1 == $60)
+;            pla
+;            sta TEMP1+1
+;            pla
+;            sta TEMP1
+;            ldy #$02           ; TEMP1 = pop; Y=2
+;            bne next_address   ; always jump
+;
+;@skip2:     cmp #$4c
+;            bne copy_PPU_bytes ; if (*TEMP1 == $4c)
+;            lda TEMP1
+;            pha
+;            lda TEMP1+1
+;            pha                ; push TEMP1 - manipulates return address
+;            iny                ; Y = 1
+;            lda (TEMP1),y
+;            tax                ; X = *(TEMP1+1)
+;            iny
+;            lda (TEMP1),y      ; A = *(TEMP+2)
+;            sta $01
+;            stx $00            ; TEMP = AX
+;            bcs @loop          ; end while
+
+.endp
 
 ;-------------------------------------------------------------------------------
 ; init GR mode	
@@ -149,7 +262,7 @@ loop	jsr frame_clear_sprite_ram
 	sty SDLSTH	; set DLIST
 	cli		; enable interrupts
 
-	lda #>font1
+	lda #>font_legal
 	sta CHBAS	; set default font
 
 	lda RTCLOK+2
@@ -159,6 +272,24 @@ loop	jsr frame_clear_sprite_ram
 	rts
 .endp
 
+;-------------------------------------------------------------------------------
+; load color palette
+; arg X number of palette	
+.proc GR_load_palette
+	lda PAL_PTR_LOW,x
+	sta TEMP1
+	lda PAL_PTR_HIGH,x
+	sta TEMP1+1
+
+	ldy #4
+l1:	lda (TEMP1),y
+	sta COLOR0,y
+	dey
+	bpl l1
+			
+	rts
+.endp
+	
 ;-------------------------------------------------------------------------------
 ; main function, program entry	
 .proc main
@@ -240,7 +371,6 @@ skip_HSinit:
 ;            sty PPUSCROLL      ; init scroll position to top left
 ;            lda #$90
 ;            sta CTRL
-; //TODO set mode legal charset
 ;            sta PPUCTRL        ; set PPUCTRL to 10010000  (NMI enabled, background table $1000)
 	jsr nmi_init
 	jsr GR_init
@@ -322,13 +452,14 @@ skip2:
 	
 	lda #>font_legal
 	sta CHBAS
-;            
-;            jsr PPU_copy_data
-;            DW PALETTE_DATA_FUNC_LEGAL
-;
-;            jsr PPU_copy_data
-;            DW LEGAL_SCREEN_DATA
-;
+       
+	ldx #0
+	jsr GR_load_palette	; use color palette 0
+
+	lda #<LEGAL_SCREEN_DATA
+	ldx #>LEGAL_SCREEN_DATA
+	jsr GR_copy_data	; load screen data
+
 	jsr nmi_enable
 	jsr frame_clear_sprite_ram
 	jsr frame_GR_rendering_on
@@ -345,14 +476,70 @@ skip2:
 	sta TEMP2		; init loop counter //TEMP1 used in frame_clear_sprite_ram
 loop:	lda JOY1_RAW
 	cmp #BUTTON_START
-	beq next_mode     ; procede to title screen if start pressed
+	beq next_mode		; procede to title screen if start pressed
 	jsr frame_clear_sprite_ram
 	dec TEMP2
-	bne loop          ; loop runs 255 iterations interruptible with start button
+	bne loop		; loop runs 255 iterations interruptible with start button
 
 next_mode:
 	inc GAME_MODE
 	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; display title screen
+; exit to game type selection with start
+; exit to MODE_SETUP_DEMO after timeout (17s-21s NTSC)
+.proc mode_func_title
+;            jsr snd_reset_call
+	lda #$00
+	sta NMI_FUNC_INDEX ; set nmi function for this mode, resets nametable nr and scroll every frame
+;            sta $d0            ; $8256: 85 d0     
+	sta PREVIEW_FLAG	; //TODO init here?
+	jsr frame_GR_rendering_off
+	jsr nmi_disable
+
+	lda #>font_title
+	sta CHBAS
+
+	ldx #1
+	jsr GR_load_palette	; use color palette 1;
+
+	lda #<TITLE_SCREEN_DATA
+	ldx #>TITLE_SCREEN_DATA
+	jsr GR_copy_data	; load screen data
+
+	jsr nmi_enable
+	jsr frame_clear_sprite_ram
+	jsr frame_GR_rendering_on
+	jsr frame_clear_sprite_ram
+;            lda #$00
+;            ldx #$02
+;            ldy #$02
+;            jsr memset         ; clear sprite data //TODO why?
+	lda #$00
+	sta RTCLOK+1		; reset high byte of frame counter     
+;                               ; title screen loop
+loop:	jsr frame_clear_sprite_ram
+	lda JOY1_RAW
+	cmp #BUTTON_START
+	beq skip1
+	lda RTCLOK+1
+	cmp #$05
+	beq skip2
+	jmp loop		; end of title screen loop
+
+skip1:	;lda #$02           ; $829f: a9 02     
+	;sta sndEFFECT      ; sound related?
+	inc GAME_MODE
+	rts			; exit to game type selection after start is pressed
+
+skip2:	;lda #$02           ; $82a7: a9 02     
+;            sta sndEFFECT      ; sound related?
+;            lda #MODE_SETUP_DEMO
+	lda #MODE_LEGAL
+	sta GAME_MODE
+	rts                ; exit to MODE_SETUP_DEMO after about 5*256 frames
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -426,6 +613,9 @@ exit:
 ; static data
 ;-------------------------------------------------------------------------------	
 
+	ICL "screens/legal_screen.asm"
+	ICL "screens/title_screen.asm"
+	
 ; 80 bytes of data copied to page 7 $700-$749 for init of high score table
 HS_INIT_DATA:
 	.DB $08, $0f, $17, $01
@@ -451,15 +641,27 @@ HS_INIT_DATA:
 	.DB $ff            		; $FF marks end of data
 ; end of data
 
+PAL_PTR_HIGH:
+	.DB >PALETTE0_DATA, >PALETTE1_DATA
+
+PAL_PTR_LOW:
+	.DB <PALETTE0_DATA, <PALETTE1_DATA
+
+PALETTE0_DATA:
+	.DB $0e, $ac, $3a, $96, $00
+PALETTE1_DATA:
+	.DB $0e, $ac, $3a, $96, $00	
+
 ;-------------------------------------------------------------------------------
 ; static data with alignment
 ;-------------------------------------------------------------------------------	
 
 ; fonts
 .align $400
-font1:
 font_legal:
-	INS "font/blue.fnt"
+	INS "font/te_legal.fnt"
+font_title:
+	INS "font/te_title.fnt"	
 	
 ; display list
 .align $400

@@ -11,7 +11,7 @@
 
 	ldy #0
 l2	sta (TEMP1),Y
-	dey
+	iny
 	bne l2		; fill one page
 
 	inc TEMP1+1
