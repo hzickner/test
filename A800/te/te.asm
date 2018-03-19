@@ -14,7 +14,7 @@ GAME_FUNC_INDEX	.DS	1
 GAME_MODE	.DS	1
 JOY1_RAW	.DS	1
 N_PLR		.DS	1
-NMI_DIS		.DS	1
+vNMIEN		.DS	1
 NMI_FUNC_INDEX	.DS	1
 OAM_USED	.DS	1
 PREVIEW_FLAG	.DS	1
@@ -82,6 +82,64 @@ jt_h:
 
 jt_l:
 	.DB <(nmi_func0-1)	
+.endp
+
+;-------------------------------------------------------------------------------
+; dli setup function
+.proc dli_setup
+	lda #!DLI_ON
+	and vNMIEN
+	sta NMIEN
+	sta vNMIEN
+	
+	lda #<dli_title
+	ldx #>dli_title
+	
+	sei
+	sta VDSLST
+	stx VDSLST+1
+	cli
+	
+	lda #DLI_ON
+	ora vNMIEN
+	sta NMIEN
+	sta vNMIEN
+	
+	rts
+.endp	
+
+;-------------------------------------------------------------------------------
+; dli function for mode title
+.proc dli_title
+
+dli0:
+	pha
+
+	lda #<dli1
+	sta VDSLST
+	lda #>dli1
+	sta VDSLST+1
+		
+	lda #$08
+	sta WSYNC
+	sta COLBK
+		
+	pla
+	rti
+dli1:
+	pha
+
+	lda #<dli0
+	sta VDSLST
+	lda #>dli0
+	sta VDSLST+1
+		
+	lda #>font_title2
+	sta WSYNC
+	sta CHBASE
+		
+	pla
+	rti	
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -498,8 +556,9 @@ next_mode:
 	sta PREVIEW_FLAG	; //TODO init here?
 	jsr frame_GR_rendering_off
 	jsr nmi_disable
+	jsr dli_setup
 
-	lda #>font_title
+	lda #>font_title1
 	sta CHBAS
 
 	ldx #1
@@ -545,8 +604,6 @@ skip2:	;lda #$02           ; $82a7: a9 02
 ;-------------------------------------------------------------------------------
 ; nmi function, called every vblank
 .proc nmi
-	lda NMI_DIS
-	bne exit		; check if nmi is disabled
 	
 	lda #$00
 	sta OAM_USED
@@ -567,21 +624,24 @@ skip:
 ;            lda #$01
 ;            sta VBLANK         ; set VBLANK flag
 ;            jsr nmi_handle_input
-exit:
+
 	jmp XITVBV
 .endp
 
 ;-------------------------------------------------------------------------------
 ; enable/disable NMI
 .proc nmi_disable
-	lda #$FF
-	sta NMI_DIS
+	lda #0
+	sta NMIEN
+	sta vNMIEN
 	rts
 .endp
 
 .proc nmi_enable
-	lda #00
-	sta NMI_DIS
+	lda #VBI_ON
+	ora vNMIEN
+	sta NMIEN
+	sta vNMIEN
 	rts
 .endp
 
@@ -660,8 +720,10 @@ PALETTE1_DATA:
 .align $400
 font_legal:
 	INS "font/te_legal.fnt"
-font_title:
-	INS "font/te_title.fnt"	
+font_title1:
+	INS "font/te_title1.fnt"
+font_title2:
+	INS "font/te_title2.fnt"		
 	
 ; display list
 .align $400
@@ -669,9 +731,9 @@ GRDL:
 	.DB $70				; 1 x 8 blank scanlines
 	.DB $44				; antic mode 4 screen ptr follows text mode 5 colors
 	.DW scr_mem	
-	.DB $04,$04,$04,$04,$04
+	.DB $04,$04,$04,$84,$04
 	.DB $04,$04,$04,$04,$04,$04
-	.DB $04,$04,$04,$04,$04,$04
+	.DB $84,$04,$04,$04,$04,$04
 	.DB $04,$04,$04,$04,$04,$04
 	.DB $04,$04,$04,$04		; 28 lines of mode 4
 	.DB $41				; wait vbl and jump to start

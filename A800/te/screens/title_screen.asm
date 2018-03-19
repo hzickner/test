@@ -70,93 +70,100 @@ TITLE_SCREEN_DATA:
 	.DB $7f, $7f, $7f, $7f
 	.DB $7f, $7f, $02, $03
 ;            .DB 20 c0         ; PPU address (screen0, line 6)
-;	.DB >(scr_mem+6*32), <(scr_mem+6*32)
-;	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
-;	.DB $00,   ; $b2eb: 20 c0 20 $00,   Data
-;	.DB $7f, $7f, c3 c4   ; $b2ef: $7f, $7f, c3 c4   Data
-;	.DB c5 c6 c7 c5   ; $b2f3: c5 c6 c7 c5   Data
-;	.DB c8 c9 ca c3   ; $b2f7: c8 c9 ca c3   Data
-;            .DB c4 c5 c6 c7   ; $b2fb: c4 c5 c6 c7   Data
-;            .DB c5 bc c0 c1   ; $b2$7f,: c5 bc c0 c1   Data
-;            .DB c5 $7f, cb cc   ; $b303: c5 $7f, cb cc   Data
-;            .DB be bf b0 b1   ; $b307: be bf b0 b1   Data
-;            .DB $7f, $03, $00,
+	.DB >(scr_mem+5*32), <(scr_mem+5*32)
+	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $00
+	.DB $7f, $7f, $05, $06
+	.DB $07, $08, $09, $07
+	.DB $0A, $07, $07, $05
+	.DB $06, $07, $08, $09
+	.DB $07, $05, $0B, $0C
+	.DB $07, $7f, $0d, $0e
+	.DB $07, $09, $0f, $10
+	.DB $7f, $03, $00
 ;            .DB 20 e0         ; PPU address (screen0, line 7)
-;            .DB 20
-;            .DB $01, $00,   ; $b30f: e0 20 $01, $00,   Data
-;            .DB $7f, d3 d4 d5   ; $b313: $7f, d3 d4 d5   Data
-;            .DB d6 d7 d5 $7f,   ; $b317: d6 d7 d5 $7f,   Data
-;            .DB d9 da d3 d4   ; $b31b: d9 da d3 d4   Data
-;            .DB d5 d6 d7 d5   ; $b31f: d5 d6 d7 d5   Data
-;            .DB 9c d0 d1 d5   ; $b323: 9c d0 d1 d5   Data
-;            .DB $7f, e8 e9 ce   ; $b327: $7f, e8 e9 ce   Data
-;            .DB cf $7f, $7f, $7f,   ; $b32b: cf $7f, $7f, $7f,   Data
-;            .DB $03, $03,
+	.DB >(scr_mem+6*32), <(scr_mem+6*32)
+	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $01, $00
+	.DB $7f, $05, $11, $07
+	.DB $12, $09, $07, $7f
+	.DB $0A, $07, $05, $11
+	.DB $07, $12, $09, $07
+	.DB $05, $07, $13, $07
+	.DB $7f, $05, $14, $15
+	.DB $09, $7f, $7f, $7f
+	.DB $03, $03
 ;            .DB 21 00         ; PPU address (screen0, line 8)
 ;            .DB 20
-;            .DB $03, $7f, $7f,   ; $b333: 20 $03, $7f, $7f,   Data
-;            .DB e3 $7f, d5 $7f,   ; $b337: e3 $7f, d5 $7f,   Data
-;            .DB e7 d5 $7f, c2   ; $b33b: e7 d5 $7f, c2   Data
-;            .DB ea e3 $7f, d5   ; $b33f: ea e3 $7f, d5   Data
-;            .DB $7f, e7 d5 9c   ; $b3$01,: $7f, e7 d5 9c   Data
-;            .DB e0 e1 d5 $7f,   ; $b347: e0 e1 d5 $7f,   Data
-;            .DB af fd 5c df   ; $b34b: af fd 5c df   Data
-;            .DB $7f, $7f, $7f, $03,   ; $b34f: $7f, $7f, $7f, $03,   Data
-;            .DB $03,
+	.DB >(scr_mem+7*32), <(scr_mem+7*32)
+	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $03, $7f, $7f
+	.DB $29, $7f, $2a, $7f
+	.DB $2b, $2a, $7f, $2c
+	.DB $2d, $29, $7f, $2a
+	.DB $7f, $2b, $2a, $2e
+	.DB $2a, $2f, $2a, $7f
+	.DB $2e, $2a, $31, $32
+	.DB $7f, $7f, $7f, $03
+	.DB $03
 ;            .DB 21 20         ; PPU address (screen0, line 9)
 ;            .DB 20   ; $b353: $03, 21 20 20   Data
 ;            .DB $00, $7f, $7f, $7f,   ; $b357: $00, $7f, $7f, $7f,   Data
-;            .DB $7f, d5 $7f, $7f,   ; $b35b: $7f, d5 $7f, $7f,   Data
-;            .DB d5 e4 d2 $7f,   ; $b35f: d5 e4 d2 $7f,   Data
-;            .DB $7f, $7f, d5 $7f,   ; $b363: $7f, $7f, d5 $7f,   Data
-;            .DB $7f, d5 ac f0   ; $b367: $7f, d5 ac f0   Data
-;            .DB f1 d5 $7f, b3   ; $b36b: f1 d5 $7f, b3   Data
+;            .DB $7f, $2a, $7f, $7f,   ; $b35b: $7f, $2a, $7f, $7f,   Data
+;            .DB $2a, e4 d2 $7f,   ; $b35f: $2a, e4 d2 $7f,   Data
+;            .DB $7f, $7f, $2a, $7f,   ; $b363: $7f, $7f, $2a, $7f,   Data
+;            .DB $7f, $2a, ac f0   ; $b367: $7f, $2a, ac f0   Data
+;            .DB f1 $2a, $7f, b3   ; $b36b: f1 $2a, $7f, b3   Data
 ;            .DB fd 6c 7e $7f,   ; $b36f: fd 6c 7e $7f,   Data
 ;            .DB $7f, $03, $00, $03,   ; $b3$00,: $7f, $03, $00, $03,   Data
 ;            .DB 21 $01,         ; PPU address (screen0, line 10)
-;            .DB 20
-;            .DB $01,   ; $b377: 21 $01, 20 $01,   Data
-;            .DB $02, $00, $7f, $7f,   ; $b37b: $02, $00, $7f, $7f,   Data
-;            .DB d5 $7f, $7f, d5   ; $b37f: d5 $7f, $7f, d5   Data
-;            .DB f4 e2 $7f, $7f,   ; $b3$00,: f4 e2 $7f, $7f,   Data
-;            .DB $7f, d5 $7f, $7f,   ; $b387: $7f, d5 $7f, $7f,   Data
-;            .DB d5 7c $7f, $7f,   ; $b38b: d5 7c $7f, $7f,   Data
-;            .DB d5 $7f, 7d 5d   ; $b38f: d5 $7f, 7d 5d   Data
-;            .DB fd a3 $7f, $7f,   ; $b393: fd a3 $7f, $7f,   Data
-;            .DB $02, $03, $00,
+	.DB >(scr_mem+9*32), <(scr_mem+9*32)
+	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $01
+	.DB $02, $00, $7f, $7f
+	.DB $07, $7f, $7f, $07
+	.DB $16, $17, $7f, $7f
+	.DB $7f, $07, $7f, $7f
+	.DB $07, $18, $7f, $7f
+	.DB $07, $7f, $19, $15
+	.DB $07, $1a, $7f, $7f
+	.DB $02, $03, $00
 ;            .DB 21 $04,         ; PPU address (screen0, line 11)
-;            .DB 20
-;            .DB $00, $03,   ; $b39b: $04, 20 $00, $03,   Data
-;            .DB $7f, $7f, $7f, d5   ; $b39f: $7f, $7f, $7f, d5   Data
-;            .DB $7f, $7f, d5 $7f,   ; $b3a3: $7f, $7f, d5 $7f,   Data
-;            .DB f2 cd $7f, $7f,   ; $b3a7: f2 cd $7f, $7f,   Data
-;            .DB d5 $7f, $7f, d5   ; $b3ab: d5 $7f, $7f, d5   Data
-;            .DB 8c 8d $7f, d5   ; $b3af: 8c 8d $7f, d5   Data
-;            .DB $7f, 8c 6d fd   ; $b3b3: $7f, 8c 6d fd   Data
-;            .DB 7f $7f, $7f, $7f,   ; $b3b7: 7f $7f, $7f, $7f,   Data
-;            .DB $00, $03,
+	.DB >(scr_mem+10*32), <(scr_mem+10*32)
+	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $00, $03
+	.DB $7f, $7f, $7f, $07
+	.DB $7f, $7f, $07, $7f
+	.DB $1b, $1c, $7f, $7f
+	.DB $07, $7f, $7f, $07
+	.DB $05, $9d, $7f, $07
+	.DB $7f, $05, $1e, $07
+	.DB $09, $7f, $7f, $7f
+	.DB $00, $03
 ;            .DB 21 $02,         ; PPU address (screen0, line 12)
-;            .DB 20
-;            .DB $02, $01, $00,   ; $b3bf: 20 $02, $01, $00,   Data
-;            .DB $7f, $7f, d5 $7f,   ; $b3c3: $7f, $7f, d5 $7f,   Data
-;            .DB $7f, d5 $7f, dc   ; $b3c7: $7f, d5 $7f, dc   Data
-;            .DB dd $7f, $7f, d5   ; $b3cb: dd $7f, $7f, d5   Data
-;            .DB $7f, $7f, d5 9c   ; $b3cf: $7f, $7f, d5 9c   Data
-;            .DB 9d $7f, d5 $7f,   ; $b3d3: 9d $7f, d5 $7f,   Data
-;            .DB 9c 9d 8e 8f   ; $b3d7: 9c 9d 8e 8f   Data
-;            .DB $7f, $7f, $7f, $03,   ; $b3db: $7f, $7f, $7f, $03,   Data
-;            .DB $01,
+	.DB >(scr_mem+11*32), <(scr_mem+11*32)
+	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $02, $01, $00
+	.DB $7f, $7f, $1f, $7f
+	.DB $7f, $1f, $7f, $20
+	.DB $1f, $7f, $7f, $1f
+	.DB $7f, $7f, $1f, $21
+	.DB $22, $7f, $1f, $7f
+	.DB $21, $22, $24, $25
+	.DB $7f, $7f, $7f, $03
+	.DB $01
 ;            .DB 21 $02,         ; PPU address (screen0, line 13)
-;            .DB 20   ; $b3df: $01, 21 $02, 20   Data
-;            .DB $00, $00, $7f, $7f,   ; $b3e3: $00, $00, $7f, $7f,   Data
-;            .DB $7f, e5 $7f, $7f,   ; $b3e7: $7f, e5 $7f, $7f,   Data
-;            .DB e5 eb ec ed   ; $b3eb: e5 eb ec ed   Data
-;            .DB $7f, $7f, e5 $7f,   ; $b3ef: $7f, $7f, e5 $7f,   Data
-;            .DB $7f, e5 ac ad   ; $b3f3: $7f, e5 ac ad   Data
-;            .DB ae e5 $7f, ac   ; $b3f7: ae e5 $7f, ac   Data
-;            .DB ad 9e 9f $7f,   ; $b3fb: ad 9e 9f $7f,   Data
-;            .DB $7f, $7f, $03, $00,   ; $b3$7f,: $7f, $7f, $03, $00,   Data
-;            .DB 21 c0         ; PPU address (screen0, line 14)
+	.DB >(scr_mem+12*32), <(scr_mem+12*32)
+	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $00, $00, $7f, $7f
+	.DB $7f, $1f, $7f, $7f
+	.DB $1f, $20, $1f, $1f
+	.DB $7f, $7f, $1f, $7f
+	.DB $7f, $1f, $21, $1f
+	.DB $26, $1f, $7f, $21
+	.DB $1f, $27, $28, $7f
+	.DB $7f, $7f, $03, $00
+;	      .DB 21 c0         ; PPU address (screen0, line 14)
 	.DB >(scr_mem+13*32), <(scr_mem+13*32)
 	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
 	.DB $04
