@@ -120,13 +120,29 @@ dli0:
 	lda #>dli1
 	sta VDSLST+1
 		
-	lda #$08
+	lda #$98
 	sta WSYNC
-	sta COLBK
+	sta COLPF1
 		
 	pla
 	rti
+
 dli1:
+	pha
+
+	lda #<dli2
+	sta VDSLST
+	lda #>dli2
+	sta VDSLST+1
+		
+	lda PALETTE1_DATA+1
+	sta WSYNC
+	sta COLPF1
+		
+	pla
+	rti
+	
+dli2:
 	pha
 
 	lda #<dli0
@@ -670,6 +686,45 @@ skip:
 .endp
 
 ;-------------------------------------------------------------------------------
+; called from nmi
+.proc nmi_handle_input     
+	lda GAME_MODE
+	cmp #MODE_DEMO
+	;beq nmi_handle_input_demo	//TODO
+	jsr read_joy_safe  ; if (GAME_MODE != DEMO) read controllers and return
+	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; read controller safe, 2 consecutive reads ANDed together  
+.proc read_joy_safe     
+;            jsr read_JOY
+;            jsr read_joy2
+;            lda JOY1_RAW_NEW
+;            sta TEMP2+1
+;            lda JOY2_RAW_NEW
+;            sta $aa  
+;            jsr read_JOY
+;            jsr read_joy2
+;            lda JOY1_RAW_NEW
+;            and TEMP2+1  
+;            sta JOY1_RAW_NEW
+;            lda JOY2_RAW_NEW
+;            and $aa  
+;            sta JOY2_RAW_NEW
+;__abbd:     ldx #$01
+;@loop:      lda JOY1_RAW_NEW,x
+;            tay
+;            eor JOY1_RAW_ALL,x
+;            and JOY1_RAW_NEW,x
+;            sta JOY1_RAW_NEW,x
+;            sty JOY1_RAW_ALL,x          ; joy = (joy eor old) and joy f5-new pressed button, f7-all pressed buttons
+;            dex
+;            bpl @loop
+            rts
+.endp
+
+;-------------------------------------------------------------------------------
 ; static data
 ;-------------------------------------------------------------------------------	
 
@@ -710,7 +765,7 @@ PAL_PTR_LOW:
 PALETTE0_DATA:
 	.DB $0e, $ac, $3a, $96, $00
 PALETTE1_DATA:
-	.DB $0e, $ac, $3a, $96, $00	
+	.DB $2c, $c8, $34, $0a, $00	
 
 ;-------------------------------------------------------------------------------
 ; static data with alignment
@@ -731,8 +786,8 @@ GRDL:
 	.DB $70				; 1 x 8 blank scanlines
 	.DB $44				; antic mode 4 screen ptr follows text mode 5 colors
 	.DW scr_mem	
-	.DB $04,$04,$04,$84,$04
-	.DB $04,$04,$04,$04,$04,$04
+	.DB $04,$04,$04,$04,$04
+	.DB $04,$04,$84,$04,$84,$04
 	.DB $84,$04,$04,$04,$04,$04
 	.DB $04,$04,$04,$04,$04,$04
 	.DB $04,$04,$04,$04		; 28 lines of mode 4

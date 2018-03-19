@@ -14,6 +14,7 @@ ICPTL  		equ	$0346
 ICPTH  		equ	$0347
 
 PAL		equ	$D014	; NTSC if bits 1-3 set
+COLPF1		equ	$D017
 COLBK		equ	$D01A
 CHBASE		equ	$D409
 WSYNC		equ	$D40A
