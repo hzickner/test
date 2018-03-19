@@ -46,8 +46,10 @@ DEMO_COUNTER         = $d3      ; counter for demo mode
 PREVIEW_FLAG         = $df	; if true hide preview for next terimino
 PTR                  = $e6      ; 2 byte pointer
 P6INDEX              = $ed      ; values 0..4 used to access mem in page 6
-JOY1_RAW             = $f5      ; controller 1 value
-JOY2_RAW             = $f6      ; controller 2 value
+JOY1_RAW_NEW         = $f5      ; controller 1 value
+JOY2_RAW_NEW         = $f6      ; controller 2 value
+JOY1_RAW_ALL         = $f7
+JOY2_RAW_ALL         = $f8
 C_0                  = $fb      ; constant 0 //TODO eliminate
 VSCROLL              = $fc
 HSCROLL              = $fd
@@ -425,7 +427,7 @@ mode_func_legal:
                                ; 255 frames of legal screen
             lda #$ff
             sta TEMP2          ; init loop counter
-@loop:      lda JOY1_RAW
+@loop:      lda JOY1_RAW_NEW
             cmp #BUTTON_START
             beq @next_mode     ; procede to title screen if start pressed
             jsr frame_clear_sprite_ram
@@ -471,7 +473,7 @@ mode_func_title:
             sta FRAMECOUNT+1   ; reset high byte of frame counter     
                                ; title screen loop
 @loop:      jsr frame_clear_sprite_ram
-            lda JOY1_RAW
+            lda JOY1_RAW_NEW
             cmp #BUTTON_START
             beq @skip1
             lda FRAMECOUNT+1
@@ -546,7 +548,7 @@ loop__830b: lda #$ff
             ldx #$02
             ldy #$02
             jsr memset
-            lda JOY1_RAW
+            lda JOY1_RAW_NEW
             cmp #BUTTON_R
             bne skip1          ; if (BUTTON_R) {
             lda #TYPE_B
@@ -555,7 +557,7 @@ loop__830b: lda #$ff
             sta sndEFFECT
             jmp skip2
 
-skip1:      lda JOY1_RAW
+skip1:      lda JOY1_RAW_NEW
             cmp #BUTTON_L
             bne skip2          ; } else if (BUTTON_L) {
             lda #TYPE_A
@@ -563,7 +565,7 @@ skip1:      lda JOY1_RAW
             lda #$01
             sta sndEFFECT
                                ; } endif  
-skip2:      lda JOY1_RAW
+skip2:      lda JOY1_RAW_NEW
             cmp #BUTTON_D
             bne skip3          ; if (BUTTON_D) {
             lda #$01
@@ -576,7 +578,7 @@ skip2:      lda JOY1_RAW
             lda MUSIC_TABLE,x
             jsr snd_setMUSIC   ;     set next music} endif
 			       ; } endif (Button_D)
-skip3:      lda JOY1_RAW 
+skip3:      lda JOY1_RAW_NEW 
             cmp #BUTTON_U      ; if (BUTTON_U) {
             bne skip4
             lda #$01
@@ -588,7 +590,7 @@ skip3:      lda JOY1_RAW
             lda MUSIC_TABLE,x
             jsr snd_setMUSIC   ;     set prev music} endif
                                ; } endif (Button_U)
-skip4:      lda JOY1_RAW
+skip4:      lda JOY1_RAW_NEW
             cmp #BUTTON_START
             bne @skip5         ; if (BUTTON_Start) {
             lda #$02
@@ -596,7 +598,7 @@ skip4:      lda JOY1_RAW
             inc GAME_MODE      ;   go to level selection
             rts                ; } endif
 
-@skip5:     lda JOY1_RAW
+@skip5:     lda JOY1_RAW_NEW
             cmp #BUTTON_B      ; if (BUTTON_B) {
             bne @skip6
             lda #$02
@@ -707,7 +709,7 @@ mode_func_level:
             sta SEL_HEIGHT
             lda B1
             sta $ad            ; init level height and selection flag
-            lda JOY1_RAW
+            lda JOY1_RAW_NEW
             sta BUTTONS_NEW
             jsr update_sel_sprites
             lda SEL_LEVEL
@@ -716,12 +718,12 @@ mode_func_level:
             sta HEIGHT
             lda $ad
             sta B1             ; save selected values
-            lda JOY1_RAW
+            lda JOY1_RAW_NEW
             cmp #BUTTON_START
             bne @not_start     ; if (BUTTON_Start) {
-            lda $f7
+            lda JOY1_RAW_ALL
             cmp #144 
-            bne @skip3         ;   if ($f7 == 144) {
+            bne @skip3         ;   if (JOY1_RAW_ALL == 144) {
             lda LEVEL
             clc
             adc #10            ;     LEVEL += 10
@@ -733,7 +735,7 @@ mode_func_level:
             inc GAME_MODE       
             rts                ; exit to next mode_game } endif 
 
-@not_start: lda JOY1_RAW
+@not_start: lda JOY1_RAW_NEW
             cmp #BUTTON_B
             bne @not_B         ; if (BUTTON_B) {
             lda #$02
@@ -1149,9 +1151,9 @@ __8776:     lda #$01           ; $8776: a9 01
             sta $b7            ; $8778: 85 b7     
             lda #$04           ; $877a: a9 04     
             sta $b9            ; $877c: 85 b9     
-            lda JOY1_RAW
+            lda JOY1_RAW_NEW
             sta BUTTONS_NEW
-            lda $f7            ; $8782: a5 f7     
+            lda JOY1_RAW_ALL            ; $8782: a5 f7     
             sta $b6            ; $8784: 85 b6
     
             ldx #$1f
@@ -1167,9 +1169,9 @@ __8792:     lda #$02           ; $8792: a9 02
             sta $b7            ; $8794: 85 b7     
             lda #$05           ; $8796: a9 05     
             sta $b9            ; $8798: 85 b9     
-            lda JOY2_RAW            ; $879a: a5 f6     
+            lda JOY2_RAW_NEW            ; $879a: a5 f6     
             sta BUTTONS_NEW           ; $879c: 85 b5     
-            lda $f8            ; $879e: a5 f8     
+            lda JOY2_RAW_ALL            ; $879e: a5 f8     
             sta $b6            ; $87a0: 85 b6     
             ldx #$1f           ; $87a2: a2 1f     
 __87a4:     lda $80,x          ; $87a4: b5 80     
@@ -1322,7 +1324,7 @@ game_func2:
             lda $a4            ; $8896: a5 a4     
             beq @skip1         ; $8898: f0 02     
             inc $a4            ; $889a: e6 a4     
-@skip1:     lda JOY1_RAW            ; $889c: a5 f5     
+@skip1:     lda JOY1_RAW_NEW            ; $889c: a5 f5     
             and #BUTTON_SELECT
             beq @skip2         ; if (not BUTTON_SELECT)
             lda PREVIEW_FLAG 
@@ -3088,12 +3090,12 @@ __9a47:     lda N_PLR            ; $9a47: a5 be
             jmp __9a64         ; $9a5b: 4c 64 9a  
 
 ;-------------------------------------------------------------------------------
-__9a5e:     lda JOY1_RAW            ; $9a5e: a5 f5     
+__9a5e:     lda JOY1_RAW_NEW            ; $9a5e: a5 f5     
             cmp #BUTTON_START
             bne __9a6a         ; $9a62: d0 06     
 __9a64:     lda #$00           ; $9a64: a9 00     
             sta $48            ; $9a66: 85 48     
-            sta JOY1_RAW            ; $9a68: 85 f5     
+            sta JOY1_RAW_NEW            ; $9a68: 85 f5     
 __9a6a:     rts                ; $9a6a: 60        
 
 ;-------------------------------------------------------------------------------
@@ -3520,51 +3522,49 @@ __9d50:     rts                ; $9d50: 60
 nmi_handle_input:     
             lda GAME_MODE
             cmp #MODE_DEMO
-            beq @skip1
+            beq nmi_handle_input_demo
             jsr read_joy_safe  ; if (GAME_MODE != DEMO) read controllers and return
             rts
                                ; else
-@skip1:     lda $d0            ; we are in demo mode
+nmi_handle_input_demo:
+            lda $d0            ; we are in demo mode
             cmp #$ff           ; $9d5d: c9 ff     
-            beq __9db0         ; $9d5f: f0 4f     
+            beq @skip7         ; $9d5f: f0 4f     
             jsr read_joy_safe         ; $9d61: 20 9d ab  
-            lda JOY1_RAW            ; $9d64: a5 f5     
+            lda JOY1_RAW_NEW            ; $9d64: a5 f5     
             cmp #BUTTON_START
-            beq __9da3         ; $9d68: f0 39     
+            beq @skip6         ; $9d68: f0 39     
             lda $cf            ; $9d6a: a5 cf     
-            beq __9d73         ; $9d6c: f0 05     
+            beq @skip2         ; $9d6c: f0 05     
             dec $cf            ; $9d6e: c6 cf     
-            jmp __9d9a         ; $9d70: 4c 9a 9d  
+            jmp @skip3         ; $9d70: 4c 9a 9d  
 
-;-------------------------------------------------------------------------------
-__9d73:     ldx #$00           ; $9d73: a2 00     
+@skip2:     ldx #$00           ; $9d73: a2 00     
             lda ($d1,x)        ; $9d75: a1 d1     
             sta TEMP2            ; $9d77: 85 a8     
-            jsr __9de8         ; $9d79: 20 e8 9d  
+            jsr @skip10         ; $9d79: 20 e8 9d  
             lda $ce            ; $9d7c: a5 ce     
             eor TEMP2            ; $9d7e: 45 a8     
             and TEMP2            ; $9d80: 25 a8     
-            sta JOY1_RAW            ; $9d82: 85 f5     
+            sta JOY1_RAW_NEW            ; $9d82: 85 f5     
             lda TEMP2            ; $9d84: a5 a8     
             sta $ce            ; $9d86: 85 ce     
             ldx #$00           ; $9d88: a2 00     
             lda ($d1,x)        ; $9d8a: a1 d1     
             sta $cf            ; $9d8c: 85 cf     
-            jsr __9de8         ; $9d8e: 20 e8 9d  
+            jsr @skip10         ; $9d8e: 20 e8 9d  
             lda $d2            ; $9d91: a5 d2     
             cmp #$df           ; $9d93: c9 df     
-            beq __9da2         ; $9d95: f0 0b     
-            jmp __9d9e         ; $9d97: 4c 9e 9d  
+            beq @skip5         ; $9d95: f0 0b     
+            jmp @skip4         ; $9d97: 4c 9e 9d  
 
-;-------------------------------------------------------------------------------
-__9d9a:     lda #$00           ; $9d9a: a9 00     
-            sta JOY1_RAW            ; $9d9c: 85 f5     
-__9d9e:     lda $ce            ; $9d9e: a5 ce     
-            sta $f7            ; $9da0: 85 f7     
-__9da2:     rts                ; $9da2: 60        
+@skip3:     lda #$00           ; $9d9a: a9 00     
+            sta JOY1_RAW_NEW            ; $9d9c: 85 f5     
+@skip4:     lda $ce            ; $9d9e: a5 ce     
+            sta JOY1_RAW_ALL            ; $9da0: 85 f7     
+@skip5:     rts                ; $9da2: 60        
 
-;-------------------------------------------------------------------------------
-__9da3:     lda #$dd           ; $9da3: a9 dd     
+@skip6:     lda #$dd           ; $9da3: a9 dd     
             sta $d2            ; $9da5: 85 d2     
             lda #$00           ; $9da7: a9 00     
             sta FRAMECOUNT+1            ; $9da9: 85 b2     
@@ -3572,42 +3572,38 @@ __9da3:     lda #$dd           ; $9da3: a9 dd
             sta GAME_MODE            ; $9dad: 85 c0     
             rts                ; $9daf: 60        
 
-;-------------------------------------------------------------------------------
-__9db0:     jsr read_joy_safe         ; $9db0: 20 9d ab  
+@skip7:     jsr read_joy_safe         ; $9db0: 20 9d ab  
             lda GAME_MODE            ; $9db3: a5 c0     
             cmp #MODE_DEMO     ; //TODO we are still in demo mode, remove branch
-            bne __9de7         ; $9db7: d0 2e     
+            bne @skip9         ; $9db7: d0 2e     
             lda $d0            ; $9db9: a5 d0     
             cmp #$ff           ; //TODO $d0 should be $FF here so remove branch
-            bne __9de7         ; $9dbd: d0 28     
-            lda $f7            ; $9dbf: a5 f7     
+            bne @skip9         ; $9dbd: d0 28     
+            lda JOY1_RAW_ALL            ; $9dbf: a5 f7     
             cmp $ce            ; $9dc1: c5 ce     
-            beq __9de4         ; $9dc3: f0 1f     
+            beq @skip8         ; $9dc3: f0 1f     
             ldx #$00           ; $9dc5: a2 00     
             lda $ce            ; $9dc7: a5 ce     
             sta ($d1,x)        ; $9dc9: 81 d1     
-            jsr __9de8         ; $9dcb: 20 e8 9d  
+            jsr @skip10         ; $9dcb: 20 e8 9d  
             lda $cf            ; $9dce: a5 cf     
             sta ($d1,x)        ; $9dd0: 81 d1     
-            jsr __9de8         ; $9dd2: 20 e8 9d  
+            jsr @skip10         ; $9dd2: 20 e8 9d  
             lda $d2            ; $9dd5: a5 d2     
             cmp #$df           ; $9dd7: c9 df     
-            beq __9de7         ; $9dd9: f0 0c     
-            lda $f7            ; $9ddb: a5 f7     
+            beq @skip9         ; $9dd9: f0 0c     
+            lda JOY1_RAW_ALL            ; $9ddb: a5 f7     
             sta $ce            ; $9ddd: 85 ce     
             lda #$00           ; $9ddf: a9 00     
             sta $cf            ; $9de1: 85 cf     
             rts                ; $9de3: 60        
 
-;-------------------------------------------------------------------------------
-__9de4:     inc $cf            ; $9de4: e6 cf     
+@skip8:     inc $cf            ; $9de4: e6 cf     
             rts                ; $9de6: 60        
 
-;-------------------------------------------------------------------------------
-__9de7:     rts                ; $9de7: 60       //TODO remove by moving label 
+@skip9:     rts                ; $9de7: 60       //TODO remove by moving label 
 
-;-------------------------------------------------------------------------------
-__9de8:     lda $d1            ; $9de8: a5 d1     
+@skip10:    lda $d1            ; $9de8: a5 d1     
             clc                ; $9dea: 18        
             adc #$01           ; $9deb: 69 01     
             sta $d1            ; $9ded: 85 d1     
@@ -3642,7 +3638,7 @@ snd_setMUSIC:
 ;-------------------------------------------------------------------------------
 ; test for abort with A+B+start+select
 game_abort_test:
-            lda $f7
+            lda JOY1_RAW_ALL
             cmp #$f0
             beq @skip1         ; if ( not (buttons A+B+start+select) ) {
             inc GAME_FUNC_INDEX  ; continue with game_pause_mode     
@@ -3805,7 +3801,7 @@ __9f28:     lda $ac            ; $9f28: a5 ac
             jsr __a7fd         ; $9f42: 20 fd a7  
 __9f45:     jsr __a527         ; $9f45: 20 27 a5  
             jsr frame_clear_sprite_ram         ; $9f48: 20 2f aa  
-            lda JOY1_RAW            ; $9f4b: a5 f5     
+            lda JOY1_RAW_NEW            ; $9f4b: a5 f5     
             cmp #BUTTON_START
             bne __9f45         ; $9f4f: d0 f4     
             lda $64            ; $9f51: a5 64     
@@ -4227,7 +4223,7 @@ __a26d:     lda #$00           ; $a26d: a9 00
             lda #$02           ; $a283: a9 02     
             sta SPR_PTR_INDEX           ; $a285: 85 a2     
 __a287:     jsr spr_drawtoMem         ; $a287: 20 27 8c  
-            lda JOY1_RAW            ; $a28a: a5 f5     
+            lda JOY1_RAW_NEW            ; $a28a: a5 f5     
             and #BUTTON_START
             beq __a298         ; $a28e: f0 08     
             lda #$02           ; $a290: a9 02     
@@ -4235,7 +4231,7 @@ __a287:     jsr spr_drawtoMem         ; $a287: 20 27 8c
             jmp __a337         ; $a295: 4c 37 a3  
 
 ;-------------------------------------------------------------------------------
-__a298:     lda JOY1_RAW            ; $a298: a5 f5     
+__a298:     lda JOY1_RAW_NEW            ; $a298: a5 f5     
             and #$81           ; $a29a: 29 81     
             beq __a2af         ; $a29c: f0 11     
             lda #$01           ; $a29e: a9 01     
@@ -4246,7 +4242,7 @@ __a298:     lda JOY1_RAW            ; $a298: a5 f5
             bmi __a2af         ; $a2a9: 30 04     
             lda #$00           ; $a2ab: a9 00     
             sta $d4            ; $a2ad: 85 d4     
-__a2af:     lda JOY1_RAW            ; $a2af: a5 f5     
+__a2af:     lda JOY1_RAW_NEW            ; $a2af: a5 f5     
             and #BUTTON_B|BUTTON_L
             beq __a2c4         ; $a2b3: f0 0f     
             lda #$01           ; $a2b5: a9 01     
@@ -4256,7 +4252,7 @@ __a2af:     lda JOY1_RAW            ; $a2af: a5 f5
             bpl __a2c4         ; $a2be: 10 04     
             lda #$05           ; $a2c0: a9 05     
             sta $d4            ; $a2c2: 85 d4     
-__a2c4:     lda $f7            ; $a2c4: a5 f7     
+__a2c4:     lda JOY1_RAW_ALL            ; $a2c4: a5 f7     
             and #$04           ; $a2c6: 29 04     
             beq __a2f2         ; $a2c8: f0 28     
             lda FRAMECOUNT            ; $a2ca: a5 b1     
@@ -4279,7 +4275,7 @@ __a2c4:     lda $f7            ; $a2c4: a5 f7
             sta TEMP2            ; $a2eb: 85 a8     
 __a2ed:     lda TEMP2            ; $a2ed: a5 a8     
             sta HS_NAMES,x        ; $a2ef: 9d 00 07  
-__a2f2:     lda $f7            ; $a2f2: a5 f7     
+__a2f2:     lda JOY1_RAW_ALL            ; $a2f2: a5 f7     
             and #$08           ; $a2f4: 29 08     
             beq __a322         ; $a2f6: f0 2a     
             lda FRAMECOUNT            ; $a2f8: a5 b1     
@@ -4362,7 +4358,7 @@ game_pause_mode:
             lda GAME_MODE
             cmp #MODE_DEMO
             bne @skip1         ; if (demo mode) {
-            lda JOY1_RAW
+            lda JOY1_RAW_NEW
             cmp #BUTTON_START
             bne @skip1
             lda #MODE_TITLE
@@ -4372,7 +4368,7 @@ game_pause_mode:
 @skip1:     lda NMI_FUNC_INDEX
             cmp #$03
             bne @skip5         ; if (!nmi_func3) ret with next game_func
-            lda JOY1_RAW
+            lda JOY1_RAW_NEW
             and #BUTTON_START
             bne @skip2         ; //TODO replace with beq @skip5
             jmp @skip5         ; if (start pressed) ret with next game_func
@@ -4401,7 +4397,7 @@ game_pause_mode:
             lda #$05
             sta SPR_PTR_INDEX
             jsr spr_drawtoMem  ; draw sprite 5 ('PAUSE' string) to mem at 112,119
-            lda JOY1_RAW
+            lda JOY1_RAW_NEW
             cmp #BUTTON_START
             beq @skip4
             jsr frame_clear_sprite_ram
@@ -5035,7 +5031,7 @@ __a95d:     jsr __a527         ; $a95d: 20 27 a5
             jsr frame_clear_sprite_ram         ; $a960: 20 2f aa  
             lda $c5            ; $a963: a5 c5     
             bne __a95d         ; $a965: d0 f6     
-            lda JOY1_RAW            ; $a967: a5 f5     
+            lda JOY1_RAW_NEW            ; $a967: a5 f5     
             cmp #BUTTON_START
             bne __a95d         ; $a96b: d0 f0     
             rts                ; $a96d: 60        
@@ -5367,8 +5363,8 @@ PPU_updateSprites:
 
 ;-------------------------------------------------------------------------------
 ; read controllers 1 and 2
-; reads joy1 to $f5
-; reads joy2 to $f6
+; reads joy1 to JOY1_RAW_NEW
+; reads joy2 to JOY2_RAW_NEW
 ; reads joy3 to $00
 ; reads joy3 to $01
 read_JOY:   ldx C_0
@@ -5379,12 +5375,12 @@ read_JOY:   ldx C_0
             ldx #$08           ; counter
 @loop:      lda JOY1           ; read bit
             lsr                ; shift to carry
-            rol JOY1_RAW       ; rol carry into variable
+            rol JOY1_RAW_NEW       ; rol carry into variable
             lsr                ; 
             rol $00            ; rol next bit to TEMP1 variable
             lda JOY2           ; read bit
             lsr
-            rol $f6
+            rol JOY2_RAW_NEW
             lsr
             rol $01
             dex
@@ -5394,13 +5390,13 @@ read_JOY:   ldx C_0
 ;-------------------------------------------------------------------------------
 ; combines joy1 with 3 and joy2 with 4 
 ; //TODO remove
-read_joy2:  lda $00            ; $ab8b: a5 00     
-            ora JOY1_RAW            ; $ab8d: 05 f5     
-            sta JOY1_RAW            ; $ab8f: 85 f5     
-            lda $01            ; $ab91: a5 01     
-            ora JOY2_RAW            ; $ab93: 05 f6     
-            sta JOY2_RAW            ; $ab95: 85 f6     
-            rts                ; $ab97: 60        
+read_joy2:  lda $00
+            ora JOY1_RAW_NEW
+            sta JOY1_RAW_NEW
+            lda $01
+            ora JOY2_RAW_NEW
+            sta JOY2_RAW_NEW 
+            rts
 
 ;-------------------------------------------------------------------------------
             jsr read_JOY         ; $ab98: 20 69 ab  
@@ -5411,65 +5407,65 @@ read_joy2:  lda $00            ; $ab8b: a5 00
 read_joy_safe:     
             jsr read_JOY
             jsr read_joy2
-            lda JOY1_RAW
-            sta TEMP2+1           ; $aba5: 85 a9     
-            lda JOY2_RAW
-            sta $aa            ; $aba9: 85 aa     
+            lda JOY1_RAW_NEW
+            sta TEMP2+1
+            lda JOY2_RAW_NEW
+            sta $aa  
             jsr read_JOY
             jsr read_joy2
-            lda JOY1_RAW
-            and TEMP2+1           ; $abb3: 25 a9     
-            sta JOY1_RAW
-            lda JOY2_RAW
-            and $aa            ; $abb9: 25 aa     
-            sta JOY2_RAW
+            lda JOY1_RAW_NEW
+            and TEMP2+1  
+            sta JOY1_RAW_NEW
+            lda JOY2_RAW_NEW
+            and $aa  
+            sta JOY2_RAW_NEW
 __abbd:     ldx #$01
-__abbf:     lda $f5,x
+@loop:      lda JOY1_RAW_NEW,x
             tay
-            eor $f7,x
-            and $f5,x
-            sta $f5,x
-            sty $f7,x          ; joy = (joy eor old) and joy f5-new pressed button, f7-all pressed buttons //TODO namin
+            eor JOY1_RAW_ALL,x
+            and JOY1_RAW_NEW,x
+            sta JOY1_RAW_NEW,x
+            sty JOY1_RAW_ALL,x          ; joy = (joy eor old) and joy f5-new pressed button, f7-all pressed buttons
             dex
-            bpl __abbf
+            bpl @loop
             rts
 
 ;-------------------------------------------------------------------------------
             jsr read_JOY         ; $abce: 20 69 ab  
-__abd1:     ldy JOY1_RAW            ; $abd1: a4 f5     
-            lda JOY2_RAW            ; $abd3: a5 f6     
+__abd1:     ldy JOY1_RAW_NEW            ; $abd1: a4 f5     
+            lda JOY2_RAW_NEW            ; $abd3: a5 f6     
             pha                ; $abd5: 48        
             jsr read_JOY         ; $abd6: 20 69 ab  
             pla                ; $abd9: 68        
-            cmp JOY2_RAW            ; $abda: c5 f6     
+            cmp JOY2_RAW_NEW            ; $abda: c5 f6     
             bne __abd1         ; $abdc: d0 f3     
-            cpy JOY1_RAW            ; $abde: c4 f5     
+            cpy JOY1_RAW_NEW            ; $abde: c4 f5     
             bne __abd1         ; $abe0: d0 ef     
             beq __abbd         ; $abe2: f0 d9     
             jsr read_JOY         ; $abe4: 20 69 ab  
             jsr read_joy2         ; $abe7: 20 8b ab  
-__abea:     ldy JOY1_RAW            ; $abea: a4 f5     
-            lda JOY2_RAW            ; $abec: a5 f6     
+__abea:     ldy JOY1_RAW_NEW            ; $abea: a4 f5     
+            lda JOY2_RAW_NEW            ; $abec: a5 f6     
             pha                ; $abee: 48        
             jsr read_JOY         ; $abef: 20 69 ab  
             jsr read_joy2         ; $abf2: 20 8b ab  
             pla                ; $abf5: 68        
-            cmp JOY2_RAW            ; $abf6: c5 f6     
+            cmp JOY2_RAW_NEW            ; $abf6: c5 f6     
             bne __abea         ; $abf8: d0 f0     
-            cpy JOY1_RAW            ; $abfa: c4 f5     
+            cpy JOY1_RAW_NEW            ; $abfa: c4 f5     
             bne __abea         ; $abfc: d0 ec     
             beq __abbd         ; $abfe: f0 bd     
             jsr read_JOY         ; $ac00: 20 69 ab  
             lda $00            ; $ac03: a5 00     
-            sta $f7            ; $ac05: 85 f7     
+            sta JOY1_RAW_ALL            ; $ac05: 85 f7     
             lda $01            ; $ac07: a5 01     
-            sta $f8            ; $ac09: 85 f8     
+            sta JOY2_RAW_ALL            ; $ac09: 85 f8     
             ldx #$03           ; $ac0b: a2 03     
-__ac0d:     lda $f5,x          ; $ac0d: b5 f5     
+__ac0d:     lda JOY1_RAW_NEW,x          ; $ac0d: b5 f5     
             tay                ; $ac0f: a8        
             eor $f1,x          ; $ac10: 55 f1     
-            and $f5,x          ; $ac12: 35 f5     
-            sta $f5,x          ; $ac14: 95 f5     
+            and JOY1_RAW_NEW,x          ; $ac12: 35 f5     
+            sta JOY1_RAW_NEW,x          ; $ac14: 95 f5     
             sty $f1,x          ; $ac16: 94 f1     
             dex                ; $ac18: ca        
             bpl __ac0d         ; $ac19: 10 f2     
@@ -8211,7 +8207,7 @@ __e617:     lda $e2            ; $e617: a5 e2
             jmp __e677         ; $e621: 4c 77 e6  
 
 ;-------------------------------------------------------------------------------
-__e624:     lda #JOY2_RAW           ; $e624: a9 f6     
+__e624:     lda #JOY2_RAW_NEW           ; $e624: a9 f6     
             bne __e677         ; $e626: d0 4f     
 __e628:     lda $06c3,x        ; $e628: bd c3 06  
             cmp #$4c           ; $e62b: c9 4c     
