@@ -1,6 +1,6 @@
 TYPE_SCREEN_DATA:
 ;            .DB 20 00         ; PPU address $2000 (screen0, line 0)
-;            .DB 20            ; control byte: VRAM line, ptr inc, 32bytes of data
+;            .DB 20            ; control byte: VRAM line, ptr inc, $32,bytes of data
 ;            .DB $ab, $a9,
 ;            .DB $a8, $aa, $aa, $a8,   ; $b67f: $a8, $aa, $aa, $a8,   Data
 ;            .DB $ab, $ab, $aa, $ab,   ; $b683: $ab, $ab, $aa, $ab,   Data
@@ -12,7 +12,7 @@ TYPE_SCREEN_DATA:
 ;            .DB $a9, $a8,
 ;            .DB 20 20   ; $b69b: $a9, $a8, 20 20   Data
 	.DB >(scr_mem+0*32), <(scr_mem+0*32)
-	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
 	.DB $ab, $ab, $ab
 	.DB $ac, $ab, $a9, $a8
 	.DB $a8, $ab, $ab, $ab
@@ -24,7 +24,7 @@ TYPE_SCREEN_DATA:
 	.DB $ab
 ;            .DB 20 $a9,
 	.DB >(scr_mem+1*32), <(scr_mem+1*32)
-	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
 	.DB $ab, $a8, $ab, $aa
 	.DB $a8, $a8, $aa, $aa
 	.DB $a8, $a8, $aa, $aa
@@ -34,41 +34,44 @@ TYPE_SCREEN_DATA:
 	.DB $a8, $aa, $a8, $a9
 	.DB $a8, $a8, $a8, $ab
 ;            .DB 20 $ac,
-;            .DB 20
-;            .DB $a8,   ; $b6e3: 20 $ac, 20 $a8,   Data
-;            .DB $ab, $ab, 30 31   ; $b6e7: $ab, $ab, 30 31   Data
-;            .DB 31 31 31 31   ; $b6eb: 31 31 31 31   Data
-;            .DB 31 31 31 31   ; $b6ef: 31 31 31 31   Data
-;            .DB 31 31 31 32   ; $b6f3: 31 31 31 32   Data
-;            .DB $ab, $a8, $a8, $ab,   ; $b6f7: $ab, $a8, $a8, $ab,   Data
-;            .DB $a8, $ac, $ab, $ab,   ; $b6fb: $a8, $ac, $ab, $ab,   Data
-;            .DB $ac, $ab, $a8, $aa,   ; $b6ff: $ac, $ab, $a8, $aa,   Data
-;            .DB $ab, $aa, $a8,
+	.DB >(scr_mem+2*32), <(scr_mem+2*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $a8
+	.DB $ab, $ab, $30, $31
+	.DB $31, $31, $31, $31
+	.DB $31, $31, $31, $31
+	.DB $31, $31, $31, $32
+	.DB $ab, $a8, $a8, $ab
+	.DB $a8, $ac, $ab, $ab
+	.DB $ac, $ab, $a8, $aa
+	.DB $ab, $aa, $a8
 ;            .DB 20 $aa,
-;            .DB 20
-;            .DB $aa, $ab,   ; $b707: $aa, 20 $aa, $ab,   Data
-;            .DB $a8, 33 ff 10   ; $b70b: $a8, 33 ff 10   Data
-;            .DB 0a 16 0e ff   ; $b70f: 0a 16 0e ff   Data
-;            .DB ff 1d 22 19   ; $b713: ff 1d 22 19   Data
-;            .DB 0e ff 34 $aa,   ; $b717: 0e ff 34 $aa,   Data
-;            .DB $aa, $a8, $aa, $ab,   ; $b71b: $aa, $a8, $aa, $ab,   Data
-;            .DB $aa, $a8, $ab, $aa,   ; $b71f: $aa, $a8, $ab, $aa,   Data
-;            .DB $a8, $a9, $a8, $aa,   ; $b723: $a8, $a9, $a8, $aa,   Data
-;            .DB $a8, $ab,
+	.DB >(scr_mem+3*32), <(scr_mem+3*32)
+	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $aa, $ab
+	.DB $a8, $33, $7f, $10
+	.DB $0a, $16, $0e, $7f
+	.DB $7f, $1d, $22, $19
+	.DB $0e, $7f, $34, $aa
+	.DB $aa, $a8, $aa, $ab
+	.DB $aa, $a8, $ab, $aa
+	.DB $a8, $a9, $a8, $aa
+	.DB $a8, $ab
 ;            .DB 20 $aa,   ; $b727: $a8, $ab, 20 $aa,   Data
-;            .DB 20
-;            .DB $ab, $a8, $ab,   ; $b72b: 20 $ab, $a8, $ab,   Data
-;            .DB 35 36 36 36   ; $b72f: 35 36 36 36   Data
-;            .DB 36 36 36 36   ; $b733: 36 36 36 36   Data
-;            .DB 36 36 36 36   ; $b737: 36 36 36 36   Data
-;            .DB 36 37 $a9, $a8,   ; $b73b: 36 37 $a9, $a8,   Data
-;            .DB $aa, $ab, $a8, $ab,   ; $b73f: $aa, $ab, $a8, $ab,   Data
-;            .DB $aa, $a8, $ac, $ab,   ; $b743: $aa, $a8, $ac, $ab,   Data
-;            .DB $ab, $ac, $ab, $aa,   ; $b747: $ab, $ac, $ab, $aa,   Data
-;            .DB $ab,
+	.DB >(scr_mem+4*32), <(scr_mem+4*32)
+	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $ab, $a8, $ab
+	.DB $35, $36, $36, $36
+	.DB $36, $36, $36, $36
+	.DB $36, $36, $36, $36
+	.DB $36, $37, $a9, $a8
+	.DB $aa, $ab, $a8, $ab
+	.DB $aa, $a8, $ac, $ab
+	.DB $ab, $ac, $ab, $aa
+	.DB $ab
 ;            .DB 20 c0
 	.DB >(scr_mem+5*32), <(scr_mem+5*32)
-	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
 	.DB $a9, $a8, $aa, $aa
 	.DB $a8, $aa, $a9, $a8
 	.DB $aa, $aa, $aa, $a8
@@ -78,41 +81,44 @@ TYPE_SCREEN_DATA:
 	.DB $a8, $aa, $a8, $a8
 	.DB $aa, $a8, $ab, $a8
 ;            .DB 20 e0
-;            .DB 20
-;            .DB $a8,   ; $b76f: 20 e0 20 $a8,   Data
-;            .DB $a9, $a8, $a9, $a8,   ; $b773: $a9, $a8, $a9, $a8,   Data
-;            .DB $ab, $a8, 38 39   ; $b777: $ab, $a8, 38 39   Data
-;            .DB 39 39 39 39   ; $b77b: 39 39 39 39   Data
-;            .DB 39 39 39 3a   ; $b77f: 39 39 39 3a   Data
-;            .DB $ab, $ab, 38 39   ; $b783: $ab, $ab, 38 39   Data
-;            .DB 39 39 39 39   ; $b787: 39 39 39 39   Data
-;            .DB 39 39 39 3a   ; $b78b: 39 39 39 3a   Data
-;            .DB $a9, $a8, $ab,
+	.DB >(scr_mem+6*32), <(scr_mem+6*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $a8
+	.DB $a9, $a8, $a9, $a8
+	.DB $ab, $a8, $38, $39
+	.DB $39, $39, $39, $39
+	.DB $39, $39, $39, $3a
+	.DB $ab, $ab, $38, $39
+	.DB $39, $39, $39, $39
+	.DB $39, $39, $39, $3a
+	.DB $a9, $a8, $ab
 ;            .DB 21 00
-;            .DB 20
-;            .DB $aa, $a8,   ; $b793: 00 20 $aa, $a8,   Data
-;            .DB $aa, $a8, $aa, $aa,   ; $b797: $aa, $a8, $aa, $aa,   Data
-;            .DB $a8, 3b ff 0a   ; $b79b: $a8, 3b ff 0a   Data
-;            .DB 24 1d 22 19   ; $b79f: 24 1d 22 19   Data
-;            .DB 0e ff 3c $ab,   ; $b7a3: 0e ff 3c $ab,   Data
-;            .DB $a8, 3b ff 0b   ; $b7a7: $a8, 3b ff 0b   Data
-;            .DB 24 1d 22 19   ; $b7ab: 24 1d 22 19   Data
-;            .DB 0e ff 3c $a8,   ; $b7af: 0e ff 3c $a8,   Data
-;            .DB $aa, $ab,
+	.DB >(scr_mem+7*32), <(scr_mem+7*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $aa, $a8
+	.DB $aa, $a8, $aa, $aa
+	.DB $a8, $3b, $7f, $0a
+	.DB $24, $1d, $22, $19
+	.DB $0e, $7f, $3c, $ab
+	.DB $a8, $3b, $7f, $0b
+	.DB $24, $1d, $22, $19
+	.DB $0e, $7f, $3c, $a8
+	.DB $aa, $ab
 ;            .DB 21 20   ; $b7b3: $aa, $ab, 21 20   Data
-;            .DB 20
-;            .DB $a9, $a8, $ab,   ; $b7b7: 20 $a9, $a8, $ab,   Data
-;            .DB $aa, $aa, $ab, $ab,   ; $b7bb: $aa, $aa, $ab, $ab,   Data
-;            .DB 3d 3e 3e 3e   ; $b7bf: 3d 3e 3e 3e   Data
-;            .DB 3e 3e 3e 3e   ; $b7c3: 3e 3e 3e 3e   Data
-;            .DB 3e 3f $aa, $a8,   ; $b7c7: 3e 3f $aa, $a8,   Data
-;            .DB 3d 3e 3e 3e   ; $b7cb: 3d 3e 3e 3e   Data
-;            .DB 3e 3e 3e 3e   ; $b7cf: 3e 3e 3e 3e   Data
-;            .DB 3e 3f $a9, $a8,   ; $b7d3: 3e 3f $a9, $a8,   Data
-;            .DB $a8,
+	.DB >(scr_mem+8*32), <(scr_mem+8*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $a9, $a8, $ab
+	.DB $aa, $aa, $ab, $ab
+	.DB $3d, $3e, $3e, $3e
+	.DB $3e, $3e, $3e, $3e
+	.DB $3e, $3f, $aa, $a8
+	.DB $3d, $3e, $3e, $3e
+	.DB $3e, $3e, $3e, $3e
+	.DB $3e, $3f, $a9, $a8
+	.DB $a8
 ;            .DB 21 $a9,
 	.DB >(scr_mem+9*32), <(scr_mem+9*32)
-	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
 	.DB $ab, $aa, $aa, $a8
 	.DB $ab, $a8, $aa, $ab
 	.DB $ac, $ab, $ac, $ab
@@ -123,7 +129,7 @@ TYPE_SCREEN_DATA:
 	.DB $aa, $a8, $aa, $ab
 ;            .DB 21 $ac,
 	.DB >(scr_mem+10*32), <(scr_mem+10*32)
-	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
 	.DB $a8
 	.DB $a9, $aa, $a8, $aa
 	.DB $aa, $a8, $a8, $aa
@@ -136,10 +142,10 @@ TYPE_SCREEN_DATA:
 ;            .DB 21 $aa,
 ;            .DB 20
 ;            .DB $ab, $a8,   ; $b81f: $aa, 20 $ab, $a8,   Data
-;            .DB $ab, 30 31 31   ; $b823: $ab, 30 31 31   Data
-;            .DB 31 31 31 31   ; $b827: 31 31 31 31   Data
-;            .DB 31 31 31 31   ; $b82b: 31 31 31 31   Data
-;            .DB 31 31 32 $aa,   ; $b82f: 31 31 32 $aa,   Data
+;            .DB $ab, $30, $31, $31,   ; $b823: $ab, $30, $31, $31,   Data
+;            .DB $31, $31, $31, $31,   ; $b827: $31, $31, $31, $31,   Data
+;            .DB $31, $31, $31, $31,   ; $b82b: $31, $31, $31, $31,   Data
+;            .DB $31, $31, $32, $aa,   ; $b82f: $31, $31, $32, $aa,   Data
 ;            .DB $aa, $a8, $ab, $a8,   ; $b833: $aa, $a8, $ab, $a8,   Data
 ;            .DB $ab, $a8, $a8, $aa,   ; $b837: $ab, $a8, $a8, $aa,   Data
 ;            .DB $ab, $a9, $a8, $aa,   ; $b83b: $ab, $a9, $a8, $aa,   Data
@@ -167,7 +173,7 @@ TYPE_SCREEN_DATA:
 ;            .DB $ab, $aa, $aa, $ab,   ; $b883: $ab, $aa, $aa, $ab,   Data
 ;            .DB 21 e0
 	.DB >(scr_mem+14*32), <(scr_mem+14*32)
-	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
 	.DB $ac
 	.DB $ab, $ab, $aa, $aa
 	.DB $ab, $aa, $a9, $a8
@@ -297,7 +303,7 @@ TYPE_SCREEN_DATA:
 ;            .DB $a8, $ab, $aa, $aa,   ; $ba27: $a8, $ab, $aa, $aa,   Data
 ;            .DB 23 60,
 	.DB >(scr_mem+26*32), <(scr_mem+26*32)
-	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
 	.DB $ab
 	.DB $ab, $aa, $aa, $a8
 	.DB $a8, $ac, $ab, $ab
@@ -309,7 +315,7 @@ TYPE_SCREEN_DATA:
 	.DB $a8, $ab, $ab
 ;            .DB 23 80,
 	.DB >(scr_mem+27*32), <(scr_mem+27*32)
-	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
 	.DB $ab, $aa
 	.DB $aa, $a8, $ab, $ab
 	.DB $aa, $a8, $ab, $a8
