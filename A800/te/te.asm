@@ -12,7 +12,10 @@ B2		.DS	1
 COUNTDOWN	.DS	1
 GAME_FUNC_INDEX	.DS	1
 GAME_MODE	.DS	1
-JOY1_RAW	.DS	1
+JOY1_RAW_NEW	.DS	1
+JOY1_RAW_ALL	.DS	1
+JOY2_RAW_NEW	.DS	1
+JOY2_RAW_ALL	.DS	1
 N_PLR		.DS	1
 vNMIEN		.DS	1
 NMI_FUNC_INDEX	.DS	1
@@ -61,10 +64,10 @@ HS_INITMARK	=	HS_BASE+$50
 	rts
 	
 jt_h: 
-	.DB >(mode_func_legal-1), >(mode_func_title-1)
+	.DB >(mode_func_legal-1), >(mode_func_title-1), >(mode_func_type-1)
 
 jt_l:
-	.DB <(mode_func_legal-1), <(mode_func_title-1)	
+	.DB <(mode_func_legal-1), <(mode_func_title-1), <(mode_func_type-1)	
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -78,10 +81,10 @@ jt_l:
 	rts
 	
 jt_h: 
-	.DB >(nmi_func0-1)
+	.DB >(nmi_func0-1), >(nmi_func1-1)
 
 jt_l:
-	.DB <(nmi_func0-1)	
+	.DB <(nmi_func0-1), <(nmi_func1-1)	
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -548,7 +551,7 @@ skip2:
 				; 255 frames of legal screen
 	lda #$ff
 	sta TEMP2		; init loop counter //TEMP1 used in frame_clear_sprite_ram
-loop:	lda JOY1_RAW
+loop:	lda JOY1_RAW_NEW
 	cmp #BUTTON_START
 	beq next_mode		; procede to title screen if start pressed
 	jsr frame_clear_sprite_ram
@@ -596,7 +599,7 @@ next_mode:
 	sta RTCLOK+1		; reset high byte of frame counter     
 ;                               ; title screen loop
 loop:	jsr frame_clear_sprite_ram
-	lda JOY1_RAW
+	lda JOY1_RAW_NEW
 	cmp #BUTTON_START
 	beq skip1
 	lda RTCLOK+1
@@ -615,6 +618,152 @@ skip2:	;lda #$02           ; $82a7: a9 02
 	lda #MODE_LEGAL
 	sta GAME_MODE
 	rts                ; exit to MODE_SETUP_DEMO after about 5*256 frames
+.endp
+
+;-------------------------------------------------------------------------------
+; game type selection
+.proc mode_func_type
+;            inc $8000          ; $82d1: ee 00 80  ; ROM write
+;            lda #%10000        ; mirrorring: one screen; PRG: 32K $8000 siwitchable at $C000; CHR: switch 2 4K banks
+;            jsr MMCsetreg0
+	lda #$01			; set nmi function for this mode (write PPUCTRL with nametable 0, write scroll regs with 0)
+	sta NMI_FUNC_INDEX
+	jsr frame_GR_rendering_off
+	jsr nmi_disable
+
+	lda #>font_type
+	sta CHBAS
+
+;            jsr PPU_copy_data
+;            DW PALETTE_DATA_MODE1_2_3
+;            
+	lda #<TYPE_SCREEN_DATA
+	ldx #>TYPE_SCREEN_DATA
+	jsr GR_copy_data		; load screen data
+
+;
+;            lda #$00
+;            jsr MMCsetreg1     ; CHR0 bank
+;            lda #$00
+;            jsr MMCsetreg2     ; CHR1 bank
+	jsr nmi_enable
+	jsr frame_clear_sprite_ram
+	jsr frame_GR_rendering_on
+	jsr frame_clear_sprite_ram
+;            ldx SEL_MUSIC
+;            lda MUSIC_TABLE,x
+;            jsr snd_setMUSIC
+
+loop:  
+;	     lda #$ff
+;            ldx #$02
+;            ldy #$02
+;            jsr memset		;// TODO why?
+;            lda JOY1_RAW_NEW
+;            cmp #BUTTON_R
+;            bne skip1          ; if (BUTTON_R) {
+;            lda #TYPE_B
+;            sta SEL_TYPE
+;            lda #$01
+;            sta sndEFFECT
+;            jmp skip2
+;
+;skip1:      lda JOY1_RAW_NEW
+;            cmp #BUTTON_L
+;            bne skip2          ; } else if (BUTTON_L) {
+;            lda #TYPE_A
+;            sta SEL_TYPE
+;            lda #$01
+;            sta sndEFFECT
+;                               ; } endif  
+;skip2:      lda JOY1_RAW_NEW
+;            cmp #BUTTON_D
+;            bne skip3          ; if (BUTTON_D) {
+;            lda #$01
+;            sta sndEFFECT
+;            lda SEL_MUSIC
+;            cmp #$03
+;            beq skip4          ;   if (SEL_MUSIC != 3) {
+;            inc SEL_MUSIC
+;            ldx SEL_MUSIC
+;            lda MUSIC_TABLE,x
+;            jsr snd_setMUSIC   ;     set next music} endif
+;			       ; } endif (Button_D)
+;skip3:      lda JOY1_RAW_NEW 
+;            cmp #BUTTON_U      ; if (BUTTON_U) {
+;            bne skip4
+;            lda #$01
+;            sta sndEFFECT
+;            lda SEL_MUSIC
+;            beq skip4          ;   if (SEL_MUSIC != 0)
+;            dec SEL_MUSIC
+;            ldx SEL_MUSIC
+;            lda MUSIC_TABLE,x
+;            jsr snd_setMUSIC   ;     set prev music} endif
+;                               ; } endif (Button_U)
+skip4:	lda JOY1_RAW_NEW
+	cmp #BUTTON_START
+	bne skip5		; if (BUTTON_Start) {
+;            lda #$02
+;            sta sndEFFECT
+;            inc GAME_MODE      ;   go to level selection //TODO
+	lda MODE_LEGAL
+	sta GAME_MODE
+	rts			; } endif
+
+skip5:	lda JOY1_RAW_NEW
+	cmp #BUTTON_OPTION	; if (BUTTON_B) {
+	bne skip6
+;            lda #$02
+;            sta sndEFFECT
+	lda #$00
+	sta RTCLOK+1
+	dec GAME_MODE		;   go back to title screen
+	rts			; } endif
+;
+skip6:	ldy #$00
+;            lda SEL_TYPE
+;            asl
+;            sta TEMP2
+;            asl
+;            adc TEMP2
+;            asl
+;            asl
+;            asl
+;            asl                ; A *= 96 (A = 0 or 96) //TODO reduce to conditional assign
+;            clc
+;            adc #63            ; +=63
+;            sta SPR_X          ; SPR_X = 63 or 159
+;            lda #63
+;            sta SPR_Y
+;            lda #$01
+;            sta SPR_PTR_INDEX
+;            lda FRAMECOUNT
+;            and #$03
+;            bne @skip7         ; every 4th frame do {
+;            lda #$02           ;   SPR_PTR_INDEX= 2
+;            sta SPR_PTR_INDEX  ; } else SPR_PTR_INDEX = 1     
+;@skip7:     jsr spr_drawtoMem
+;            lda SEL_MUSIC      ; A = 0..3
+;            asl
+;            asl
+;            asl
+;            asl
+;            clc
+;            adc #143           ; *16+143
+;            sta SPR_Y
+;            lda #$53           ; 83
+;            sta SPR_PTR_INDEX
+;            lda #103
+;            sta SPR_X
+;            lda FRAMECOUNT
+;            and #$03
+;            bne @skip8         ; every 4th frame do {
+;            lda #$02           ;   SPR_PTR_INDEX= 2
+;            sta SPR_PTR_INDEX  ; } else SPR_PTR_INDEX = 83     
+;@skip8:     jsr spr_drawtoMem
+	jsr frame_clear_sprite_ram
+	jmp loop
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -639,7 +788,7 @@ skip:
 ;            sta PPUSCROLL      ; reset scroll position
 ;            lda #$01
 ;            sta VBLANK         ; set VBLANK flag
-;            jsr nmi_handle_input
+	jsr nmi_handle_input
 
 	jmp XITVBV
 .endp
@@ -677,6 +826,23 @@ skip:
 .endp            
 
 ;-------------------------------------------------------------------------------
+; function 01 called by table_jump_nmi
+; //TODO almost identical to PPU_reset_nametable_scrolling
+.proc nmi_func1
+;PPU_reset_scrolling:
+;            lda CTRL
+;            and #$fc           ; nametable 0
+;            sta CTRL
+;            sta PPUCTRL
+;            lda #$00
+;            sta HSCROLL
+;            sta PPUSCROLL
+;            sta VSCROLL
+;            sta PPUSCROLL
+	rts
+.endp	
+
+;-------------------------------------------------------------------------------
 ; helper function to set vbi vector
 .proc nmi_init
 	ldy #<nmi
@@ -696,40 +862,89 @@ skip:
 .endp
 
 ;-------------------------------------------------------------------------------
+; read 2controllers and option keys 
+.proc read_joy
+	lda #0
+	sta JOY1_RAW_NEW
+	sta JOY2_RAW_NEW
+	
+	lda TRIG0
+	eor #$FF
+	lsr
+	ror JOY1_RAW_NEW
+			
+	lda TRIG1
+	eor #$FF
+	lsr
+	ror JOY2_RAW_NEW
+
+	lda CONSOL
+	eor #$FF
+	lsr
+	ror JOY1_RAW_NEW
+	lsr
+	ror JOY1_RAW_NEW
+	lsr
+	ror JOY1_RAW_NEW
+
+	clc
+	ror JOY2_RAW_NEW
+	ror JOY2_RAW_NEW
+	ror JOY2_RAW_NEW
+
+	lda PORTA
+	eor #$FF
+	tay
+	and #$0F
+	ora JOY1_RAW_NEW
+	sta JOY1_RAW_NEW
+	
+	tya
+	lsr
+	lsr
+	lsr
+	lsr
+	ora JOY2_RAW_NEW
+	sta JOY2_RAW_NEW
+	
+	rts
+.endp
+
+;-------------------------------------------------------------------------------
 ; read controller safe, 2 consecutive reads ANDed together  
 .proc read_joy_safe     
-;            jsr read_JOY
+	jsr read_joy
 ;            jsr read_joy2
-;            lda JOY1_RAW_NEW
-;            sta TEMP2+1
-;            lda JOY2_RAW_NEW
-;            sta $aa  
-;            jsr read_JOY
+	lda JOY1_RAW_NEW
+	sta TEMP2+1
+	lda JOY2_RAW_NEW
+	sta $aa  
+	jsr read_joy
 ;            jsr read_joy2
-;            lda JOY1_RAW_NEW
-;            and TEMP2+1  
-;            sta JOY1_RAW_NEW
-;            lda JOY2_RAW_NEW
-;            and $aa  
-;            sta JOY2_RAW_NEW
-;__abbd:     ldx #$01
-;@loop:      lda JOY1_RAW_NEW,x
-;            tay
-;            eor JOY1_RAW_ALL,x
-;            and JOY1_RAW_NEW,x
-;            sta JOY1_RAW_NEW,x
-;            sty JOY1_RAW_ALL,x          ; joy = (joy eor old) and joy f5-new pressed button, f7-all pressed buttons
-;            dex
-;            bpl @loop
-            rts
+	lda JOY1_RAW_NEW
+	and TEMP2+1  
+	sta JOY1_RAW_NEW
+	lda JOY2_RAW_NEW
+	and $aa  
+	sta JOY2_RAW_NEW
+	ldx #$01
+loop:	lda JOY1_RAW_NEW,x
+	tay
+	eor JOY1_RAW_ALL,x
+	and JOY1_RAW_NEW,x
+	sta JOY1_RAW_NEW,x
+	sty JOY1_RAW_ALL,x          ; joy = (joy eor old) and joy f5-new pressed button, f7-all pressed buttons
+	dex
+	bpl loop
+	rts
 .endp
 
 ;-------------------------------------------------------------------------------
 ; static data
 ;-------------------------------------------------------------------------------	
-
 	ICL "screens/legal_screen.asm"
 	ICL "screens/title_screen.asm"
+	ICL "screens/type_screen.asm"
 	
 ; 80 bytes of data copied to page 7 $700-$749 for init of high score table
 HS_INIT_DATA:
@@ -778,7 +993,9 @@ font_legal:
 font_title1:
 	INS "font/te_title1.fnt"
 font_title2:
-	INS "font/te_title2.fnt"		
+	INS "font/te_title2.fnt"
+font_type:
+	INS "font/te_type.fnt"			
 	
 ; display list
 .align $400
