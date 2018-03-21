@@ -9,6 +9,7 @@ TEMP1		.DS	2
 TEMP2		.DS	2
 B1		.DS	1
 B2		.DS	1
+BGS_USED	.DS	1
 COUNTDOWN	.DS	1
 GAME_FUNC_INDEX	.DS	1
 GAME_MODE	.DS	1
@@ -21,6 +22,11 @@ vNMIEN		.DS	1
 NMI_FUNC_INDEX	.DS	1
 OAM_USED	.DS	1
 PREVIEW_FLAG	.DS	1
+SEL_TYPE	.DS	1
+SEL_MUSIC	.DS	1
+SPR_PTR_INDEX	.DS	1
+SPR_X		.DS	1
+SPR_Y		.DS	1
 
 ;-------------------------------------------------------------------------------
 ; variables
@@ -45,6 +51,9 @@ SND_BASE	.DS	$100
 HS_BASE		.DS	$100
 HS_DATA		=	HS_BASE
 HS_INITMARK	=	HS_BASE+$50
+
+; saved bg tiles
+BG_SAVE		.DS	$100
 	
 	org $3000
 
@@ -366,6 +375,92 @@ l1:	lda (TEMP1),y
 			
 	rts
 .endp
+
+;-------------------------------------------------------------------------------
+; restore BG before sprites are drawn
+.proc GR_restoreBG
+	ldx #0
+	ldy #0
+loop:	cpx BGS_USED
+	beq ret
+	
+	lda BG_SAVE,x
+	sta TEMP1
+	inx
+	lda BG_SAVE,x
+	sta TEMP1+1
+	inx
+	
+	lda BG_SAVE,x
+	sta (TEMP1),y
+	inx
+	
+	bpl loop	
+ret:	sty BGS_USED
+	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; update SW sprites on screen
+.proc GR_updateSprites
+	jsr GR_restoreBG
+	ldx #0
+	stx B1
+loop:	cpx OAM_USED
+	beq ret
+	
+	lda OAMBASE,x		; read y
+	asl
+	rol B1
+	asl
+	rol B1
+	asl
+	rol B1
+	asl
+	rol B1
+	asl			; *32
+	rol B1
+	clc
+	adc #<scr_mem
+	sta TEMP1
+	lda B1
+	adc #>scr_mem
+	sta TEMP1+1
+	
+	inx
+	lda OAMBASE,x		; read index
+	
+	inx
+	;lda OAM_BASE,y		; read attribute
+	
+	inx
+	ldy OAMBASE,x		; read x
+	sta B1
+	lda (TEMP1),y
+	sta B2			; save BG tile
+	lda B1
+	sta (TEMP1),y		; write to screen
+	sty B1
+	
+	ldy BGS_USED
+	lda B2
+	sta BG_SAVE+2,y		; write BG tile to backup
+	lda B1
+	clc
+	adc TEMP1
+	sta BG_SAVE,y
+	lda #0
+	adc TEMP1+1
+	sta BG_SAVE+1,y		; write scr_adr to backup
+	iny
+	iny
+	iny
+	sty BGS_USED		; count used backup storage
+	 
+	inx
+	bpl loop
+ret:	rts
+.endp            
 	
 ;-------------------------------------------------------------------------------
 ; main function, program entry	
@@ -623,9 +718,6 @@ skip2:	;lda #$02           ; $82a7: a9 02
 ;-------------------------------------------------------------------------------
 ; game type selection
 .proc mode_func_type
-;            inc $8000          ; $82d1: ee 00 80  ; ROM write
-;            lda #%10000        ; mirrorring: one screen; PRG: 32K $8000 siwitchable at $C000; CHR: switch 2 4K banks
-;            jsr MMCsetreg0
 	lda #$01			; set nmi function for this mode (write PPUCTRL with nametable 0, write scroll regs with 0)
 	sta NMI_FUNC_INDEX
 	jsr frame_GR_rendering_off
@@ -641,11 +733,6 @@ skip2:	;lda #$02           ; $82a7: a9 02
 	ldx #>TYPE_SCREEN_DATA
 	jsr GR_copy_data		; load screen data
 
-;
-;            lda #$00
-;            jsr MMCsetreg1     ; CHR0 bank
-;            lda #$00
-;            jsr MMCsetreg2     ; CHR1 bank
 	jsr nmi_enable
 	jsr frame_clear_sprite_ram
 	jsr frame_GR_rendering_on
@@ -659,48 +746,48 @@ loop:
 ;            ldx #$02
 ;            ldy #$02
 ;            jsr memset		;// TODO why?
-;            lda JOY1_RAW_NEW
-;            cmp #BUTTON_R
-;            bne skip1          ; if (BUTTON_R) {
-;            lda #TYPE_B
-;            sta SEL_TYPE
+	lda JOY1_RAW_NEW
+	cmp #BUTTON_R
+	bne skip1		; if (BUTTON_R) {
+	lda #TYPE_B
+	sta SEL_TYPE
+;	lda #$01
+;            sta sndEFFECT
+	jmp skip2
+	
+skip1:	;lda JOY1_RAW_NEW	; //TODO reload not necessary
+	cmp #BUTTON_L
+	bne skip2		; } else if (BUTTON_L) {
+	lda #TYPE_A
+	sta SEL_TYPE
 ;            lda #$01
 ;            sta sndEFFECT
-;            jmp skip2
-;
-;skip1:      lda JOY1_RAW_NEW
-;            cmp #BUTTON_L
-;            bne skip2          ; } else if (BUTTON_L) {
-;            lda #TYPE_A
-;            sta SEL_TYPE
-;            lda #$01
+				; } endif  
+skip2:	lda JOY1_RAW_NEW	; //TODO remove reload
+	cmp #BUTTON_D
+	bne skip3		; if (BUTTON_D) {
+;	lda #$01
 ;            sta sndEFFECT
-;                               ; } endif  
-;skip2:      lda JOY1_RAW_NEW
-;            cmp #BUTTON_D
-;            bne skip3          ; if (BUTTON_D) {
-;            lda #$01
-;            sta sndEFFECT
-;            lda SEL_MUSIC
-;            cmp #$03
-;            beq skip4          ;   if (SEL_MUSIC != 3) {
-;            inc SEL_MUSIC
-;            ldx SEL_MUSIC
+	lda SEL_MUSIC
+	cmp #$03
+	beq skip4		;   if (SEL_MUSIC != 3) {
+	inc SEL_MUSIC
+;	ldx SEL_MUSIC
 ;            lda MUSIC_TABLE,x
 ;            jsr snd_setMUSIC   ;     set next music} endif
-;			       ; } endif (Button_D)
-;skip3:      lda JOY1_RAW_NEW 
-;            cmp #BUTTON_U      ; if (BUTTON_U) {
-;            bne skip4
-;            lda #$01
+				; } endif (Button_D)
+skip3:	lda JOY1_RAW_NEW 
+	cmp #BUTTON_U		; if (BUTTON_U) {
+	bne skip4
+;	lda #$01
 ;            sta sndEFFECT
-;            lda SEL_MUSIC
-;            beq skip4          ;   if (SEL_MUSIC != 0)
-;            dec SEL_MUSIC
+	lda SEL_MUSIC
+	beq skip4		;   if (SEL_MUSIC != 0)
+	dec SEL_MUSIC
 ;            ldx SEL_MUSIC
 ;            lda MUSIC_TABLE,x
 ;            jsr snd_setMUSIC   ;     set prev music} endif
-;                               ; } endif (Button_U)
+				; } endif (Button_U)
 skip4:	lda JOY1_RAW_NEW
 	cmp #BUTTON_START
 	bne skip5		; if (BUTTON_Start) {
@@ -720,48 +807,41 @@ skip5:	lda JOY1_RAW_NEW
 	sta RTCLOK+1
 	dec GAME_MODE		;   go back to title screen
 	rts			; } endif
-;
-skip6:	ldy #$00
-;            lda SEL_TYPE
-;            asl
-;            sta TEMP2
-;            asl
-;            adc TEMP2
-;            asl
-;            asl
-;            asl
-;            asl                ; A *= 96 (A = 0 or 96) //TODO reduce to conditional assign
-;            clc
-;            adc #63            ; +=63
-;            sta SPR_X          ; SPR_X = 63 or 159
-;            lda #63
-;            sta SPR_Y
-;            lda #$01
-;            sta SPR_PTR_INDEX
-;            lda FRAMECOUNT
-;            and #$03
-;            bne @skip7         ; every 4th frame do {
-;            lda #$02           ;   SPR_PTR_INDEX= 2
-;            sta SPR_PTR_INDEX  ; } else SPR_PTR_INDEX = 1     
-;@skip7:     jsr spr_drawtoMem
-;            lda SEL_MUSIC      ; A = 0..3
-;            asl
-;            asl
-;            asl
-;            asl
-;            clc
-;            adc #143           ; *16+143
-;            sta SPR_Y
-;            lda #$53           ; 83
-;            sta SPR_PTR_INDEX
-;            lda #103
-;            sta SPR_X
-;            lda FRAMECOUNT
-;            and #$03
-;            bne @skip8         ; every 4th frame do {
-;            lda #$02           ;   SPR_PTR_INDEX= 2
-;            sta SPR_PTR_INDEX  ; } else SPR_PTR_INDEX = 83     
-;@skip8:     jsr spr_drawtoMem
+
+skip6:
+	ldx #8
+	lda SEL_TYPE
+	beq @+
+	ldx #20	
+@	stx SPR_X
+
+	lda #7
+	sta SPR_Y
+	
+	lda #$01
+	sta SPR_PTR_INDEX
+	
+	lda RTCLOK+2
+	and #$03
+	bne skip7		; every 4th frame do {
+	;lda #$02		;   SPR_PTR_INDEX= 2
+	;sta SPR_PTR_INDEX  	; } else SPR_PTR_INDEX = 1     
+skip7:	jsr spr_drawtoMem
+	lda SEL_MUSIC		; A = 0..3
+	asl
+	clc
+	adc #17			; *2+17
+	sta SPR_Y
+	lda #83
+	sta SPR_PTR_INDEX
+	lda #12
+	sta SPR_X
+	lda RTCLOK+2
+	and #$03
+	bne skip8		; every 4th frame do {
+	;lda #$02		;   SPR_PTR_INDEX= 2
+	;sta SPR_PTR_INDEX	; } else SPR_PTR_INDEX = 83     
+skip8:	jsr spr_drawtoMem
 	jsr frame_clear_sprite_ram
 	jmp loop
 .endp
@@ -769,9 +849,6 @@ skip6:	ldy #$00
 ;-------------------------------------------------------------------------------
 ; nmi function, called every vblank
 .proc nmi
-	
-	lda #$00
-	sta OAM_USED
 	jsr call_nmi_func
 	dec COUNTDOWN		; countdown
 	lda COUNTDOWN
@@ -779,7 +856,9 @@ skip6:	ldy #$00
 	bne skip
 	inc COUNTDOWN		; reset counter to 0 in case of underflow
 skip:      
-;	jsr PPU_updateSprites
+	jsr GR_updateSprites
+	lda #$00
+	sta OAM_USED
 
 ;            lda #$00
 ;            sta HSCROLL
@@ -869,34 +948,22 @@ skip:
 	sta JOY2_RAW_NEW
 	
 	lda TRIG0
-	eor #$FF
 	lsr
 	ror JOY1_RAW_NEW
 			
-	lda TRIG1
-	eor #$FF
-	lsr
-	ror JOY2_RAW_NEW
-
 	lda CONSOL
-	eor #$FF
 	lsr
 	ror JOY1_RAW_NEW
 	lsr
 	ror JOY1_RAW_NEW
 	lsr
 	ror JOY1_RAW_NEW
-
-	clc
-	ror JOY2_RAW_NEW
-	ror JOY2_RAW_NEW
-	ror JOY2_RAW_NEW
 
 	lda PORTA
-	eor #$FF
 	tay
 	and #$0F
 	ora JOY1_RAW_NEW
+	eor #$FF
 	sta JOY1_RAW_NEW
 	
 	tya
@@ -905,8 +972,16 @@ skip:
 	lsr
 	lsr
 	ora JOY2_RAW_NEW
+	eor #$0F
 	sta JOY2_RAW_NEW
 	
+	lda TRIG1
+	bne @+
+	lda #%00010000
+	ora JOY2_RAW_NEW
+	sta JOY2_RAW_NEW	
+@
+
 	rts
 .endp
 
@@ -914,13 +989,13 @@ skip:
 ; read controller safe, 2 consecutive reads ANDed together  
 .proc read_joy_safe     
 	jsr read_joy
-;            jsr read_joy2
+
 	lda JOY1_RAW_NEW
 	sta TEMP2+1
 	lda JOY2_RAW_NEW
 	sta $aa  
 	jsr read_joy
-;            jsr read_joy2
+
 	lda JOY1_RAW_NEW
 	and TEMP2+1  
 	sta JOY1_RAW_NEW
@@ -937,6 +1012,50 @@ loop:	lda JOY1_RAW_NEW,x
 	dex
 	bpl loop
 	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; read SPR_PTR_INDEX
+; draw this sprite of one or multiple tiles to RAM
+.proc spr_drawtoMem  
+	lda SPR_PTR_INDEX
+	asl
+	tax			; X = 2*SPR_PTR_INDEX
+	lda sprPTR__table,x
+	sta TEMP2
+	inx
+	lda sprPTR__table,x
+	sta TEMP2+1		; get PTR to sprite to TEMP2     
+	ldx OAM_USED		; get offset to OAMBASE to X
+	ldy #$00
+loop:	lda (TEMP2),y		; while (*TEMP2 != FF) do {
+	cmp #$ff
+	beq skip
+	clc
+	adc SPR_Y  
+	sta OAMBASE,x		; write tile y
+	inx    
+	iny
+	lda (TEMP2),y  
+	sta OAMBASE,x		; write tile index
+	inx      
+	iny      
+	lda (TEMP2),y  
+	sta OAMBASE,x
+	inx       
+	iny    
+	lda (TEMP2),y    
+	clc       
+	adc SPR_X   
+	sta OAMBASE,x		; write tile x
+	inx      
+	iny      
+	lda #$04   
+	clc     
+	adc OAM_USED   
+	sta OAM_USED    	; //TODO x -> OAM_USED
+	jmp loop		; } end while
+skip:	rts
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -980,7 +1099,41 @@ PAL_PTR_LOW:
 PALETTE0_DATA:
 	.DB $0e, $ac, $3a, $96, $00
 PALETTE1_DATA:
-	.DB $2c, $c8, $34, $0a, $00	
+	.DB $2c, $c8, $34, $0a, $00
+	
+;-------------------------------------------------------------------------------
+; contains pointers to sprite definitions
+sprPTR__table:
+	.DW sprPTR0
+	.DW sprPTR1
+	.DW sprPTR2
+	.DS 160
+	.DW sprPTR83
+
+;-------------------------------------------------------------------------------
+; definition of sprites
+; 			y_off	index	attribute	x_off
+; solid square of 16x16 used for level selection 
+sprPTR0:	.DB 	$00,	$fc,	$20,		$00
+		.DB	$00,	$fc,	$20,		$08
+		.DB	$08,	$fc,	$20,		$00
+		.DB	$08,	$fc,	$20,		$08
+		.DB	$ff	; end marker
+
+;			y_off	index	attribute	x_off
+; triangle right and left with offsetx 3a used for type selection 
+sprPTR1:	.DB	$00,	$27,	$00,		$00
+		.DB	$00,	$27,	$40,		7
+		.DB	$ff	; endMarker
+
+; empty space used for flickering effect
+sprPTR2:	.DB	$00,	$7f,	$00,		$00
+		.DB	$ff	; endMarker
+
+; triangle right and left with offsetx 4a used for music selection 
+sprPTR83:	.DB	$00,	$27,	$00,		$00
+		.DB	$00,	$27,	$40,		9
+		.DB	$ff	; endMarker
 
 ;-------------------------------------------------------------------------------
 ; static data with alignment
