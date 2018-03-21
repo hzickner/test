@@ -73,10 +73,10 @@ BG_SAVE		.DS	$100
 	rts
 	
 jt_h: 
-	.DB >(mode_func_legal-1), >(mode_func_title-1), >(mode_func_type-1)
+	.DB >(mode_func_legal-1), >(mode_func_title-1), >(mode_func_type-1),  >(mode_func_level-1)
 
 jt_l:
-	.DB <(mode_func_legal-1), <(mode_func_title-1), <(mode_func_type-1)	
+	.DB <(mode_func_legal-1), <(mode_func_title-1), <(mode_func_type-1),  <(mode_func_level-1)	
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -450,6 +450,7 @@ loop:	cpx OAM_USED
 	adc TEMP1
 	sta BG_SAVE,y
 	lda #0
+	sta B1			; clear B1 for next loop
 	adc TEMP1+1
 	sta BG_SAVE+1,y		; write scr_adr to backup
 	iny
@@ -686,10 +687,7 @@ next_mode:
 	jsr frame_clear_sprite_ram
 	jsr frame_GR_rendering_on
 	jsr frame_clear_sprite_ram
-;            lda #$00
-;            ldx #$02
-;            ldy #$02
-;            jsr memset         ; clear sprite data //TODO why?
+
 	lda #$00
 	sta RTCLOK+1		; reset high byte of frame counter     
 ;                               ; title screen loop
@@ -742,10 +740,6 @@ skip2:	;lda #$02           ; $82a7: a9 02
 ;            jsr snd_setMUSIC
 
 loop:  
-;	     lda #$ff
-;            ldx #$02
-;            ldy #$02
-;            jsr memset		;// TODO why?
 	lda JOY1_RAW_NEW
 	cmp #BUTTON_R
 	bne skip1		; if (BUTTON_R) {
@@ -793,9 +787,7 @@ skip4:	lda JOY1_RAW_NEW
 	bne skip5		; if (BUTTON_Start) {
 ;            lda #$02
 ;            sta sndEFFECT
-;            inc GAME_MODE      ;   go to level selection //TODO
-	lda MODE_LEGAL
-	sta GAME_MODE
+	inc GAME_MODE		;   go to level selection
 	rts			; } endif
 
 skip5:	lda JOY1_RAW_NEW
@@ -824,8 +816,8 @@ skip6:
 	lda RTCLOK+2
 	and #$03
 	bne skip7		; every 4th frame do {
-	;lda #$02		;   SPR_PTR_INDEX= 2
-	;sta SPR_PTR_INDEX  	; } else SPR_PTR_INDEX = 1     
+	lda #$02		;   SPR_PTR_INDEX= 2
+	sta SPR_PTR_INDEX  	; } else SPR_PTR_INDEX = 1     
 skip7:	jsr spr_drawtoMem
 	lda SEL_MUSIC		; A = 0..3
 	asl
@@ -834,16 +826,133 @@ skip7:	jsr spr_drawtoMem
 	sta SPR_Y
 	lda #83
 	sta SPR_PTR_INDEX
-	lda #12
+	lda #13
 	sta SPR_X
 	lda RTCLOK+2
 	and #$03
 	bne skip8		; every 4th frame do {
-	;lda #$02		;   SPR_PTR_INDEX= 2
-	;sta SPR_PTR_INDEX	; } else SPR_PTR_INDEX = 83     
+	lda #$02		;   SPR_PTR_INDEX= 2
+	sta SPR_PTR_INDEX	; } else SPR_PTR_INDEX = 83     
 skip8:	jsr spr_drawtoMem
 	jsr frame_clear_sprite_ram
 	jmp loop
+.endp
+
+;-------------------------------------------------------------------------------
+; level selection
+.proc mode_func_level
+
+;            jsr snd_reset_call
+	lda #$01
+	sta NMI_FUNC_INDEX		; set nmi function for this mode (write PPUCTRL with nametable 0, write scroll regs with 0)
+	jsr frame_GR_rendering_off
+	jsr nmi_disable
+;            lda #$00
+;            jsr MMCsetreg1
+;            lda #$00
+;            jsr MMCsetreg2     ; CHR bank 0
+;  
+;            jsr PPU_copy_data
+;            DW PALETTE_DATA_MODE1_2_3
+;
+	lda #<LEVEL_SCREEN_DATA
+	ldx #>LEVEL_SCREEN_DATA
+	jsr GR_copy_data		; load screen data
+;            jsr PPU_copy_data
+;            DW LEVEL_SCREEN_DATA
+;
+;            lda SEL_TYPE
+;            bne @skip1
+;                               ; if (type A) use level_screen_data2
+;            jsr PPU_copy_data
+;            DW LEVEL_SCREEN_DATA2
+;
+;@skip1:     jsr PPU_writeHSdata
+	jsr nmi_enable
+	jsr frame_clear_sprite_ram
+;            lda #$00
+;            sta PPUSCROLL
+;            lda #$00
+;            sta PPUSCROLL
+	jsr frame_GR_rendering_on
+	jsr frame_clear_sprite_ram
+;            lda #$00
+;            sta B1
+;            sta $af
+;@loop1:     lda LEVEL
+;            cmp #10
+;            bcc @skip2         ; if (A < 10) skip2
+;            sec
+;            sbc #$0a
+;            sta LEVEL
+;            jmp @loop1         ; LEVEL = LEVEL mod 10
+;
+;@skip2:
+loop0:
+;     lda #$00
+;            sta $b7            ; $b7 = 0 //TODO remove: not used
+;            lda LEVEL
+;            sta SEL_LEVEL
+;            lda HEIGHT
+;            sta SEL_HEIGHT
+;            lda B1
+;            sta $ad            ; init level height and selection flag
+	lda JOY1_RAW_NEW
+;            sta BUTTONS_NEW
+;            jsr update_sel_sprites
+;            lda SEL_LEVEL
+;            sta LEVEL
+;            lda SEL_HEIGHT
+;            sta HEIGHT
+;            lda $ad
+;            sta B1             ; save selected values
+	lda JOY1_RAW_NEW
+	cmp #BUTTON_START
+	bne not_start			; if (BUTTON_Start) {
+;            lda JOY1_RAW_ALL
+;            cmp #144 
+;            bne @skip3         ;   if (JOY1_RAW_ALL == 144) {
+;            lda LEVEL
+;            clc
+;            adc #10            ;     LEVEL += 10
+;            sta LEVEL            ;   } endif
+skip3:	lda #$00
+;            sta GAME_FUNC_INDEX            ; GAME_FUNC_INDEX = 0
+;            lda #$02
+;            sta sndEFFECT
+	lda MODE_LEGAL
+	sta GAME_MODE
+;            inc GAME_MODE       
+	rts				; exit to next mode_game } endif 
+
+not_start:
+	lda JOY1_RAW_NEW
+	cmp #BUTTON_OPTION
+	bne not_B			; if (BUTTON_B) {
+;            lda #$02
+;            sta sndEFFECT
+	dec GAME_MODE
+	rts				; exit to previous mode_type } endif
+;
+not_B:
+;@loop2:     ldx #RANDOM
+;            ldy #$02
+;            jsr nextRandom
+;            lda RANDOM
+;            and #$0f
+;            cmp #$0a
+;            bpl @loop2         ; get RANDOM < 10 (0..9)
+;            sta $7a            ; $7a = rnd(0..9)
+;@loop3:     ldx #RANDOM
+;            ldy #$02
+;            jsr nextRandom
+;            lda RANDOM
+;            and #$0f
+;            cmp #$0a
+;            bpl @loop3         ; get RANDOM < 10 (0..9)
+;            sta $9a            ; $9a = rnd(0..9)
+	jsr frame_clear_sprite_ram
+	jmp loop0			; next frame
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -1050,10 +1159,7 @@ loop:	lda (TEMP2),y		; while (*TEMP2 != FF) do {
 	sta OAMBASE,x		; write tile x
 	inx      
 	iny      
-	lda #$04   
-	clc     
-	adc OAM_USED   
-	sta OAM_USED    	; //TODO x -> OAM_USED
+	stx OAM_USED
 	jmp loop		; } end while
 skip:	rts
 .endp
@@ -1064,6 +1170,7 @@ skip:	rts
 	ICL "screens/legal_screen.asm"
 	ICL "screens/title_screen.asm"
 	ICL "screens/type_screen.asm"
+	ICL "screens/level_screen.asm"	
 	
 ; 80 bytes of data copied to page 7 $700-$749 for init of high score table
 HS_INIT_DATA:
