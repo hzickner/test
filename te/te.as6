@@ -557,7 +557,7 @@ loop__830b: lda #$ff
             sta sndEFFECT
             jmp skip2
 
-skip1:      lda JOY1_RAW_NEW
+skip1:      lda JOY1_RAW_NEW   ; //TODO remove reloads
             cmp #BUTTON_L
             bne skip2          ; } else if (BUTTON_L) {
             lda #TYPE_A
