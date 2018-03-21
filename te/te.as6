@@ -1736,7 +1736,7 @@ spr_drawtoMem:
             iny                ; $8c60: c8        
             lda #$04           ; $8c61: a9 04     
             clc                ; $8c63: 18        
-            adc OAM_USED            ; $8c64: 65 b3     
+            adc OAM_USED            ; //TODO write x ->OAM_USED
             sta OAM_USED            ; $8c66: 85 b3     
             jmp @loop          ; } end while
 @skip:      rts
