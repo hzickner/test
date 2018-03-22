@@ -722,7 +722,7 @@ mode_func_level:
             cmp #BUTTON_START
             bne @not_start     ; if (BUTTON_Start) {
             lda JOY1_RAW_ALL
-            cmp #144 
+            cmp #BUTTON_A | BUTTON_START
             bne @skip3         ;   if (JOY1_RAW_ALL == 144) {
             lda LEVEL
             clc
