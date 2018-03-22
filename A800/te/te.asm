@@ -484,9 +484,10 @@ ret:	rts
 ;            beq @onePLR
 ;            jmp @return
 ;
-;@onePLR:    jsr PPU_copy_data
-;            DW SCORE_SCREEN_DATA
-;
+;@onePLR:
+	;jsr PPU_copy_data
+	;DW SCORE_SCREEN_DATA
+
 	lda #$00
 	sta TEMP2+1
 	lda SEL_TYPE
@@ -975,14 +976,14 @@ skip8:	jsr spr_drawtoMem
 	ldx #>LEVEL_SCREEN_DATA
 	jsr GR_copy_data		; load screen data
 
-;
-;            lda SEL_TYPE
-;            bne @skip1
-;                               ; if (type A) use level_screen_data2
-;            jsr PPU_copy_data
-;            DW LEVEL_SCREEN_DATA2
-;
-;@skip1:
+	lda SEL_TYPE
+	bne skip1
+					; if (type A) use level_screen_data2
+	lda #<LEVEL_SCREEN_DATA2
+	ldx #>LEVEL_SCREEN_DATA2
+	jsr GR_copy_data
+
+skip1:
 	jsr GR_writeHSdata
 	jsr nmi_enable
 	jsr frame_clear_sprite_ram
@@ -1417,7 +1418,8 @@ ret:	rts
 	ICL "screens/legal_screen.asm"
 	ICL "screens/title_screen.asm"
 	ICL "screens/type_screen.asm"
-	ICL "screens/level_screen.asm"	
+	ICL "screens/level_screen.asm"
+	ICL "screens/level_screen2.asm"		;//TODO minimize data
 
 ; table of chars for name in high score list
 ; propably 44 entries
