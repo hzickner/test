@@ -1,282 +1,356 @@
 LEVEL_SCREEN_DATA:
-;            .DB 20 00 20 60   ; $badb: 20 00 20 60   Data
-;            .DB 61 60 61 62   ; $badf: 61 60 61 62   Data
-;            .DB 82 62 90 83   ; $bae3: 82 62 90 83   Data
-;            .DB 62 62 62 82   ; $bae7: 62 62 62 82   Data
-;            .DB 80 91 80 91   ; $baeb: 80 91 80 91   Data
-;            .DB 70 71 62 82   ; $baef: 70 71 62 82   Data
-;            .DB 80 81 81 83   ; $baf3: 80 81 81 83   Data
-;            .DB 90 83 62 62   ; $baf7: 90 83 62 62   Data
-;            .DB 80 81 91 20   ; $bafb: 80 81 91 20   Data
-;            .DB 20 20 70 71   ; $baff: 20 20 70 71   Data
-;            .DB 70 71 72 80   ; $bb03: 70 71 72 80   Data
-;            .DB 42 72 90 a1   ; $bb07: 42 72 90 a1   Data
-;            .DB 72 a0 81 83   ; $bb0b: 72 a0 81 83   Data
-;            .DB a0 83 a0 83   ; $bb0f: a0 83 a0 83   Data
-;            .DB 80 41 83 90   ; $bb13: 80 41 83 90   Data
-;            .DB 81 83 80 a1   ; $bb17: 81 83 80 a1   Data
-;            .DB 90 a1 a0 81   ; $bb1b: 90 a1 a0 81   Data
-;            .DB 83 82 20 40   ; $bb1f: 83 82 20 40   Data
-;            .DB 20 80 81 81   ; $bb23: 20 80 81 81   Data
-;            .DB 83 a0 83 82   ; $bb27: 83 a0 83 82   Data
-;            .DB 82 82 80 a1   ; $bb2b: 82 82 80 a1   Data
-;            .DB 38 39 39 39   ; $bb2f: 38 39 39 39   Data
-;            .DB 39 39 39 39   ; $bb33: 39 39 39 39   Data
-;            .DB 39 3a 82 80   ; $bb37: 39 3a 82 80   Data
-;            .DB 81 81 83 82   ; $bb3b: 81 81 83 82   Data
-;            .DB 80 81 91 60   ; $bb3f: 80 81 91 60   Data
-;            .DB 61 20 60 20   ; $bb43: 61 20 60 20   Data
-;            .DB 80 91 62 38   ; $bb47: 80 91 62 38   Data
-;            .DB 39 39 39 39   ; $bb4b: 39 39 39 39   Data
-;            .DB 39 39 39 3b   ; $bb4f: 39 39 39 3b   Data
-;            .DB ff 0b 24 1d   ; $bb53: ff 0b 24 1d   Data
-;            .DB 22 19 0e ff   ; $bb57: 22 19 0e ff   Data
-;            .DB 3c 39 39 39   ; $bb5b: 3c 39 39 39   Data
-;            .DB 39 39 39 39   ; $bb5f: 39 39 39 39   Data
-;            .DB 3a 82 70 71   ; $bb63: 3a 82 70 71   Data
-;            .DB 20 80 20 62   ; $bb67: 20 80 20 62   Data
-;            .DB 72 72 3b ff   ; $bb6b: 72 72 3b ff   Data
-;            .DB ff ff ff ff   ; $bb6f: ff ff ff ff   Data
-;            .DB ff ff 3d 3e   ; $bb73: ff ff 3d 3e   Data
-;            .DB 3e 3e 3e 3e   ; $bb77: 3e 3e 3e 3e   Data
-;            .DB 3e 3e 3e 3f   ; $bb7b: 3e 3e 3e 3f   Data
-;            .DB ff ff ff ff   ; $bb7f: ff ff ff ff   Data
-;            .DB ff ff ff 3c   ; $bb83: ff ff ff 3c   Data
-;            .DB 90 81 83 20   ; $bb87: 90 81 83 20   Data
-;            .DB a0 20 72 82   ; $bb8b: a0 20 72 82   Data
-;            .DB 72 3b ff ff   ; $bb8f: 72 3b ff ff   Data
-;            .DB ff ff ff ff   ; $bb93: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bb97: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bb9b: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bb9f: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bba3: ff ff ff ff   Data
-;            .DB ff ff 3c 82   ; $bba7: ff ff 3c 82   Data
-;            .DB 80 91 20 c0   ; $bbab: 80 91 20 c0   Data
-;            .DB 20 a0 83 82   ; $bbaf: 20 a0 83 82   Data
-;            .DB 3b ff ff ff   ; $bbb3: 3b ff ff ff   Data
-;            .DB ff ff ff ff   ; $bbb7: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bbbb: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bbbf: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bbc3: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bbc7: ff ff ff ff   Data
-;            .DB ff 3c 60 61   ; $bbcb: ff 3c 60 61   Data
-;            .DB 72 20 e0 20   ; $bbcf: 72 20 e0 20   Data
-;            .DB 90 81 83 3b   ; $bbd3: 90 81 83 3b   Data
-;            .DB ff ff ff ff   ; $bbd7: ff ff ff ff   Data
-;            .DB 44 45 45 45   ; $bbdb: 44 45 45 45   Data
-;            .DB 45 45 46 ff   ; $bbdf: 45 45 46 ff   Data
-;            .DB ff ff ff 44   ; $bbe3: ff ff ff 44   Data
-;            .DB 45 45 45 45   ; $bbe7: 45 45 45 45   Data
-;            .DB 45 45 46 ff   ; $bbeb: 45 45 46 ff   Data
-;            .DB 3c 70 71 82   ; $bbef: 3c 70 71 82   Data
-;            .DB 21 00 20 82   ; $bbf3: 21 00 20 82   Data
-;            .DB 80 91 3b ff   ; $bbf7: 80 91 3b ff   Data
-;            .DB ff ff ff 47   ; $bbfb: ff ff ff 47   Data
-;            .DB 15 0e 1f 0e   ; $bbff: 15 0e 1f 0e   Data
-;            .DB 15 48 ff ff   ; $bc03: 15 48 ff ff   Data
-;            .DB ff ff 47 11   ; $bc07: ff ff 47 11   Data
-;            .DB 0e 12 10 11   ; $bc0b: 0e 12 10 11   Data
-;            .DB 1d 48 ff 3c   ; $bc0f: 1d 48 ff 3c   Data
-;            .DB 80 81 91 21   ; $bc13: 80 81 91 21   Data
-;            .DB 20 20 60 61   ; $bc17: 20 20 60 61   Data
-;            .DB 72 3b ff ff   ; $bc1b: 72 3b ff ff   Data
-;            .DB ff ff 49 4a   ; $bc1f: ff ff 49 4a   Data
-;            .DB 4a 4a 4a 4a   ; $bc23: 4a 4a 4a 4a   Data
-;            .DB 4b ff ff ff   ; $bc27: 4b ff ff ff   Data
-;            .DB ff 49 4a 4a   ; $bc2b: ff 49 4a 4a   Data
-;            .DB 4a 4a 4a 4a   ; $bc2f: 4a 4a 4a 4a   Data
-;            .DB 4b ff 3c 62   ; $bc33: 4b ff 3c 62   Data
-;            .DB 62 82 21 40   ; $bc37: 62 82 21 40   Data
-;            .DB 20 70 71 82   ; $bc3b: 20 70 71 82   Data
-;            .DB 3b ff ff 28   ; $bc3f: 3b ff ff 28   Data
-;            .DB 29 50 29 50   ; $bc43: 29 50 29 50   Data
-;            .DB 29 50 29 50   ; $bc47: 29 50 29 50   Data
-;            .DB 29 2a ff ff   ; $bc4b: 29 2a ff ff   Data
-;            .DB 28 29 50 29   ; $bc4f: 28 29 50 29   Data
-;            .DB 50 29 2a ff   ; $bc53: 50 29 2a ff   Data
-;            .DB ff 3c 72 a0   ; $bc57: ff 3c 72 a0   Data
-;            .DB 91 21 60 20   ; $bc5b: 91 21 60 20   Data
-;            .DB 80 81 91 3b   ; $bc5f: 80 81 91 3b   Data
-;            .DB ff ff 2b 00   ; $bc63: ff ff 2b 00   Data
+;            .DB 20 00
+;             20
+;            .DB $2c,   ; $badb: 20 00 20 $2c,   Data
+;            .DB $2b, $2c, $2b, $2b,   ; $badf: $2b, $2c, $2b, $2b,   Data
+;            .DB $28, $2b, $29, $28,   ; $bae3: $28, $2b, $29, $28,   Data
+;            .DB $2b, $2b, $2b, $28,   ; $bae7: $2b, $2b, $2b, $28,   Data
+;            .DB $2a, $2b, $2a, $2b,   ; $baeb: $2a, $2b, $2a, $2b,   Data
+;            .DB $2a, $28, $2b, $28,   ; $baef: $2a, $28, $2b, $28,   Data
+;            .DB $2a, $2a, $2a, $28,   ; $baf3: $2a, $2a, $2a, $28,   Data
+;            .DB $29, $28, $2b, $2b,   ; $baf7: $29, $28, $2b, $2b,   Data
+;            .DB $2a, $2a, $2b,
+;            .DB 20 20
+	.DB >(scr_mem+0*32), <(scr_mem+0*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $2a, $28
+	.DB $2a, $28, $2b, $2a
+	.DB $2b, $2b, $29, $28
+	.DB $2b, $2a, $2a, $28
+	.DB $2a, $28, $2a, $28
+	.DB $2a, $2a, $28, $29
+	.DB $2a, $28, $2a, $28
+	.DB $29, $28, $2a, $2a
+	.DB $28, $28
+;            .DB 20 40   ; $bb1f: $28, $28, 20 40   Data
+	.DB >(scr_mem+1*32), <(scr_mem+1*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $2a, $2a, $2a
+	.DB $28, $2a, $28, $28
+	.DB $28, $28, $2a, $28
+	.DB $38, $39, $39, $39
+	.DB $39, $39, $39, $39
+	.DB $39, $3a, $28, $2a
+	.DB $2a, $2a, $28, $28
+	.DB $2a, $2a, $2b, $2c
+	.DB $2b
+;            .DB 20 $2c,
+	.DB >(scr_mem+2*32), <(scr_mem+2*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $2a, $2b, $2b, $38
+	.DB $39, $39, $39, $39
+	.DB $39, $39, $39, $3b
+	.DB $7f, $0b, $24, $1d
+	.DB $22, $19, $0e, $7f
+	.DB $3c, $39, $39, $39
+	.DB $39, $39, $39, $39
+	.DB $3a, $28, $2a, $28
+;            .DB 20 $2a,
+	.DB >(scr_mem+3*32), <(scr_mem+3*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $2b
+	.DB $2b, $2b, $3b, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $3d, $3e
+	.DB $3e, $3e, $3e, $3e
+	.DB $3e, $3e, $3e, $3f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $3c
+	.DB $29, $2a, $28
+;            .DB 20 $2a,
+	.DB >(scr_mem+4*32), <(scr_mem+4*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $2b, $28
+	.DB $2b, $3b, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $3c, $28
+	.DB $2a, $2b
+;            .DB 20 c0   ; $bbab: $2a, $2b, 20 c0   Data
+	.DB >(scr_mem+5*32), <(scr_mem+5*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $2a, $28, $28
+	.DB $3b, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $3c, $2c, $2b
+	.DB $2b
+;            .DB 20 e0
+	.DB >(scr_mem+6*32), <(scr_mem+6*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $29, $2a, $28, $3b
+	.DB $7f, $7f, $7f, $7f
+	.DB $44, $45, $45, $45
+	.DB $45, $45, $46, $7f
+	.DB $7f, $7f, $7f, $44
+	.DB $45, $45, $45, $45
+	.DB $45, $45, $46, $7f
+	.DB $3c, $2a, $28, $28
+;            .DB 21 00
+	.DB >(scr_mem+7*32), <(scr_mem+7*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $28
+	.DB $2a, $2b, $3b, $7f
+	.DB $7f, $7f, $7f, $47
+	.DB $15, $0e, $1f, $0e
+	.DB $15, $48, $7f, $7f
+	.DB $7f, $7f, $47, $11
+	.DB $0e, $12, $10, $11
+	.DB $1d, $48, $7f, $3c
+	.DB $2a, $2a, $2b
+;            .DB 21 20
+	.DB >(scr_mem+8*32), <(scr_mem+8*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $2c, $2b
+	.DB $2b, $3b, $7f, $7f
+	.DB $7f, $7f, $49, $4a
+	.DB $4a, $4a, $4a, $4a
+	.DB $4b, $7f, $7f, $7f
+	.DB $7f, $49, $4a, $4a
+	.DB $4a, $4a, $4a, $4a
+	.DB $4b, $7f, $3c, $2b
+	.DB $2b, $28
+;            .DB 21 40   ; $bc37: $2b, $28, 21 40   Data
+	.DB >(scr_mem+9*32), <(scr_mem+9*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $2a, $28, $28
+	.DB $3b, $7f, $7f, $41
+	.DB $2e, $50, $2e, $50
+	.DB $2e, $50, $2e, $50
+	.DB $2e, $42, $7f, $7f
+	.DB $41, $2e, $50, $2e
+	.DB $50, $2e, $42, $7f
+	.DB $7f, $3c, $2b, $2a
+	.DB $2b
+;            .DB 21 $2c,
+;            .DB 20   ; $bc5b: $2b, 21 $2c, 20   Data
+;            .DB $2a, $2a, $2b, $3b,   ; $bc5f: $2a, $2a, $2b, $3b,   Data
+;            .DB $7f, $7f, 2b 00   ; $bc63: $7f, $7f, 2b 00   Data
 ;            .DB 2b 01 2b 02   ; $bc67: 2b 01 2b 02   Data
 ;            .DB 2b 03 2b 04   ; $bc6b: 2b 03 2b 04   Data
-;            .DB 2c ff ff 2b   ; $bc6f: 2c ff ff 2b   Data
+;            .DB 2c $7f, $7f, 2b   ; $bc6f: 2c $7f, $7f, 2b   Data
 ;            .DB 00 2b 01 2b   ; $bc73: 00 2b 01 2b   Data
-;            .DB 02 2c ff ff   ; $bc77: 02 2c ff ff   Data
-;            .DB 3c 72 62 82   ; $bc7b: 3c 72 62 82   Data
-;            .DB 21 80 20 62   ; $bc7f: 21 80 20 62   Data
-;            .DB 62 82 3b ff   ; $bc83: 62 82 3b ff   Data
-;            .DB ff 4c 2e 4d   ; $bc87: ff 4c 2e 4d   Data
+;            .DB 02 2c $7f, $7f,   ; $bc77: 02 2c $7f, $7f,   Data
+;            .DB $3c, $2b, $2b, $28,   ; $bc7b: $3c, $2b, $2b, $28,   Data
+;            .DB 21 $2a,
+;             20
+;            .DB $2b,   ; $bc7f: 21 $2a, 20 $2b,   Data
+;            .DB $2b, $28, $3b, $7f,   ; $bc83: $2b, $28, $3b, $7f,   Data
+;            .DB $7f, 4c 2e 4d   ; $bc87: $7f, 4c 2e 4d   Data
 ;            .DB 2e 4d 2e 4d   ; $bc8b: 2e 4d 2e 4d   Data
 ;            .DB 2e 4d 2e 4e   ; $bc8f: 2e 4d 2e 4e   Data
-;            .DB ff ff 4c 2e   ; $bc93: ff ff 4c 2e   Data
+;            .DB $7f, $7f, 4c 2e   ; $bc93: $7f, $7f, 4c 2e   Data
 ;            .DB 4d 2e 4d 2e   ; $bc97: 4d 2e 4d 2e   Data
-;            .DB 4e ff ff 3c   ; $bc9b: 4e ff ff 3c   Data
-;            .DB 82 72 80 21   ; $bc9f: 82 72 80 21   Data
-;            .DB a0 20 72 a0   ; $bca3: a0 20 72 a0   Data
-;            .DB 91 3b ff ff   ; $bca7: 91 3b ff ff   Data
+;            .DB 4e $7f, $7f, $3c,   ; $bc9b: 4e $7f, $7f, $3c,   Data
+;            .DB $28, $2b, $2a,
+;            .DB 21 $2a,
+;             20
+;            .DB $2b, $2a,   ; $bca3: $2a, 20 $2b, $2a,   Data
+;            .DB $2b, $3b, $7f, $7f,   ; $bca7: $2b, $3b, $7f, $7f,   Data
 ;            .DB 2b 05 2b 06   ; $bcab: 2b 05 2b 06   Data
 ;            .DB 2b 07 2b 08   ; $bcaf: 2b 07 2b 08   Data
-;            .DB 2b 09 2c ff   ; $bcb3: 2b 09 2c ff   Data
-;            .DB ff 2b 03 2b   ; $bcb7: ff 2b 03 2b   Data
+;            .DB 2b 09 2c $7f,   ; $bcb3: 2b 09 2c $7f,   Data
+;            .DB $7f, 2b 03 2b   ; $bcb7: $7f, 2b 03 2b   Data
 ;            .DB 04 2b 05 2c   ; $bcbb: 04 2b 05 2c   Data
-;            .DB ff ff 3c 62   ; $bcbf: ff ff 3c 62   Data
-;            .DB a0 83 21 c0   ; $bcc3: a0 83 21 c0   Data
-;            .DB 20 72 62 82   ; $bcc7: 20 72 62 82   Data
-;            .DB 3b ff ff 2d   ; $bccb: 3b ff ff 2d   Data
+;            .DB $7f, $7f, $3c, $2b,   ; $bcbf: $7f, $7f, $3c, $2b,   Data
+;            .DB $2a, $28,
+;            .DB 21 c0   ; $bcc3: $2a, $28, 21 c0   Data
+;            .DB 20
+;            .DB $2b, $2b, $28,   ; $bcc7: 20 $2b, $2b, $28,   Data
+;            .DB $3b, $7f, $7f, 2d   ; $bccb: $3b, $7f, $7f, 2d   Data
 ;            .DB 2e 51 2e 51   ; $bccf: 2e 51 2e 51   Data
 ;            .DB 2e 51 2e 51   ; $bcd3: 2e 51 2e 51   Data
-;            .DB 2e 2f ff ff   ; $bcd7: 2e 2f ff ff   Data
+;            .DB 2e 2f $7f, $7f,   ; $bcd7: 2e 2f $7f, $7f,   Data
 ;            .DB 2d 2e 51 2e   ; $bcdb: 2d 2e 51 2e   Data
-;            .DB 51 2e 2f ff   ; $bcdf: 51 2e 2f ff   Data
-;            .DB ff 3c a0 81   ; $bce3: ff 3c a0 81   Data
-;            .DB 83 21 e0 20   ; $bce7: 83 21 e0 20   Data
-;            .DB 82 72 80 3b   ; $bceb: 82 72 80 3b   Data
-;            .DB ff ff ff ff   ; $bcef: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bcf3: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bcf7: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bcfb: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bcff: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bd03: ff ff ff ff   Data
-;            .DB 3c 90 81 83   ; $bd07: 3c 90 81 83   Data
-;            .DB 22 00 20 62   ; $bd0b: 22 00 20 62   Data
-;            .DB a0 83 3b ff   ; $bd0f: a0 83 3b ff   Data
-;            .DB ff ff ff ff   ; $bd13: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bd17: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bd1b: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bd1f: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bd23: ff ff ff ff   Data
-;            .DB ff ff ff 3c   ; $bd27: ff ff ff 3c   Data
-;            .DB 82 80 91 22   ; $bd2b: 82 80 91 22   Data
-;            .DB 20 20 a0 81   ; $bd2f: 20 20 a0 81   Data
-;            .DB 83 3b ff 28   ; $bd33: 83 3b ff 28   Data
-;            .DB 29 29 29 29   ; $bd37: 29 29 29 29   Data
-;            .DB 29 29 29 29   ; $bd3b: 29 29 29 29   Data
-;            .DB 29 29 29 29   ; $bd3f: 29 29 29 29   Data
-;            .DB 29 29 29 29   ; $bd43: 29 29 29 29   Data
-;            .DB 29 29 29 29   ; $bd47: 29 29 29 29   Data
-;            .DB 2a ff 3c 60   ; $bd4b: 2a ff 3c 60   Data
-;            .DB 61 72 22 40   ; $bd4f: 61 72 22 40   Data
-;            .DB 20 62 80 91   ; $bd53: 20 62 80 91   Data
-;            .DB 3b ff 2b ff   ; $bd57: 3b ff 2b ff   Data
-;            .DB ff ff ff 17   ; $bd5b: ff ff ff 17   Data
-;            .DB 0a 16 0e ff   ; $bd5f: 0a 16 0e ff   Data
-;            .DB ff 1c 0c 18   ; $bd63: ff 1c 0c 18   Data
-;            .DB 1b 0e ff ff   ; $bd67: 1b 0e ff ff   Data
-;            .DB 15 1f ff 2c   ; $bd6b: 15 1f ff 2c   Data
-;            .DB ff 3c 70 71   ; $bd6f: ff 3c 70 71   Data
-;            .DB 82 22 60 20   ; $bd73: 82 22 60 20   Data
-;            .DB 42 62 72 3b   ; $bd77: 42 62 72 3b   Data
-;            .DB ff 4c 2e 2e   ; $bd7b: ff 4c 2e 2e   Data
+;            .DB 51 2e 2f $7f,   ; $bcdf: 51 2e 2f $7f,   Data
+;            .DB $7f, $3c, $2a, $2a,   ; $bce3: $7f, $3c, $2a, $2a,   Data
+;            .DB $28,
+;            .DB 21 e0
+;             20   ; $bce7: $28, 21 e0 20   Data
+;            .DB $28, $2b, $2a, $3b,   ; $bceb: $28, $2b, $2a, $3b,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bcef: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bcf3: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bcf7: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bcfb: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bcff: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bd03: $7f, $7f, $7f, $7f,   Data
+;            .DB $3c, $29, $2a, $28,   ; $bd07: $3c, $29, $2a, $28,   Data
+;            .DB 22 00
+;             20
+;            .DB $2b,   ; $bd0b: 22 00 20 $2b,   Data
+;            .DB $2a, $28, $3b, $7f,   ; $bd0f: $2a, $28, $3b, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bd13: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bd17: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bd1b: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bd1f: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bd23: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $3c,   ; $bd27: $7f, $7f, $7f, $3c,   Data
+;            .DB $28, $2a, $2b,
+;            .DB 22 20
+;             20
+;            .DB $2a, $2a,   ; $bd2f: 20 20 $2a, $2a,   Data
+;            .DB $28, $3b, $7f, $41,   ; $bd33: $28, $3b, $7f, $41,   Data
+;            .DB $2e, $2e, $2e, $2e,   ; $bd37: $2e, $2e, $2e, $2e,   Data
+;            .DB $2e, $2e, $2e, $2e,   ; $bd3b: $2e, $2e, $2e, $2e,   Data
+;            .DB $2e, $2e, $2e, $2e,   ; $bd3f: $2e, $2e, $2e, $2e,   Data
+;            .DB $2e, $2e, $2e, $2e,   ; $bd43: $2e, $2e, $2e, $2e,   Data
+;            .DB $2e, $2e, $2e, $2e,   ; $bd47: $2e, $2e, $2e, $2e,   Data
+;            .DB $42, $7f, $3c, $2c,   ; $bd4b: $42, $7f, $3c, $2c,   Data
+;            .DB $2b, $2b,
+;            .DB 22 40   ; $bd4f: $2b, $2b, 22 40   Data
+;            .DB 20
+;            .DB $2b, $2a, $2b,   ; $bd53: 20 $2b, $2a, $2b,   Data
+;            .DB $3b, $7f, 2b $7f,   ; $bd57: $3b, $7f, 2b $7f,   Data
+;            .DB $7f, $7f, $7f, 17   ; $bd5b: $7f, $7f, $7f, 17   Data
+;            .DB 0a 16 0e $7f,   ; $bd5f: 0a 16 0e $7f,   Data
+;            .DB $7f, 1c 0c 18   ; $bd63: $7f, 1c 0c 18   Data
+;            .DB 1b 0e $7f, $7f,   ; $bd67: 1b 0e $7f, $7f,   Data
+;            .DB 15 1f $7f, 2c   ; $bd6b: 15 1f $7f, 2c   Data
+;            .DB $7f, $3c, $2a, $28,   ; $bd6f: $7f, $3c, $2a, $28,   Data
+;            .DB $28,
+;            .DB 22 $2c,
+;            .DB 20   ; $bd73: $28, 22 $2c, 20   Data
+;            .DB $2b, $2b, $2b, $3b,   ; $bd77: $2b, $2b, $2b, $3b,   Data
+;            .DB $7f, 4c 2e 2e   ; $bd7b: $7f, 4c 2e 2e   Data
 ;            .DB 2e 2e 2e 2e   ; $bd7f: 2e 2e 2e 2e   Data
 ;            .DB 2e 2e 2e 2e   ; $bd83: 2e 2e 2e 2e   Data
 ;            .DB 2e 2e 2e 2e   ; $bd87: 2e 2e 2e 2e   Data
 ;            .DB 2e 2e 2e 2e   ; $bd8b: 2e 2e 2e 2e   Data
-;            .DB 2e 2e 4e ff   ; $bd8f: 2e 2e 4e ff   Data
-;            .DB 3c 80 81 91   ; $bd93: 3c 80 81 91   Data
-;            .DB 22 80 20 82   ; $bd97: 22 80 20 82   Data
-;            .DB 72 82 3b ff   ; $bd9b: 72 82 3b ff   Data
-;            .DB 2b ff 01 ff   ; $bd9f: 2b ff 01 ff   Data
-;            .DB ff ff ff ff   ; $bda3: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bda7: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bdab: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bdaf: ff ff ff ff   Data
-;            .DB ff 2c ff 3c   ; $bdb3: ff 2c ff 3c   Data
-;            .DB 62 62 82 22   ; $bdb7: 62 62 82 22   Data
-;            .DB a0 20 80 a1   ; $bdbb: a0 20 80 a1   Data
-;            .DB 62 3b ff 2b   ; $bdbf: 62 3b ff 2b   Data
-;            .DB ff ff ff ff   ; $bdc3: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bdc7: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bdcb: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bdcf: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bdd3: ff ff ff ff   Data
-;            .DB 2c ff 3c 72   ; $bdd7: 2c ff 3c 72   Data
-;            .DB a0 91 22 c0   ; $bddb: a0 91 22 c0   Data
-;            .DB 20 60 61 72   ; $bddf: 20 60 61 72   Data
-;            .DB 3b ff 2b ff   ; $bde3: 3b ff 2b ff   Data
-;            .DB 02 ff ff ff   ; $bde7: 02 ff ff ff   Data
-;            .DB ff ff ff ff   ; $bdeb: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bdef: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $bdf3: ff ff ff ff   Data
-;            .DB ff ff ff 2c   ; $bdf7: ff ff ff 2c   Data
-;            .DB ff 3c 72 62   ; $bdfb: ff 3c 72 62   Data
-;            .DB 82 22 e0 20   ; $bdff: 82 22 e0 20   Data
-;            .DB 70 71 72 3b   ; $be03: 70 71 72 3b   Data
-;            .DB ff 2b ff ff   ; $be07: ff 2b ff ff   Data
-;            .DB ff ff ff ff   ; $be0b: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $be0f: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $be13: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $be17: ff ff ff ff   Data
-;            .DB ff ff 2c ff   ; $be1b: ff ff 2c ff   Data
-;            .DB 3c 82 72 80   ; $be1f: 3c 82 72 80   Data
-;            .DB 23 00 20 62   ; $be23: 23 00 20 62   Data
-;            .DB 62 82 3b ff   ; $be27: 62 82 3b ff   Data
-;            .DB 2b ff 03 ff   ; $be2b: 2b ff 03 ff   Data
-;            .DB ff ff ff ff   ; $be2f: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $be33: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $be37: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $be3b: ff ff ff ff   Data
-;            .DB ff 2c ff 3c   ; $be3f: ff 2c ff 3c   Data
-;            .DB 62 a0 83 23   ; $be43: 62 a0 83 23   Data
-;            .DB 20 20 72 40   ; $be47: 20 20 72 40   Data
-;            .DB 73 3b ff 2d   ; $be4b: 73 3b ff 2d   Data
+;            .DB 2e 2e 4e $7f,   ; $bd8f: 2e 2e 4e $7f,   Data
+;            .DB $3c, $2a, $2a, $2b,   ; $bd93: $3c, $2a, $2a, $2b,   Data
+;            .DB 22 $2a,
+;            .DB 20
+;            .DB $28,   ; $bd97: 22 $2a, 20 $28,   Data
+;            .DB $2b, $28, $3b, $7f,   ; $bd9b: $2b, $28, $3b, $7f,   Data
+;            .DB 2b $7f, 01 $7f,   ; $bd9f: 2b $7f, 01 $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bda3: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bda7: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bdab: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bdaf: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, 2c $7f, $3c,   ; $bdb3: $7f, 2c $7f, $3c,   Data
+;            .DB $2b, $2b, $28,
+;            .DB 22 $2a,
+;            .DB 20
+;            .DB $2a, $28,   ; $bdbb: $2a, 20 $2a, $28,   Data
+;            .DB $2b, $3b, $7f, 2b   ; $bdbf: $2b, $3b, $7f, 2b   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bdc3: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bdc7: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bdcb: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bdcf: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bdd3: $7f, $7f, $7f, $7f,   Data
+;            .DB 2c $7f, $3c, $2b,   ; $bdd7: 2c $7f, $3c, $2b,   Data
+;            .DB $2a, $2b,
+;            .DB 22 c0   ; $bddb: $2a, $2b, 22 c0   Data
+;            .DB 20
+;            .DB $2c, $2b, $2b,   ; $bddf: 20 $2c, $2b, $2b,   Data
+;            .DB $3b, $7f, 2b $7f,   ; $bde3: $3b, $7f, 2b $7f,   Data
+;            .DB 02 $7f, $7f, $7f,   ; $bde7: 02 $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bdeb: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bdef: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $bdf3: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, 2c   ; $bdf7: $7f, $7f, $7f, 2c   Data
+;            .DB $7f, $3c, $2b, $2b,   ; $bdfb: $7f, $3c, $2b, $2b,   Data
+;            .DB $28,
+;            .DB 22 e0
+;            20   ; $bdff: $28, 22 e0 20   Data
+;            .DB $2a, $28, $2b, $3b,   ; $be03: $2a, $28, $2b, $3b,   Data
+;            .DB $7f, 2b $7f, $7f,   ; $be07: $7f, 2b $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $be0b: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $be0f: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $be13: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $be17: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, 2c $7f,   ; $be1b: $7f, $7f, 2c $7f,   Data
+;            .DB $3c, $28, $2b, $2a,   ; $be1f: $3c, $28, $2b, $2a,   Data
+;            .DB 23 00
+;            .DB 20
+;            .DB $2b,   ; $be23: 23 00 20 $2b,   Data
+;            .DB $2b, $28, $3b, $7f,   ; $be27: $2b, $28, $3b, $7f,   Data
+;            .DB 2b $7f, 03 $7f,   ; $be2b: 2b $7f, 03 $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $be2f: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $be33: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $be37: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $be3b: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, 2c $7f, $3c,   ; $be3f: $7f, 2c $7f, $3c,   Data
+;            .DB $2b, $2a, $28,
+;            .DB 23 20
+;            .DB 20
+;            .DB $2b, 40   ; $be47: 20 20 $2b, 40   Data
+;            .DB 73 $3b, $7f, 2d   ; $be4b: 73 $3b, $7f, 2d   Data
 ;            .DB 2e 2e 2e 2e   ; $be4f: 2e 2e 2e 2e   Data
 ;            .DB 2e 2e 2e 2e   ; $be53: 2e 2e 2e 2e   Data
 ;            .DB 2e 2e 2e 2e   ; $be57: 2e 2e 2e 2e   Data
 ;            .DB 2e 2e 2e 2e   ; $be5b: 2e 2e 2e 2e   Data
 ;            .DB 2e 2e 2e 2e   ; $be5f: 2e 2e 2e 2e   Data
-;            .DB 2f ff 3c a0   ; $be63: 2f ff 3c a0   Data
-;            .DB 81 83 23 40   ; $be67: 81 83 23 40   Data
-;            .DB 20 72 82 62   ; $be6b: 20 72 82 62   Data
-;            .DB 3b ff ff ff   ; $be6f: 3b ff ff ff   Data
-;            .DB ff ff ff ff   ; $be73: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $be77: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $be7b: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $be7f: ff ff ff ff   Data
-;            .DB ff ff ff ff   ; $be83: ff ff ff ff   Data
-;            .DB ff 3c 62 60   ; $be87: ff 3c 62 60   Data
-;            .DB 61 23 60 20   ; $be8b: 61 23 60 20   Data
-;            .DB 82 90 a1 3d   ; $be8f: 82 90 a1 3d   Data
-;            .DB 3e 3e 3e 3e   ; $be93: 3e 3e 3e 3e   Data
-;            .DB 3e 3e 3e 3e   ; $be97: 3e 3e 3e 3e   Data
-;            .DB 3e 3e 3e 3e   ; $be9b: 3e 3e 3e 3e   Data
-;            .DB 3e 3e 3e 3e   ; $be9f: 3e 3e 3e 3e   Data
-;            .DB 3e 3e 3e 3e   ; $bea3: 3e 3e 3e 3e   Data
-;            .DB 3e 3e 3e 3e   ; $bea7: 3e 3e 3e 3e   Data
-;            .DB 3f 72 70 71   ; $beab: 3f 72 70 71   Data
-;            .DB 23 80 20 62   ; $beaf: 23 80 20 62   Data
-;            .DB 82 90 83 62   ; $beb3: 82 90 83 62   Data
-;            .DB 80 81 91 80   ; $beb7: 80 81 91 80   Data
-;            .DB 81 81 83 90   ; $bebb: 81 81 83 90   Data
-;            .DB 83 90 83 60   ; $bebf: 83 90 83 60   Data
-;            .DB 61 90 81 83   ; $bec3: 61 90 81 83   Data
-;            .DB 62 80 43 83   ; $bec7: 62 80 43 83   Data
-;            .DB 80 91 80 91   ; $becb: 80 91 80 91   Data
-;            .DB a0 83 62 23   ; $becf: a0 83 62 23   Data
-;            .DB a0 20 72 80   ; $bed3: a0 20 72 80   Data
-;            .DB a1 80 41 83   ; $bed7: a1 80 41 83   Data
-;            .DB 62 82 80 43   ; $bedb: 62 82 80 43   Data
-;            .DB 83 80 a1 62   ; $bedf: 83 80 a1 62   Data
-;            .DB 72 62 70 71   ; $bee3: 72 62 70 71   Data
-;            .DB 82 80 81 a1   ; $bee7: 82 80 81 a1   Data
-;            .DB 62 82 60 61   ; $beeb: 62 82 60 61   Data
-;            .DB a0 83 a0 83   ; $beef: a0 83 a0 83   Data
-;            .DB 80 41 23 c0   ; $bef3: 80 41 23 c0   Data
-;            .DB 20 aa aa aa   ; $bef7: 20 aa aa aa   Data
+;            .DB 2f $7f, $3c, $2a,   ; $be63: 2f $7f, $3c, $2a,   Data
+;            .DB $2a, $28,
+;            .DB 23 40   ; $be67: $2a, $28, 23 40   Data
+;            .DB 20
+;            .DB $2b, $28, $2b,   ; $be6b: 20 $2b, $28, $2b,   Data
+;            .DB $3b, $7f, $7f, $7f,   ; $be6f: $3b, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $be73: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $be77: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $be7b: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $be7f: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $7f, $7f, $7f,   ; $be83: $7f, $7f, $7f, $7f,   Data
+;            .DB $7f, $3c, $2b, $2c,   ; $be87: $7f, $3c, $2b, $2c,   Data
+;            .DB $2b,
+;            .DB 23 $2c,
+;            .DB 20   ; $be8b: $2b, 23 $2c, 20   Data
+;            .DB $28, $29, $28, $3d,   ; $be8f: $28, $29, $28, $3d,   Data
+;            .DB $3e, $3e, $3e, $3e,   ; $be93: $3e, $3e, $3e, $3e,   Data
+;            .DB $3e, $3e, $3e, $3e,   ; $be97: $3e, $3e, $3e, $3e,   Data
+;            .DB $3e, $3e, $3e, $3e,   ; $be9b: $3e, $3e, $3e, $3e,   Data
+;            .DB $3e, $3e, $3e, $3e,   ; $be9f: $3e, $3e, $3e, $3e,   Data
+;            .DB $3e, $3e, $3e, $3e,   ; $bea3: $3e, $3e, $3e, $3e,   Data
+;            .DB $3e, $3e, $3e, $3e,   ; $bea7: $3e, $3e, $3e, $3e,   Data
+;            .DB $3f, $2b, $2a, $28,   ; $beab: $3f, $2b, $2a, $28,   Data
+;            .DB 23 $2a,
+;            20
+;            .DB $2b,   ; $beaf: 23 $2a, 20 $2b,   Data
+;            .DB $28, $29, $28, $2b,   ; $beb3: $28, $29, $28, $2b,   Data
+;            .DB $2a, $2a, $2b, $2a,   ; $beb7: $2a, $2a, $2b, $2a,   Data
+;            .DB $2a, $2a, $28, $29,   ; $bebb: $2a, $2a, $28, $29,   Data
+;            .DB $28, $29, $28, $2c,   ; $bebf: $28, $29, $28, $2c,   Data
+;            .DB $2b, $29, $2a, $28,   ; $bec3: $2b, $29, $2a, $28,   Data
+;            .DB $2b, $2a, 43 $28,   ; $bec7: $2b, $2a, 43 $28,   Data
+;            .DB $2a, $2b, $2a, $2b,   ; $becb: $2a, $2b, $2a, $2b,   Data
+;            .DB $2a, $28, $2b,
+;            .DB 23 $2a,
+;            20
+;            .DB $2b, $2a,   ; $bed3: $2a, 20 $2b, $2a,   Data
+;            .DB $28, $2a, $2a, $28,   ; $bed7: $28, $2a, $2a, $28,   Data
+;            .DB $2b, $28, $2a, 43   ; $bedb: $2b, $28, $2a, 43   Data
+;            .DB $28, $2a, $28, $2b,   ; $bedf: $28, $2a, $28, $2b,   Data
+;            .DB $2b, $2b, $2a, $28,   ; $bee3: $2b, $2b, $2a, $28,   Data
+;            .DB $28, $2a, $2a, $28,   ; $bee7: $28, $2a, $2a, $28,   Data
+;            .DB $2b, $28, $2c, $2b,   ; $beeb: $2b, $28, $2c, $2b,   Data
+;            .DB $2a, $28, $2a, $28,   ; $beef: $2a, $28, $2a, $28,   Data
+;            .DB $2a, $2a,
+;            .DB 23 c0   ; $bef3: $2a, $2a, 23 c0   Data
+;            .DB 20
+;            .DB aa aa aa   ; $bef7: 20 aa aa aa   Data
 ;            .DB aa aa aa aa   ; $befb: aa aa aa aa   Data
 ;            .DB aa aa 55 a9   ; $beff: aa aa 55 a9   Data
 ;            .DB aa 9a a6 a5   ; $bf03: aa 9a a6 a5   Data
 ;            .DB aa aa d5 fa   ; $bf07: aa aa d5 fa   Data
 ;            .DB fa f8 fa 7a   ; $bf0b: fa f8 fa 7a   Data
-;            .DB aa aa dd ff   ; $bf0f: aa aa dd ff   Data
-;            .DB ff ff ff 77   ; $bf13: ff ff ff 77   Data
-;            .DB aa 23 e0 20   ; $bf17: aa 23 e0 20   Data
+;            .DB aa aa dd $7f,   ; $bf0f: aa aa dd $7f,   Data
+;            .DB $7f, $7f, $7f, 77   ; $bf13: $7f, $7f, $7f, 77   Data
+;            .DB aa
+;            .DB 23 e0
+;            20   ; $bf17: aa 23 e0 20   Data
 ;            .DB aa 00 00 00   ; $bf1b: aa 00 00 00   Data
 ;            .DB 00 00 00 aa   ; $bf1f: 00 00 00 aa   Data
 ;            .DB aa 00 00 00   ; $bf23: aa 00 00 00   Data
 ;            .DB 00 00 00 aa   ; $bf27: 00 00 00 aa   Data
-;            .DB aa a0 a0 a0   ; $bf2b: aa a0 a0 a0   Data
-;            .DB a0 a0 a0 aa   ; $bf2f: a0 a0 a0 aa   Data
+;            .DB aa $2a, $2a, $2a,   ; $bf2b: aa $2a, $2a, $2a,   Data
+;            .DB $2a, $2a, $2a, aa   ; $bf2f: $2a, $2a, $2a, aa   Data
 ;            .DB 0a 0a 0a 0a   ; $bf33: 0a 0a 0a 0a   Data
 ;            .DB 0a 0a 0a 0a   ; $bf37: 0a 0a 0a 0a   Data
 	.DB $ff

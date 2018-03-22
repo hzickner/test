@@ -6,22 +6,29 @@
 ;-------------------------------------------------------------------------------
 	org $0080
 TEMP1		.DS	2
+TEMP1_N		.DS	2
 TEMP2		.DS	2
-B1		.DS	1
+B1		.DS	1	; temp variable for main thread
+B1_N		.DS	1	; temp variable for nmi thread
 B2		.DS	1
+B2_N		.DS	1
 BGS_USED	.DS	1
 COUNTDOWN	.DS	1
 GAME_FUNC_INDEX	.DS	1
 GAME_MODE	.DS	1
+HEIGHT		.DS	1
 JOY1_RAW_NEW	.DS	1
 JOY1_RAW_ALL	.DS	1
 JOY2_RAW_NEW	.DS	1
 JOY2_RAW_ALL	.DS	1
+LEVEL		.DS	1
 N_PLR		.DS	1
 vNMIEN		.DS	1
 NMI_FUNC_INDEX	.DS	1
 OAM_USED	.DS	1
 PREVIEW_FLAG	.DS	1
+SEL_HEIGHT	.DS	1
+SEL_LEVEL	.DS	1
 SEL_TYPE	.DS	1
 SEL_MUSIC	.DS	1
 SPR_PTR_INDEX	.DS	1
@@ -50,6 +57,9 @@ SND_BASE	.DS	$100
 ; highscores
 HS_BASE		.DS	$100
 HS_DATA		=	HS_BASE
+HS_NAMES	=	HS_BASE
+HS_POINTS       = 	HS_BASE+$30
+HS_LEVEL        =	HS_BASE+$48	; 1 byte, typeA from $0748, typeB from $074c
 HS_INITMARK	=	HS_BASE+$50
 
 ; saved bg tiles
@@ -223,6 +233,7 @@ loop	jsr frame_clear_sprite_ram
 
 ;-------------------------------------------------------------------------------
 ; copy data to screen
+; thread main
 ; SRC pointer in AX
 ; TEMP1 - src, TEMP2 - dst, B1 - addrinc	
 .proc GR_copy_data
@@ -285,7 +296,7 @@ loop:
 skip4:	lda (TEMP1),y
 	sta (TEMP2),y
 	clc
-	lda b1
+	lda B1
 	adc TEMP2
 	sta TEMP2
 	lda #0
@@ -402,30 +413,31 @@ ret:	sty BGS_USED
 
 ;-------------------------------------------------------------------------------
 ; update SW sprites on screen
+; thread NMI
 .proc GR_updateSprites
 	jsr GR_restoreBG
 	ldx #0
-	stx B1
+	stx B1_N
 loop:	cpx OAM_USED
 	beq ret
 	
 	lda OAMBASE,x		; read y
 	asl
-	rol B1
+	rol B1_N
 	asl
-	rol B1
+	rol B1_N
 	asl
-	rol B1
+	rol B1_N
 	asl
-	rol B1
+	rol B1_N
 	asl			; *32
-	rol B1
+	rol B1_N
 	clc
 	adc #<scr_mem
-	sta TEMP1
-	lda B1
+	sta TEMP1_N
+	lda B1_N
 	adc #>scr_mem
-	sta TEMP1+1
+	sta TEMP1_N+1
 	
 	inx
 	lda OAMBASE,x		; read index
@@ -435,23 +447,23 @@ loop:	cpx OAM_USED
 	
 	inx
 	ldy OAMBASE,x		; read x
-	sta B1
-	lda (TEMP1),y
-	sta B2			; save BG tile
-	lda B1
-	sta (TEMP1),y		; write to screen
-	sty B1
+	sta B1_N
+	lda (TEMP1_N),y
+	sta B2_N			; save BG tile
+	lda B1_N
+	sta (TEMP1_N),y		; write to screen
+	sty B1_N
 	
 	ldy BGS_USED
-	lda B2
+	lda B2_N
 	sta BG_SAVE+2,y		; write BG tile to backup
-	lda B1
+	lda B1_N
 	clc
-	adc TEMP1
+	adc TEMP1_N
 	sta BG_SAVE,y
 	lda #0
-	sta B1			; clear B1 for next loop
-	adc TEMP1+1
+	sta B1_N			; clear B1 for next loop
+	adc TEMP1_N+1
 	sta BG_SAVE+1,y		; write scr_adr to backup
 	iny
 	iny
@@ -461,6 +473,112 @@ loop:	cpx OAM_USED
 	inx
 	bpl loop
 ret:	rts
+.endp            
+
+;-------------------------------------------------------------------------------
+; copy highscore data to screen
+; main thread
+.proc GR_writeHSdata
+;            lda N_PLR
+;            cmp #$01
+;            beq @onePLR
+;            jmp @return
+;
+;@onePLR:    jsr PPU_copy_data
+;            DW SCORE_SCREEN_DATA
+;
+	lda #$00
+	sta TEMP2+1
+	lda SEL_TYPE
+	beq skip1
+	lda #$04
+	sta TEMP2+1		; if (type = A) TEMP2+1=0 else TEMP2+1=4
+loop:     
+skip1:	lda TEMP2+1
+	and #$03		; mod 4
+	asl			; *2
+	tax			; index = (A mod 4) * 2; (0 2 4 6)
+	lda HS_SCRadr_table,x	; table read  
+	sta TEMP1  
+	lda HS_SCRadr_table+1,x	; read high byte
+	sta TEMP1+1  
+	lda TEMP2+1
+	asl			; *2
+	sta TEMP2
+	asl			; *4
+	clc
+	adc TEMP2		; *6
+	tay			; index = A * 6 (one table entry has 6 bytes, first entry typeA: 0, typeB: 24)
+	ldx #$06		; loop counter
+loop2:	lda HS_NAMES,y		; read index to table from RAM
+	sty TEMP2
+	tay
+	lda HS_CHAR_TABLE,y	; read table data
+	ldy #0
+	sta (TEMP1),y		; write tile
+	inc TEMP1
+	ldy TEMP2
+	iny
+	dex
+	bne loop2		; write 6 tiles to screen (high score name)
+
+	lda #$7f
+	ldy #0
+	sta (TEMP1),y		; write ' '
+	inc TEMP1
+
+	lda TEMP2+1
+	sta TEMP2
+	asl			; *2
+	clc
+	adc TEMP2		; *3
+	tax			; index = A * 3 (one table entry has 3 bytes)
+	lda HS_POINTS,x
+	jsr GRwrite_packedBCD
+	inx
+	lda HS_POINTS,x
+	jsr GRwrite_packedBCD
+	inx
+	lda HS_POINTS,x
+	jsr GRwrite_packedBCD	; write score
+
+	lda #$7f      
+	sta (TEMP1),y		; write ' '
+	inc TEMP1
+	ldx TEMP2+1    
+	lda HS_LEVEL,x
+	tax
+	lda HS_LEVEL_TABLE,x
+	jsr GRwrite_packedBCD	; write level  
+	inc TEMP2+1
+	lda TEMP2+1            ; inc counter
+	cmp #$03
+	beq ret
+	cmp #$07
+	beq ret
+	jmp loop		; loop until counter=3 (typeA) or counter=7 (typeB)
+
+ret:	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; write packed BCD
+; writes 2 decimal digits coded in high and low 4 bits of A to screen
+.proc GRwrite_packedBCD
+	ldy #0
+	sta TEMP2
+	and #$f0
+	lsr
+	lsr
+	lsr
+	lsr
+	sta (TEMP1),y
+	inc TEMP1
+	lda TEMP2
+	and #$0f
+	sta (TEMP1),y
+	inc TEMP1
+	rts
 .endp            
 	
 ;-------------------------------------------------------------------------------
@@ -840,6 +958,7 @@ skip8:	jsr spr_drawtoMem
 
 ;-------------------------------------------------------------------------------
 ; level selection
+; B1 - level height and selection flag
 .proc mode_func_level
 
 ;            jsr snd_reset_call
@@ -847,10 +966,7 @@ skip8:	jsr spr_drawtoMem
 	sta NMI_FUNC_INDEX		; set nmi function for this mode (write PPUCTRL with nametable 0, write scroll regs with 0)
 	jsr frame_GR_rendering_off
 	jsr nmi_disable
-;            lda #$00
-;            jsr MMCsetreg1
-;            lda #$00
-;            jsr MMCsetreg2     ; CHR bank 0
+
 ;  
 ;            jsr PPU_copy_data
 ;            DW PALETTE_DATA_MODE1_2_3
@@ -858,8 +974,7 @@ skip8:	jsr spr_drawtoMem
 	lda #<LEVEL_SCREEN_DATA
 	ldx #>LEVEL_SCREEN_DATA
 	jsr GR_copy_data		; load screen data
-;            jsr PPU_copy_data
-;            DW LEVEL_SCREEN_DATA
+
 ;
 ;            lda SEL_TYPE
 ;            bne @skip1
@@ -867,55 +982,46 @@ skip8:	jsr spr_drawtoMem
 ;            jsr PPU_copy_data
 ;            DW LEVEL_SCREEN_DATA2
 ;
-;@skip1:     jsr PPU_writeHSdata
+;@skip1:
+	jsr GR_writeHSdata
 	jsr nmi_enable
 	jsr frame_clear_sprite_ram
-;            lda #$00
-;            sta PPUSCROLL
-;            lda #$00
-;            sta PPUSCROLL
 	jsr frame_GR_rendering_on
 	jsr frame_clear_sprite_ram
-;            lda #$00
-;            sta B1
+	lda #$00
+	sta B1			; init level height and selection flag
 ;            sta $af
-;@loop1:     lda LEVEL
-;            cmp #10
-;            bcc @skip2         ; if (A < 10) skip2
-;            sec
-;            sbc #$0a
-;            sta LEVEL
-;            jmp @loop1         ; LEVEL = LEVEL mod 10
+loop1:	lda LEVEL
+	cmp #10
+	bcc skip2		; if (A < 10) skip2
+	sec
+	sbc #10
+	sta LEVEL
+	jmp loop1		; LEVEL = LEVEL mod 10
 ;
-;@skip2:
+skip2:
 loop0:
 ;     lda #$00
 ;            sta $b7            ; $b7 = 0 //TODO remove: not used
-;            lda LEVEL
-;            sta SEL_LEVEL
-;            lda HEIGHT
-;            sta SEL_HEIGHT
-;            lda B1
-;            sta $ad            ; init level height and selection flag
-	lda JOY1_RAW_NEW
-;            sta BUTTONS_NEW
-;            jsr update_sel_sprites
-;            lda SEL_LEVEL
-;            sta LEVEL
-;            lda SEL_HEIGHT
-;            sta HEIGHT
-;            lda $ad
-;            sta B1             ; save selected values
+	lda LEVEL
+	sta SEL_LEVEL
+	lda HEIGHT
+	sta SEL_HEIGHT
+	jsr update_sel_sprites
+	lda SEL_LEVEL
+	sta LEVEL
+	lda SEL_HEIGHT
+	sta HEIGHT		; save selected values
 	lda JOY1_RAW_NEW
 	cmp #BUTTON_START
-	bne not_start			; if (BUTTON_Start) {
-;            lda JOY1_RAW_ALL
-;            cmp #144 
-;            bne @skip3         ;   if (JOY1_RAW_ALL == 144) {
-;            lda LEVEL
-;            clc
-;            adc #10            ;     LEVEL += 10
-;            sta LEVEL            ;   } endif
+	bne not_start		; if (BUTTON_Start) {
+	lda JOY1_RAW_ALL
+	cmp #BUTTON_A | BUTTON_START
+	bne skip3		;   if (JOY1_RAW_ALL == 144) {
+	lda LEVEL
+	clc
+	adc #10			;     LEVEL += 10
+	sta LEVEL		;   } endif
 skip3:	lda #$00
 ;            sta GAME_FUNC_INDEX            ; GAME_FUNC_INDEX = 0
 ;            lda #$02
@@ -1165,12 +1271,179 @@ skip:	rts
 .endp
 
 ;-------------------------------------------------------------------------------
+; updates sprites for level and lines selection
+; B1 - flag: 0 level select, 1 height sel
+.proc update_sel_sprites
+	lda JOY1_RAW_NEW
+	cmp #BUTTON_R
+	bne skip2		; if (BUTTON_R) {
+;            lda #$01
+;            sta sndEFFECT
+	lda B1
+	bne skip1
+	lda SEL_LEVEL
+	cmp #9
+	beq skip2
+	inc SEL_LEVEL
+	bne skip2		; always jump
+skip1:	lda SEL_HEIGHT
+	cmp #5
+	beq skip2
+	inc SEL_HEIGHT		;   increment level or height dependent on B1 up to maxvalue
+				; } endif      
+skip2:	lda JOY1_RAW_NEW
+	cmp #BUTTON_L
+	bne skip4		; if (BUTTON_L) {
+;            lda #$01
+;            sta sndEFFECT
+	lda B1
+	bne skip3
+	lda SEL_LEVEL
+	beq skip4
+	dec SEL_LEVEL
+	bpl skip4		; always jump
+skip3:	lda SEL_HEIGHT
+	beq skip4
+	dec SEL_HEIGHT		;   decrement level or height dependent on B1 minvalue=0
+				; } endif
+skip4:	lda JOY1_RAW_NEW
+	cmp #BUTTON_D
+	bne skip6		; if (BUTTON_D) {
+;            lda #$01
+;            sta sndEFFECT
+	lda B1
+	bne skip5
+	lda SEL_LEVEL
+	cmp #5
+	bpl skip6
+	clc
+	adc #5
+	sta SEL_LEVEL
+	bpl skip6		; always jump
+skip5:	lda SEL_HEIGHT
+	cmp #$03
+	bpl skip6
+	clc
+	adc #3
+	sta SEL_HEIGHT		;   next level or height row dependent on B1
+				; } endif
+skip6:	lda JOY1_RAW_NEW
+	cmp #BUTTON_U
+	bne skip8		; if (BUTTON_U) {
+;            lda #$01
+;            sta sndEFFECT
+	lda B1
+	bne skip7
+	lda SEL_LEVEL
+	cmp #$05
+	bmi skip8
+	sec
+	sbc #5
+	sta SEL_LEVEL
+	bpl skip8		; always jump
+skip7:	lda SEL_HEIGHT
+	cmp #$03
+	bmi skip8
+	sec			; //TODO check remove of sec
+	sbc #3
+	sta SEL_HEIGHT		;   prev level or height row dependent on B1
+				; } endif
+skip8:	lda SEL_TYPE
+	beq level_spr
+	lda JOY1_RAW_NEW
+	cmp #BUTTON_A
+	bne level_spr		; if (BUTTON_A && typeB) {
+;            lda #$01
+;            sta sndEFFECT
+	lda B1
+	eor #$01
+	sta B1			;   toggle B1 flag
+				; } endif     
+level_spr:
+	lda B1			; B1 toggles flickering, only active selector flickers
+	bne skip10
+	lda RTCLOK+2		; if (B1 == 0) {
+	and #$03
+	beq lines_spr		;   dont draw level_sel_sprite every 4th frame
+skip10:	ldx SEL_LEVEL
+	lda SPR_SEL_Y_TABLE,x	; get y coord from table
+	sta SPR_Y
+	lda #$00
+	sta SPR_PTR_INDEX	; use sprite 0
+;	ldx SEL_LEVEL       ; //TODO: remove reload of X
+	lda SPR_SEL_X_TABLE,x	; get x coord from table
+	sta SPR_X
+;            lda $b7
+;            cmp #$01
+;            bne @skip11:       ; if ($b7 == 1) { //TODO remove: never true
+;            clc
+;            lda SPR_Y
+;            adc #80            ;   SPR_Y += 80
+;            sta SPR_Y          ; } endif
+;@skip11:    
+	jsr spr_drawtoMem	; draw level_sel_sprite
+;
+lines_spr:
+	lda SEL_TYPE
+	beq ret			; if (typeA) return
+	lda B1
+	beq skip13		; if (!active line_sel) skip blinking
+	lda RTCLOK+2
+	and #$03
+	beq ret
+skip13:	ldx SEL_HEIGHT
+	lda SPR_LINE_SEL_Y_TABLE,x
+	sta SPR_Y		; y coord
+	lda #$00
+	sta SPR_PTR_INDEX	; use sprite0
+;            ldx SEL_HEIGHT
+	lda SPR_LINE_SEL_X_TABLE,x
+	sta SPR_X		; x coord
+;            lda $b7
+;            cmp #$01
+;            bne @skip14:       ; if ($b7 == 1) { //TODO remove: never true
+;            clc
+;            lda SPR_Y
+;            adc #$50           ;   SPR_Y += 80
+;            sta SPR_Y          ; } endif
+;@skip14::   
+	jsr spr_drawtoMem
+ret:	rts
+.endp
+
+;-------------------------------------------------------------------------------
 ; static data
 ;-------------------------------------------------------------------------------	
 	ICL "screens/legal_screen.asm"
 	ICL "screens/title_screen.asm"
 	ICL "screens/type_screen.asm"
 	ICL "screens/level_screen.asm"	
+
+; table of chars for name in high score list
+; propably 44 entries
+HS_CHAR_TABLE:
+            ;.hex 24 0a 0b 0c   ; $a08c: 24 0a 0b 0c   Data
+	.DB $24, $0a, $0b, $0c
+            ;.hex 0d 0e 0f 10   ; $a090: 0d 0e 0f 10   Data
+	.DB $0d, $0e, $0f, $10
+            ;.hex 11 12 13 14   ; $a094: 11 12 13 14   Data
+	.DB $11, $12, $13, $14
+            ;.hex 15 16 17 18   ; $a098: 15 16 17 18   Data
+	.DB $15, $16, $17, $18
+            ;.hex 19 1a 1b 1c   ; $a09c: 19 1a 1b 1c   Data
+	.DB $19, $1a, $1b, $1c
+            ;.hex 1d 1e 1f 20   ; $a0a0: 1d 1e 1f 20   Data
+	.DB $1d, $1e, $1f, $20
+            ;.hex 21 22 23 00   ; $a0a4: 21 22 23 00   Data
+	.DB $21, $22, $23, $24
+            ;.hex 01 02 03 04   ; $a0a8: 01 02 03 04   Data
+	.DB $01, $02, $03, $04
+            ;.hex 05 06 07 08   ; $a0ac: 05 06 07 08   Data
+	.DB $05, $06, $07, $08
+            ;.hex 09 25 4f 5e   ; $a0b0: 09 25 4f 5e   Data
+	.DB $09, $25, $4f, $5e
+            ;.hex 5f 6e 6f ff   ; $a0b4: 5f 6e 6f ff   Data
+	.DB $5f, $6e, $6f, $7f
 	
 ; 80 bytes of data copied to page 7 $700-$749 for init of high score table
 HS_INIT_DATA:
@@ -1197,6 +1470,35 @@ HS_INIT_DATA:
 	.DB $ff            		; $FF marks end of data
 ; end of data
 
+; table of levels for HS list
+; table[i] return packed_bcd(i) for i==0..49
+; //TODO shorten table? limit maxlevel 
+HS_LEVEL_TABLE:
+            .DB $00, $01, $02, $03   ; $a0bc: 00 01 02 03   Data
+            .DB $04, $05, $06, $07   ; $a0c0: 04 05 06 07   Data
+            .DB $08, $09, $10, $11   ; $a0c4: 08 09 10 11   Data
+            .DB $12, $13, $14, $15   ; $a0c8: 12 13 14 15   Data
+            .DB $16, $17, $18, $19   ; $a0cc: 16 17 18 19   Data
+            .DB $20, $21, $22, $23   ; $a0d0: 20 21 22 23   Data
+            .DB $24, $25, $26, $27   ; $a0d4: 24 25 26 27   Data
+            .DB $28, $29, $30, $31   ; $a0d8: 28 29 30 31   Data
+            .DB $32, $33, $34, $35   ; $a0dc: 32 33 34 35   Data
+            .DB $36, $37, $38, $39   ; $a0e0: 36 37 38 39   Data
+            .DB $40, $41, $42, $43   ; $a0e4: 40 41 42 43   Data
+            .DB $44, $45, $46, $47   ; $a0e8: 44 45 46 47   Data
+            .DB $48, $49         ; $a0ec: 48 49         Data
+; 50bytes end of table
+
+;-------------------------------------------------------------------------------
+; table of screen addresses
+; 3 16bit entries
+HS_SCRadr_table:
+;            .hex 22 89 22 c9   ; 9,20; 9,22
+;            .hex 23 09         ; 9,24
+	.DW scr_mem+19*32+9, scr_mem+21*32+9, scr_mem+23*32+9
+; 6bytes end of table	
+
+
 PAL_PTR_HIGH:
 	.DB >PALETTE0_DATA, >PALETTE1_DATA
 
@@ -1222,9 +1524,9 @@ sprPTR__table:
 ; 			y_off	index	attribute	x_off
 ; solid square of 16x16 used for level selection 
 sprPTR0:	.DB 	$00,	$fc,	$20,		$00
-		.DB	$00,	$fc,	$20,		$08
-		.DB	$08,	$fc,	$20,		$00
-		.DB	$08,	$fc,	$20,		$08
+		.DB	$00,	$fc,	$20,		$01
+		.DB	$01,	$fc,	$20,		$00
+		.DB	$01,	$fc,	$20,		$01
 		.DB	$ff	; end marker
 
 ;			y_off	index	attribute	x_off
@@ -1241,6 +1543,46 @@ sprPTR2:	.DB	$00,	$7f,	$00,		$00
 sprPTR83:	.DB	$00,	$27,	$00,		$00
 		.DB	$00,	$27,	$40,		9
 		.DB	$ff	; endMarker
+
+;-------------------------------------------------------------------------------
+; table of x coords for line selection sprite
+; 6 entries                        
+SPR_LINE_SEL_X_TABLE:
+;            .hex 9c ac bc
+;            .hex 9c ac bc
+	.DB 19, 21, 23
+	.DB 19, 21, 23
+; end of table            
+
+;-------------------------------------------------------------------------------
+; table of y coords for line selection sprite
+; 6 entries            
+SPR_LINE_SEL_Y_TABLE:
+;            .hex 53 53 53
+;            .hex 63 63 63
+	.DB 9, 9, 9
+	.DB 11, 11, 11
+; 6bytes end of table
+
+;-------------------------------------------------------------------------------
+; table of x coords for level selection sprite
+; 10 entries for level 0..9            
+SPR_SEL_X_TABLE:
+;            .hex 34 44 54 64 74
+;            .hex 34 44 54 64 74
+	.DB 6, 8, 10, 12, 14
+	.DB 6, 8, 10, 12, 14
+; 10bytes end of table
+
+;-------------------------------------------------------------------------------
+; table of y coords for level selection sprite
+; 10 entries for level 0..9
+SPR_SEL_Y_TABLE:
+;            .hex 53 53 53 53 53
+;            .hex 63 63 63 63 63
+	.DB 9, 9, 9, 9, 9
+	.DB 11, 11, 11, 11, 11
+; 10bytes end of table
 
 ;-------------------------------------------------------------------------------
 ; static data with alignment
