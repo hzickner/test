@@ -1,6 +1,10 @@
+*.atdbg
 *.deb
+*.lab
 *.lst
 *.nes
+*.xex
+
 *.class
 
 # Mobile Tools for Java (J2ME)
