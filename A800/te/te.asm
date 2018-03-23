@@ -485,8 +485,9 @@ ret:	rts
 ;            jmp @return
 ;
 ;@onePLR:
-	;jsr PPU_copy_data
-	;DW SCORE_SCREEN_DATA
+	lda #<SCORE_SCREEN_DATA
+	ldx #>SCORE_SCREEN_DATA
+	jsr GR_copy_data
 
 	lda #$00
 	sta TEMP2+1
@@ -1420,6 +1421,7 @@ ret:	rts
 	ICL "screens/type_screen.asm"
 	ICL "screens/level_screen.asm"
 	ICL "screens/level_screen2.asm"		;//TODO minimize data
+	ICL "screens/score_screen.asm"
 
 ; table of chars for name in high score list
 ; propably 44 entries
