@@ -73,6 +73,23 @@ BG_SAVE		.DS	$100
 	ICL "lib/memset.asm"
 
 ;-------------------------------------------------------------------------------
+; calls function dependant on GAME_FUNC_INDEX
+.proc call_game_func
+	ldx GAME_FUNC_INDEX
+	lda jt_h,x
+	pha
+	lda jt_l,x
+	pha
+	rts
+	
+jt_h: 
+	.DB >(game_init_screen-1)
+
+jt_l:
+	.DB <(game_init_screen-1)	
+.endp
+
+;-------------------------------------------------------------------------------
 ; calls function dependant on GAME_MODE
 .proc call_mode_func
 	ldx GAME_MODE
@@ -84,9 +101,11 @@ BG_SAVE		.DS	$100
 	
 jt_h: 
 	.DB >(mode_func_legal-1), >(mode_func_title-1), >(mode_func_type-1),  >(mode_func_level-1)
+	.DB >(mode_func_gamedemo-1)
 
 jt_l:
-	.DB <(mode_func_legal-1), <(mode_func_title-1), <(mode_func_type-1),  <(mode_func_level-1)	
+	.DB <(mode_func_legal-1), <(mode_func_title-1), <(mode_func_type-1),  <(mode_func_level-1)
+	.DB <(mode_func_gamedemo-1)	
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -231,6 +250,99 @@ loop	jsr frame_clear_sprite_ram
 	rts
 .endp	
 
+;-------------------------------------------------------------------------------
+; called via jump table
+; game_func0
+.proc game_init_screen
+	jsr frame_GR_rendering_off
+	jsr nmi_disable
+;            lda #$03
+;            jsr MMCsetreg1
+;            lda #$03
+;            jsr MMCsetreg2	; use CHR bank 3 for nametable an sprites
+;
+;            jsr PPU_copy_data
+;            DW PALETTE_DATA_GAME_F0  ; load palette data
+;
+	lda #<GAME_F0_screen
+	ldx #>GAME_F0_screen
+	jsr GR_copy_data		; load screen data
+
+;            lda #$20
+;            sta PPUADDR
+;            lda #$83
+;            sta PPUADDR        ; screen pos for game type ('A' or 'B')
+;            lda SEL_TYPE
+;            bne @s_typeB       ; if (typeA) {
+;            lda #$0a
+;            sta PPUDATA        ; write 'A'
+;            lda #$20
+;            sta PPUADDR
+;            lda #$b8
+;            sta PPUADDR        ; screen pos for high score
+;            lda HS_POINTS
+;            jsr PPUwrite_packedBCD
+;            lda HS_POINTS+1
+;            jsr PPUwrite_packedBCD
+;            lda HS_POINTS+2
+;            jsr PPUwrite_packedBCD  ; write high score  
+;            jmp @s1         ; } endif
+;
+;@s_typeB:   lda #$0b
+;            sta PPUDATA        ; write 'B'
+;            lda #$20
+;            sta PPUADDR
+;            lda #$b8
+;            sta PPUADDR        ; screen pos for high score
+;            lda HS_POINTSB
+;            jsr PPUwrite_packedBCD
+;            lda HS_POINTSB+1
+;            jsr PPUwrite_packedBCD
+;            lda HS_POINTSB+2
+;            jsr PPUwrite_packedBCD  ; write high score
+;            ldx #$00
+;@loop1:     lda height_frame_data,x
+;            inx
+;            sta PPUADDR
+;            lda height_frame_data,x
+;            inx
+;            sta PPUADDR        ; set PPU address from table
+;@loop2:     lda height_frame_data,x       ; read table values
+;            inx
+;            cmp #$fe
+;            beq @loop1         ; if ($fe read) loop1 new screen address
+;            cmp #$fd
+;            beq @s_fd          ; if ($fd read) exit loop
+;            sta PPUDATA
+;            jmp @loop2         ; write values until $fe or $fd read
+;
+;@s_fd:      lda #$23
+;            sta PPUADDR
+;            lda #$3b
+;            sta PPUADDR        ; display position of start height
+;            lda SEL_HEIGHT
+;            and #$0f
+;            sta PPUDATA        ; show value
+;            jmp @s1            ; //TODO remove
+;
+;; for typeA and typeB
+s1:
+	jsr nmi_enable
+	jsr frame_clear_sprite_ram
+	jsr frame_GR_rendering_on
+	jsr frame_clear_sprite_ram  ; //TODO 3 frame_funtions?
+;            lda #$01           ; $869f: a9 01     
+;            sta $68            ; $86a1: 85 68     
+;            sta $88            ; $86a3: 85 88     
+;            lda LEVEL            ; $86a5: a5 67     
+;            sta $64            ; $86a7: 85 64     
+;            lda $87            ; $86a9: a5 87     
+;            sta $84            ; $86ab: 85 84     
+;            inc GAME_FUNC_INDEX  ; game_func1
+l0:
+	jmp l0
+	rts
+.endp
 ;-------------------------------------------------------------------------------
 ; copy data to screen
 ; thread main
@@ -1025,12 +1137,10 @@ loop0:
 	adc #10			;     LEVEL += 10
 	sta LEVEL		;   } endif
 skip3:	lda #$00
-;            sta GAME_FUNC_INDEX            ; GAME_FUNC_INDEX = 0
+	sta GAME_FUNC_INDEX            ; GAME_FUNC_INDEX = 0
 ;            lda #$02
 ;            sta sndEFFECT
-	lda MODE_LEGAL
-	sta GAME_MODE
-;            inc GAME_MODE       
+	inc GAME_MODE       
 	rts				; exit to next mode_game } endif 
 
 not_start:
@@ -1064,6 +1174,14 @@ not_B:
 .endp
 
 ;-------------------------------------------------------------------------------
+; called during gameplay and demo
+; //TODO remove
+.proc mode_func_gamedemo
+	jsr call_game_func
+	rts
+.endp  
+
+;-------------------------------------------------------------------------------
 ; nmi function, called every vblank
 .proc nmi
 	jsr call_nmi_func
@@ -1095,6 +1213,7 @@ skip:
 	lda #0
 	sta NMIEN
 	sta vNMIEN
+	sta BGS_USED
 	rts
 .endp
 
@@ -1422,6 +1541,7 @@ ret:	rts
 	ICL "screens/level_screen.asm"
 	ICL "screens/level_screen2.asm"		;//TODO minimize data
 	ICL "screens/score_screen.asm"
+	ICL "screens/gamef0_screen.asm"
 
 ; table of chars for name in high score list
 ; propably 44 entries
