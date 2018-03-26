@@ -19,6 +19,7 @@ PAL		equ	$D014	; NTSC if bits 1-3 set
 COLPF1		equ	$D017
 COLBK		equ	$D01A
 CONSOL		equ	$D01F
+RANDOM		equ	$D20A
 PORTA		equ	$D300
 CHBASE		equ	$D409
 WSYNC		equ	$D40A

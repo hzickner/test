@@ -45,6 +45,7 @@ OAMBASE		.DS	$100
 
 ; statistics
 STATBASE	.DS	$100
+TYPE_COUNTERS	= STATBASE+$f0		; 7 2byte 3digit counters in packed BCD format
 
 ; playfield
 PLAYFIELD	.DS	$100
@@ -59,6 +60,7 @@ HS_BASE		.DS	$100
 HS_DATA		=	HS_BASE
 HS_NAMES	=	HS_BASE
 HS_POINTS       = 	HS_BASE+$30
+HS_POINTSB	=	HS_BASE+$3c
 HS_LEVEL        =	HS_BASE+$48	; 1 byte, typeA from $0748, typeB from $074c
 HS_INITMARK	=	HS_BASE+$50
 
@@ -83,10 +85,12 @@ BG_SAVE		.DS	$100
 	rts
 	
 jt_h: 
-	.DB >(game_init_screen-1)
+	.DB >(game_init_screen-1), >(game_func1-1), >(game_func2-1), >(game_func3-1)
+	.DB >(game_func4-1), >(game_func5-1), >(game_abort_test-1), >(game_pause_mode-1), >(game_loop_to2-1)
 
 jt_l:
-	.DB <(game_init_screen-1)	
+	.DB <(game_init_screen-1), <(game_func1-1), <(game_func2-1), <(game_func3-1)
+	.DB <(game_func4-1), <(game_func5-1), <(game_abort_test-1), <(game_pause_mode-1), <(game_loop_to2-1)	
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -268,63 +272,67 @@ loop	jsr frame_clear_sprite_ram
 	ldx #>GAME_F0_screen
 	jsr GR_copy_data		; load screen data
 
-;            lda #$20
-;            sta PPUADDR
-;            lda #$83
-;            sta PPUADDR        ; screen pos for game type ('A' or 'B')
-;            lda SEL_TYPE
-;            bne @s_typeB       ; if (typeA) {
-;            lda #$0a
-;            sta PPUDATA        ; write 'A'
-;            lda #$20
-;            sta PPUADDR
-;            lda #$b8
-;            sta PPUADDR        ; screen pos for high score
-;            lda HS_POINTS
-;            jsr PPUwrite_packedBCD
-;            lda HS_POINTS+1
-;            jsr PPUwrite_packedBCD
-;            lda HS_POINTS+2
-;            jsr PPUwrite_packedBCD  ; write high score  
-;            jmp @s1         ; } endif
+	lda #<(scr_mem+3*32+3)
+	sta TEMP1
+	lda #>(scr_mem+3*32+3)	; screen pos for game type ('A' or 'B')
+	sta TEMP1+1
+	ldy #0
+	lda SEL_TYPE
+	bne s_typeB		; if (typeA) {
+	lda #$0a
+	sta (TEMP1),y
+	lda #<(scr_mem+4*32+24)
+	sta TEMP1
+	lda #>(scr_mem+4*32+24)	; screen pos for high score
+	sta TEMP1+1
+	lda HS_POINTS
+	jsr GRwrite_packedBCD
+	lda HS_POINTS+1
+	jsr GRwrite_packedBCD
+	lda HS_POINTS+2
+	jsr GRwrite_packedBCD	; write high score  
+	jmp s1			; } endif
+
+s_typeB:
+	lda #$0b
+	sta (TEMP1),y		; write 'B'
+	lda #<(scr_mem+4*32+24)
+	sta TEMP1
+	lda #>(scr_mem+4*32+24)	; screen pos for high score
+	sta TEMP1+1
+	lda HS_POINTSB
+	jsr GRwrite_packedBCD
+	lda HS_POINTSB+1
+	jsr GRwrite_packedBCD
+	lda HS_POINTSB+2
+	jsr GRwrite_packedBCD  ; write high score
+	ldx #$00
+loop1:	lda height_frame_data,x
+	inx
+	sta TEMP1
+	lda height_frame_data,x
+	inx
+	sta TEMP1+1			; set PPU address from table
+	ldy #0
+loop2:	lda height_frame_data,x		; read table values
+	inx
+	cmp #$fe
+	beq loop1			; if ($fe read) loop1 new screen address
+	cmp #$fd
+	beq s_fd			; if ($fd read) exit loop
+	sta (TEMP1),y
+	iny
+	bne loop2		; always jump
 ;
-;@s_typeB:   lda #$0b
-;            sta PPUDATA        ; write 'B'
-;            lda #$20
-;            sta PPUADDR
-;            lda #$b8
-;            sta PPUADDR        ; screen pos for high score
-;            lda HS_POINTSB
-;            jsr PPUwrite_packedBCD
-;            lda HS_POINTSB+1
-;            jsr PPUwrite_packedBCD
-;            lda HS_POINTSB+2
-;            jsr PPUwrite_packedBCD  ; write high score
-;            ldx #$00
-;@loop1:     lda height_frame_data,x
-;            inx
-;            sta PPUADDR
-;            lda height_frame_data,x
-;            inx
-;            sta PPUADDR        ; set PPU address from table
-;@loop2:     lda height_frame_data,x       ; read table values
-;            inx
-;            cmp #$fe
-;            beq @loop1         ; if ($fe read) loop1 new screen address
-;            cmp #$fd
-;            beq @s_fd          ; if ($fd read) exit loop
-;            sta PPUDATA
-;            jmp @loop2         ; write values until $fe or $fd read
-;
-;@s_fd:      lda #$23
-;            sta PPUADDR
-;            lda #$3b
-;            sta PPUADDR        ; display position of start height
-;            lda SEL_HEIGHT
-;            and #$0f
-;            sta PPUDATA        ; show value
-;            jmp @s1            ; //TODO remove
-;
+s_fd:	
+	lda #<(scr_mem+24*32+27)
+	sta TEMP1
+	lda #>(scr_mem+24*32+27)	; screen pos for start height
+	sta TEMP1+1
+	lda SEL_HEIGHT
+	and #$0f
+	ldy #0
+	sta (TEMP1),y
 ;; for typeA and typeB
 s1:
 	jsr nmi_enable
@@ -338,11 +346,380 @@ s1:
 ;            sta $64            ; $86a7: 85 64     
 ;            lda $87            ; $86a9: a5 87     
 ;            sta $84            ; $86ab: 85 84     
-;            inc GAME_FUNC_INDEX  ; game_func1
-l0:
-	jmp l0
+	inc GAME_FUNC_INDEX	; game_func1
+
 	rts
 .endp
+
+;-------------------------------------------------------------------------------
+; called via jumptable
+; game_func1
+.proc game_func1 
+	lda #$ef
+	ldx #1
+	ldy #>PLAYFIELD
+	jsr memset_page		; fill page 4 with $ef
+
+	ldx #$0d
+	lda #$00
+loop1:	sta TYPE_COUNTERS,x
+	dex
+	bpl loop1		; clear type counters
+
+;            lda #$05           ; $86ef: a9 05     
+;            sta $60            ; $86f1: 85 60     
+;            sta $80            ; $86f3: 85 80     
+;            lda #$00           ; $86f5: a9 00     
+;            sta $61            ; $86f7: 85 61     
+;            sta $81            ; $86f9: 85 81     
+;            sta $69            ; $86fb: 85 69     
+;            sta $89            ; $86fd: 85 89     
+;            sta $65            ; $86ff: 85 65     
+;            sta $85            ; $8701: 85 85     
+;            sta $bb            ; $8703: 85 bb     
+;            sta $bc            ; $8705: 85 bc     
+;            sta $73            ; $8707: 85 73     
+;            sta $74            ; $8709: 85 74     
+;            sta $75            ; $870b: 85 75     
+;            sta $93            ; $870d: 85 93     
+;            sta $94            ; $870f: 85 94     
+;            sta $95            ; $8711: 85 95     
+;            sta $70            ; $8713: 85 70     
+;            sta $71            ; $8715: 85 71     
+;            sta $90            ; $8717: 85 90     
+;            sta $91            ; $8719: 85 91     
+;            sta $a4            ; $871b: 85 a4     
+;            sta $d8            ; $871d: 85 d8     
+;            sta $d9            ; $871f: 85 d9     
+;            sta $da            ; $8721: 85 da     
+;            sta $db            ; $8723: 85 db     
+;            sta $ba            ; $8725: 85 ba     
+;            sta $ce            ; $8727: 85 ce     
+;            sta $cf            ; $8729: 85 cf     
+;            sta DEMO_COUNTER            ; $872b: 85 d3     
+;            sta $d1            ; $872d: 85 d1     
+;            sta SPAWN_ID            ; $872f: 85 19     
+;            lda #$dd           ; $8731: a9 dd     
+;            sta $d2            ; $8733: 85 d2     
+;            lda #$03           ; $8735: a9 03     
+;            sta NMI_FUNC_INDEX   ; use nmi_func3
+;            lda #$a0           ; $8739: a9 a0     
+;            sta $6e            ; $873b: 85 6e     
+;            sta $8e            ; $873d: 85 8e     
+;            jsr gamedemo_spawn
+;            sta $62            ; $8742: 85 62     
+;            sta $82            ; $8744: 85 82     
+;            jsr incr_tetr_type_counter
+;            ldx #RANDOM           ; $8749: a2 17     
+;            ldy #$02           ; $874b: a0 02     
+;            jsr nextRandom         ; $874d: 20 47 ab  
+;            jsr gamedemo_spawn         ; $8750: 20 eb 98  
+;            sta $bf            ; $8753: 85 bf     
+;            sta $a6            ; $8755: 85 a6     
+;            lda SEL_TYPE            ; $8757: a5 c1     
+;            beq @s_typeA         ; $8759: f0 06     
+;            lda #$25           ; $875b: a9 25     
+;            sta $70            ; $875d: 85 70     
+;            sta $90            ; $875f: 85 90     
+;@s_typeA:   lda #$47           ; $8761: a9 47     
+;            sta $a3            ; $8763: 85 a3     
+	jsr frame_clear_sprite_ram
+;            jsr init_start_lines
+;            ldx SEL_MUSIC
+;            lda MUSIC_TABLE,x
+;            jsr snd_setMUSIC
+	inc GAME_FUNC_INDEX	; next game_func2	
+	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; called via jumptable
+; game_func1
+.proc game_func2
+;            lda #$03
+;            jsr MMCsetreg1
+;            lda #$03
+;            jsr MMCsetreg2     ; CHR page 3 for bkg and sprites
+;            lda #$00
+;            sta OAM_USED       ; no sprites allocated
+;            inc $65            ; $8892: e6 65     
+;            inc $85            ; $8894: e6 85     
+;            lda $a4            ; $8896: a5 a4     
+;            beq @skip1         ; $8898: f0 02     
+;            inc $a4            ; $889a: e6 a4     
+;@skip1:     lda JOY1_RAW_NEW            ; $889c: a5 f5     
+;            and #BUTTON_SELECT
+;            beq @skip2         ; if (not BUTTON_SELECT)
+;            lda PREVIEW_FLAG 
+;            eor #$01
+;            sta PREVIEW_FLAG            ;      flip bit 0 in PREVIEW_FLAG flag
+skip2:	inc GAME_FUNC_INDEX  ; continue with game_func3
+	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; called via jumptable
+; game_func1
+.proc game_func3
+;            lda #$05           ; $9cbf: a9 05     
+;            sta TEMP2+1            ; $9cc1: 85 a9     
+;            lda $68            ; $9cc3: a5 68     
+;            cmp #$00           ; $9cc5: c9 00     
+;            beq @skip1         ; $9cc7: f0 10     
+;            lda N_PLR            ; $9cc9: a5 be     
+;            cmp #$01           ; $9ccb: c9 01     
+;            beq @skip4         ; if (1 player) exit to game_func4
+;
+;            lda #$04           ; $9ccf: a9 04     
+;            sta TEMP2+1            ; $9cd1: 85 a9     
+;            lda $88            ; $9cd3: a5 88     
+;            cmp #$00           ; $9cd5: c9 00     
+;            bne @skip4         ; $9cd7: d0 3b     
+;@skip1:     lda N_PLR            ; $9cd9: a5 be     
+;            cmp #$01           ; $9cdb: c9 01     
+;            beq @skip2         ; $9cdd: f0 05     
+;            lda #$09           ; $9cdf: a9 09     
+;            sta GAME_FUNC_INDEX            ; $9ce1: 85 a7     
+;            rts                ; $9ce3: 60        
+;
+;@skip2:     lda #$03           ; $9ce4: a9 03     
+;            sta NMI_FUNC_INDEX            ; $9ce6: 85 bd     
+;            lda N_PLR            ; $9ce8: a5 be     
+;            cmp #$01           ; $9cea: c9 01     
+;            bne @skip3         ; $9cec: d0 03     
+;            jsr __a0ee         ; $9cee: 20 ee a0  
+;@skip3:     lda #$01           ; $9cf1: a9 01     
+;            sta $68            ; $9cf3: 85 68     
+;            sta $88            ; $9cf5: 85 88     
+;            lda #$ef           ; $9cf7: a9 ef     
+;            ldx #$04           ; $9cf9: a2 04     
+;            ldy #$05           ; $9cfb: a0 05     
+;            jsr memset         ; fill page 4-5 with $ef
+;            lda #$00           ; $9d00: a9 00     
+;            sta $69            ; $9d02: 85 69     
+;            sta $89            ; $9d04: 85 89     
+;            lda #$01           ; $9d06: a9 01     
+;            sta $68            ; $9d08: 85 68     
+;            sta $88            ; $9d0a: 85 88     
+;            jsr frame_clear_sprite_ram         ; $9d0c: 20 2f aa  
+;            lda #MODE_LEVEL
+;            sta GAME_MODE            ; $9d11: 85 c0     
+;            rts                ; $9d13: 60        
+skip4:	inc GAME_FUNC_INDEX            ; $9d14: e6 a7     
+	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; called via jumptable
+; game_func1
+.proc game_func4
+;            jsr __8776         ; $8174: 20 76 87  
+;            jsr __81b2         ; $8177: 20 b2 81  
+;            jsr __8a0a         ; $817a: 20 0a 8a  
+;            jsr __87ae         ; $817d: 20 ae 87  
+;            jsr write_tetr_preview
+	inc GAME_FUNC_INDEX	; continue with game_func5     
+	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; called via jumptable
+; game_func1
+.proc game_func5
+;            lda N_PLR
+;            cmp #$02
+;            bne @skip1         ; if (2 players) {
+;            jsr __8792         ; $818c: 20 92 87  
+;            jsr __81d9         ; $818f: 20 d9 81  
+;            jsr __8a0a         ; $8192: 20 0a 8a  
+;            jsr __87c8         ; $8195: 20 c8 87 } endif 
+skip1:	inc GAME_FUNC_INDEX	; continue with game_abort_test     
+	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; called via jumptable
+; test for abort with start+select+option
+.proc game_abort_test
+	lda JOY1_RAW_ALL
+	cmp #BUTTON_START | BUTTON_SELECT | BUTTON_OPTION
+	beq skip1		; if ( not (buttons) ) {
+	inc GAME_FUNC_INDEX	; continue with game_pause_mode     
+	rts			; }        
+
+skip1:	;jsr snd_reset_call ; else {  
+	lda #MODE_LEGAL
+	sta GAME_MODE		; back to legal screen
+	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; called via jumptable
+; handle PAUSE mode
+.proc game_pause_mode
+	lda GAME_MODE
+	cmp #MODE_DEMO
+	bne skip1		; if (demo mode) {
+	lda JOY1_RAW_NEW
+	cmp #BUTTON_START
+	bne skip1
+	lda #MODE_TITLE
+	sta GAME_MODE		;    if (start pressed) set game_mode to title screen
+	rts
+;            jmp @skip5         ;    ret with next game_func
+				; } else {
+skip1:
+;	lda NMI_FUNC_INDEX
+;	cmp #$03
+;	bne @skip5         ; if (!nmi_func3) ret with next game_func
+	lda JOY1_RAW_NEW
+	and #BUTTON_START
+	beq skip5
+;            bne @skip2         ; //TODO replace with beq @skip5
+;            jmp @skip5         ; if (start pressed) ret with next game_func
+;
+;@skip2:     lda $68
+;            cmp #$0a
+;            bne @skip3         ; //TODO replace with beq @skip5
+;            jmp @skip5         ; if ( $68 == 10 ) ret with next game_func
+;
+;@skip3:     lda #$05           ; $a3aa: a9 05     
+;            sta $068d          ; sound related
+;            lda #$00
+;            sta NMI_FUNC_INDEX ; use nmi_func0
+	jsr frame_func		; to clear JOY1_RAW_NEW
+;            lda #%00010110     ; BKG_left, SPR_left, SPR //TODO why toggle BKG off?
+;            sta PPUMASK
+;            lda #$ff
+;            ldx #$02
+;            ldy #$02
+;            jsr memset
+;            
+loop1:	lda #14			; loop {
+	sta SPR_X
+	lda #14
+	sta SPR_Y
+	lda #$05
+	sta SPR_PTR_INDEX
+	jsr spr_drawtoMem	; draw sprite 5 ('PAUSE' string) to mem at 112,119
+	lda JOY1_RAW_NEW
+	cmp #BUTTON_START
+	beq skip4
+	jsr frame_clear_sprite_ram
+	jmp loop1		; } loop until start pressed
+
+skip4:
+;     lda #%00011110     ; BKG_left, SPR_left, BKG, SPR
+;            sta PPUMASK        ; re enable BKG rendering  
+;            lda #$00           ; $a3e4: a9 00     
+;            sta $068d          ; sound related
+;            sta $69            ; $a3e9: 85 69     
+;            lda #$03
+;            sta NMI_FUNC_INDEX ; use nmi_func3
+skip5:	inc GAME_FUNC_INDEX	; continue with game_func8
+	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; called via jumptable
+.proc game_loop_to2
+	lda #$02
+	sta GAME_FUNC_INDEX ; back to game_func2
+	rts
+.endp
+						
+;-------------------------------------------------------------------------------
+; write start lines to playfield
+; only for typeB
+; thread main
+; called from game_func1
+; TEMP2 - loop counter
+.proc game_init_start_lines     
+	lda SEL_TYPE
+	bne skip1
+	beq skip4		; if (typeA) return
+
+skip1:	lda #12
+	sta TEMP2
+				; outer loop (12..0)     
+loop1:	lda TEMP2
+;            beq @skip3         ; //TODO remove: checked at loop end
+;            lda #20
+	sec
+	sbc TEMP2
+	sta TEMP2+1		; 20-loopcounter (8..19)
+;            lda #$00           ; $87f2: a9 00     
+;            sta $69            ; $87f4: 85 69     
+;            sta $89            ; $87f6: 85 89
+;     
+	lda #$09
+	sta B1			; loop counter loop2 (9..0)
+    
+loop2:
+;	     ldx #RANDOM
+;            ldy #$02
+;            jsr nextRandom
+	lda RANDOM
+	and #07
+	tay			; index = rnd(0..7)
+;            lda LINE_TILES,y   ; load tile value
+;            sta $ab            ; $880b: 85 ab     
+;            ldx TEMP2+1            ; $880d: a6 a9     
+;            lda mul10_table,x       ; load another table value (8..19outer counter)
+;            clc                ; $8812: 18        
+;            adc $aa            ; $8813: 65 aa     
+;            tay                ; $8815: a8        
+;            lda $ab            ; $8816: a5 ab     
+;            sta PLAYFIELD,y    ; position = loop counter + 10*outer loop counter (80..199), store tile at position
+	dec B1
+	bpl loop2
+
+skip2:
+loop3:
+;     ldx #RANDOM
+;            ldy #$02
+;            jsr nextRandom
+	lda RANDOM
+	and #$0f
+	cmp #10
+	bpl loop3		; rnd(0..9)
+;            sta $ac            ; $8833: 85 ac     
+;            ldx TEMP2+1            ; $8835: a6 a9     
+;            lda mul10_table,x       ; $8837: bd d6 96  
+;            clc                ; $883a: 18        
+;            adc $ac            ; $883b: 65 ac     
+;            tay                ; $883d: a8        
+;            lda #$ef           ; $883e: a9 ef     
+;            sta PLAYFIELD,y    ; position = rnd0..9 + 10*outer loop counter (80..199), store empty tile at position
+;                               ; one empty tile per line
+;            jsr frame_clear_sprite_ram ; next frame //TODO remove
+	dec TEMP2
+	bne loop1		; while (TEMP2 > 0)
+;     
+;@skip3:     ldx #200
+;@loop4:     lda PLAYFIELD,x
+;            sta PLAYFIELD2,x
+;            dex
+;            bne @loop4         ; copy PLAYFIELD (1..200) to PLAYFIELD2 (1..200) //TODO used?
+	ldx HEIGHT
+	lda PF_CLEAR_BYTES,x	; get number of bytes to clear from top of playfield  
+	tay
+	lda #$7f		; clear value
+loop5:	sta PLAYFIELD,y
+	dey
+;            cpy #$ff
+	bpl loop5		; clear top of playfield
+;            ldx $99            ; height for 2nd PF //TODO what is $99?
+;            lda PF_CLEAR_BYTES,x
+;            tay
+;            lda #$ef
+;@loop6:     sta PLAYFIELD2,y
+;            dey
+;            cpy #$ff
+;            bne @loop6         ; clear top of 2nd PF
+skip4:	rts
+.endp
+
 ;-------------------------------------------------------------------------------
 ; copy data to screen
 ; thread main
@@ -678,6 +1055,8 @@ ret:	rts
 ;-------------------------------------------------------------------------------
 ; write packed BCD
 ; writes 2 decimal digits coded in high and low 4 bits of A to screen
+; arg - A 2digit BCD
+; TEMP1 - dest
 .proc GRwrite_packedBCD
 	ldy #0
 	sta TEMP2
@@ -803,10 +1182,10 @@ skip_HSinit:
 	lda #$7F
 	jsr memset		; fill screen ram
 	
-	lda #$ef
-	ldy #>PLAYFIELD
-	ldx #2
-	jsr memset_page		; fill PLAYFIELD 1 and 2 with $ef
+	;lda #$ef
+	;ldy #>PLAYFIELD
+	;ldx #2
+	;jsr memset_page		; fill PLAYFIELD 1 and 2 with $ef //TODO check if necessary done in game_func
 	jsr nmi_enable
 	jsr frame_clear_sprite_ram
 	jsr frame_GR_rendering_on
@@ -1277,7 +1656,8 @@ skip:
 .endp
 
 ;-------------------------------------------------------------------------------
-; read 2controllers and option keys 
+; read 2controllers and option keys
+; thread nmi 
 .proc read_joy
 	lda #0
 	sta JOY1_RAW_NEW
@@ -1322,21 +1702,22 @@ skip:
 .endp
 
 ;-------------------------------------------------------------------------------
-; read controller safe, 2 consecutive reads ANDed together  
+; read controller safe, 2 consecutive reads ANDed together
+; thread nmi  
 .proc read_joy_safe     
 	jsr read_joy
 
 	lda JOY1_RAW_NEW
 	sta TEMP2+1
 	lda JOY2_RAW_NEW
-	sta $aa  
+	sta B1_N
 	jsr read_joy
 
 	lda JOY1_RAW_NEW
 	and TEMP2+1  
 	sta JOY1_RAW_NEW
 	lda JOY2_RAW_NEW
-	and $aa  
+	and B1_N  
 	sta JOY2_RAW_NEW
 	ldx #$01
 loop:	lda JOY1_RAW_NEW,x
@@ -1543,6 +1924,34 @@ ret:	rts
 	ICL "screens/score_screen.asm"
 	ICL "screens/gamef0_screen.asm"
 
+;-------------------------------------------------------------------------------
+; screen data for the display of start height 
+height_frame_data:
+;            .DB 22 f7         ; PPU address
+	.DW (scr_mem+22*32+23)
+	.DB $60, $61
+	.DB $61, $61, $61, $61
+	.DB $61, $62
+	.DB $fe            ; control byte: new address follows
+;            .DB 23 17         ; PPU address
+	.DW (scr_mem+23*32+23)
+	.DB $63, $11, $0e
+	.DB $12, $10, $11, $1d
+	.DB $64
+	.DB $fe
+;            .DB 23 37   ; $86c4: $64, fe 23 37   Data
+	.DW (scr_mem+24*32+23)
+	.DB $63, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $64
+	.DB $fe
+;            .DB 23 57
+	.DW (scr_mem+25*32+23)
+	.DB $65
+	.DB $66, $66, $66, $66
+	.DB $66, $66, $67
+	.DB $fd            ; control byte
+;44bytes end of data
+
 ; table of chars for name in high score list
 ; propably 44 entries
 HS_CHAR_TABLE:
@@ -1633,6 +2042,15 @@ PALETTE0_DATA:
 	.DB $0e, $ac, $3a, $96, $00
 PALETTE1_DATA:
 	.DB $2c, $c8, $34, $0a, $00
+
+;-------------------------------------------------------------------------------
+; returns number of playfield bytes to clear initially for height x 
+PF_CLEAR_BYTES:
+	.DB 200, 170, 150, 120
+	.DB 100, 80
+            ;.hex c8 aa 96 78   ; $8876: c8 aa 96 78   Data
+            ;.hex 64 50         ; $887a: 64 50         Data
+; 6bytes end of data
 	
 ;-------------------------------------------------------------------------------
 ; contains pointers to sprite definitions
@@ -1640,7 +2058,9 @@ sprPTR__table:
 	.DW sprPTR0
 	.DW sprPTR1
 	.DW sprPTR2
-	.DS 160
+	.DS 4
+	.DW sprPTR5
+	.DS 154
 	.DW sprPTR83
 
 ;-------------------------------------------------------------------------------
@@ -1662,6 +2082,15 @@ sprPTR1:	.DB	$00,	$27,	$00,		$00
 ; empty space used for flickering effect
 sprPTR2:	.DB	$00,	$7f,	$00,		$00
 		.DB	$ff	; endMarker
+
+; string 'PAUSE'            
+sprPTR5:            
+		.DB 	$00,	$19,	$00,		$00
+		.DB	$00,	$0a,	$00,		$01
+		.DB	$00,	$1e,	$00,		$02
+		.DB	$00,	$1c,	$00,		$03
+		.DB	$00,	$0e,	$00,		$04
+		.DB	$ff
 
 ; triangle right and left with offsetx 4a used for music selection 
 sprPTR83:	.DB	$00,	$27,	$00,		$00
