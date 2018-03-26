@@ -268,7 +268,7 @@ skip_d700init:
             lda #$ef
             ldx #>PLAYFIELD
             ldy #>PLAYFIELD2
-            jsr memset         ; fill page 4-5 with $ef
+            jsr memset         ; fill page 4-5 with $ef //TODO check if necessary
             jsr PPU_enableNMI
             jsr frame_clear_sprite_ram
             jsr frame_PPU_rendering_on
@@ -1050,7 +1050,7 @@ height_frame_data:
             .hex 22 f7         ; PPU address
             .hex 38 39   ; $86b0: 22 f7 38 39   Data
             .hex 39 39 39 39   ; $86b4: 39 39 39 39   Data
-            .hex 39 3a
+            .hex 39 3am
             .hex fe            ; control byte: new address follows
             .hex 23 17         ; PPU address
             .hex 3b 11 0e   ; $86bc: 17 3b 11 0e   Data
@@ -1077,7 +1077,7 @@ game_func1:
             jsr memset         ; fill page 4 with $ef
             ldx #$0f
             lda #$00
-@loop1:     sta $03ef,x
+@loop1:     sta TYPE_COUNTERS-1,x
             dex
             bne @loop1         ; fill $03f0-$03fe with 0 //TODO 15bytes cleared but only 14 needed
             lda #$05           ; $86ef: a9 05     
@@ -1138,7 +1138,7 @@ game_func1:
 @s_typeA:   lda #$47           ; $8761: a9 47     
             sta $a3            ; $8763: 85 a3     
             jsr frame_clear_sprite_ram
-            jsr init_start_lines
+            jsr game_init_start_lines
             ldx SEL_MUSIC
             lda MUSIC_TABLE,x
             jsr snd_setMUSIC
@@ -1213,7 +1213,7 @@ __87ca:     lda $40,x          ; $87ca: b5 40
 ;-------------------------------------------------------------------------------
 ; write start lines to playfield
 ; only for typeB
-init_start_lines:     
+game_init_start_lines:     
             lda SEL_TYPE
             bne @skip1
             jmp @skip4         ; if (typeA) return
@@ -1252,7 +1252,7 @@ init_start_lines:
             lda $aa
             beq @skip2         ; if (loop counter == 0) break
             dec $aa            ; dec loop counter
-            jmp @loop2         ; loop
+            jmp @loop2         ; loop			// TODO use dec $aa, bpl loop2
 @skip2:
 @loop3:     ldx #RANDOM
             ldy #$02
@@ -1276,9 +1276,9 @@ init_start_lines:
      
 @skip3:     ldx #200
 @loop4:     lda PLAYFIELD,x
-            sta $0500,x
+            sta PLAYFIELD2,x
             dex
-            bne @loop4         ; copy PLAYFIELD (1..200) to $0500 (1..200) //TODO used?
+            bne @loop4         ; copy PLAYFIELD (1..200) to PLAYFIELD2 (1..200) //TODO used?
             ldx HEIGHT
             lda PF_CLEAR_BYTES,x  ; get number of bytes to clear from top of playfield  
             tay
@@ -1291,7 +1291,7 @@ init_start_lines:
             lda PF_CLEAR_BYTES,x
             tay
             lda #$ef
-@loop6:     sta $0500,y
+@loop6:     sta PLAYFIELD2,y
             dey
             cpy #$ff
             bne @loop6         ; clear top of 2nd PF
