@@ -25,19 +25,26 @@ ST_LINES             = $50      ; 2 byte little endian BCD nr of cleared lines
 ST_SCORE             = $53      ; 3 byte little endian BCD score
 SEL_HEIGHT           = $59      ; selected height
 LEVEL                = $67
+LINES                = $70	;  2byte 3digit BCD LINES counter
+SCORE                = $73	; 3byte packed BCD score counter low byte first
 HEIGHT               = $79
 SPR_X                = $a0      ; sprite x coord
 SPR_Y                = $a1      ; sprite y coord
 SPR_PTR_INDEX        = $a2      ; index to spr pointer data
 GAME_FUNC_INDEX      = $a7      ; index of function called from mode_func_gamedemo2
 TEMP2                = $a8      ; 2 byte temporary
+B2                   = $aa	; byte variable
+B3                   = $ab	; byte variable
+B4                   = $ad	; byte variable
 B1                   = $ae      ; byte variable
 FRAMECOUNT           = $b1      ; 16bit frame counter
 OAM_USED             = $b3      ; sprite memory used
 BUTTONS_NEW          = $b5      ; bits for just pressed buttons
-BUTTONS              = $b6      ; bits for buttons pressed A B Select Start Up Down Left Right
+BUTTONS_ALL          = $b6      ; bits for buttons pressed A B Select Start Up Down Left Right
+PF_PTR               = $b8	; pointer to playfield data
 NMI_FUNC_INDEX       = $bd      ; index of function called from NMI
 N_PLR                = $be      ; number of players 1 or 2, only 1 supported
+TETR_NEXT            = $bf	; next tetrimino
 GAME_MODE            = $c0      ; current game mode
 SEL_TYPE             = $c1      ; selected game type A or B
 SEL_MUSIC            = $c2      ; selected music (1-3,off)
@@ -320,9 +327,9 @@ table_jump_game_mode:
 game_func4:
             jsr __8776         ; $8174: 20 76 87  
             jsr __81b2         ; $8177: 20 b2 81  
-            jsr __8a0a         ; $817a: 20 0a 8a  
+            jsr game_write_tetr         ; $817a: 20 0a 8a  
             jsr __87ae         ; $817d: 20 ae 87  
-            jsr write_tetr_preview
+            jsr game_tetr_preview
             inc GAME_FUNC_INDEX ; continue with game_func5     
             rts
 
@@ -334,7 +341,7 @@ game_func5:
             bne @skip1         ; if (2 players) {
             jsr __8792         ; $818c: 20 92 87  
             jsr __81d9         ; $818f: 20 d9 81  
-            jsr __8a0a         ; $8192: 20 0a 8a  
+            jsr game_write_tetr         ; $8192: 20 0a 8a  
             jsr __87c8         ; $8195: 20 c8 87 } endif 
 @skip1:     inc GAME_FUNC_INDEX ; continue with game_abort_test     
             rts
@@ -366,9 +373,9 @@ __81b2:     lda $48            ; $81b2: a5 48
 ;-------------------------------------------------------------------------------
 
 jump48_func1:
-            jsr shift_tetr         ; $81cf: 20 ae 89  
-            jsr rotate_tetr         ; $81d2: 20 ab 88  
-            jsr __8914         ; $81d5: 20 14 89  
+            jsr tetr_shift         ; $81cf: 20 ae 89  
+            jsr tetr_rotate         ; $81d2: 20 ab 88  
+            jsr tetr_down         ; $81d5: 20 14 89  
             rts                ; $81d8: 60        
 
 ;-------------------------------------------------------------------------------
@@ -385,9 +392,9 @@ __81d9:     lda $48            ; $81d9: a5 48
             stx $3998          ; $81ee: 8e 98 39  
             .hex 9e 11 9a      ; $81f1: 9e 11 9a  Invalid Opcode - SHX __9a11,y
             .hex 37 9e         ; $81f4: 37 9e     Invalid Opcode - RLA $9e,x
-            jsr shift_tetr         ; $81f6: 20 ae 89  
-            jsr rotate_tetr         ; $81f9: 20 ab 88  
-            jsr __8914         ; $81fc: 20 14 89  
+            jsr tetr_shift         ; $81f6: 20 ae 89  
+            jsr tetr_rotate         ; $81f9: 20 ab 88  
+            jsr tetr_down         ; $81fc: 20 14 89  
             rts                ; $81ff: 60        
 
 ;-------------------------------------------------------------------------------
@@ -708,7 +715,7 @@ mode_func_level:
             lda HEIGHT
             sta SEL_HEIGHT
             lda B1
-            sta $ad            ; init level height and selection flag
+            sta B4           ; init level height and selection flag
             lda JOY1_RAW_NEW
             sta BUTTONS_NEW
             jsr update_sel_sprites
@@ -716,7 +723,7 @@ mode_func_level:
             sta LEVEL
             lda SEL_HEIGHT
             sta HEIGHT
-            lda $ad
+            lda B4
             sta B1             ; save selected values
             lda JOY1_RAW_NEW
             cmp #BUTTON_START
@@ -766,14 +773,14 @@ mode_func_level:
 
 ;-------------------------------------------------------------------------------
 ; updates sprites for level and lines selection
-; $ad - flag: 0 level select, 1 height sel
+; B4- flag: 0 level select, 1 height sel
 update_sel_sprites:
             lda BUTTONS_NEW
             cmp #BUTTON_R
             bne @skip2         ; if (BUTTON_R) {
             lda #$01
             sta sndEFFECT
-            lda $ad
+            lda B4
             bne @skip1
             lda SEL_LEVEL
             cmp #$09
@@ -783,14 +790,14 @@ update_sel_sprites:
 @skip1:     lda SEL_HEIGHT
             cmp #$05
             beq @skip2
-            inc SEL_HEIGHT     ;   increment level or height dependent on $ad up to maxvalue
+            inc SEL_HEIGHT     ;   increment level or height dependent on B4up to maxvalue
                                ; } endif      
 @skip2:     lda BUTTONS_NEW
             cmp #BUTTON_L
             bne @skip4         ; if (BUTTON_L) {
             lda #$01
             sta sndEFFECT
-            lda $ad
+            lda B4
             bne @skip3
             lda SEL_LEVEL
             beq @skip4
@@ -798,14 +805,14 @@ update_sel_sprites:
             jmp @skip4
 @skip3:     lda SEL_HEIGHT
             beq @skip4
-            dec SEL_HEIGHT     ;   decrement level or height dependent on $ad minvalue=0
+            dec SEL_HEIGHT     ;   decrement level or height dependent on B4minvalue=0
                                ; } endif
 @skip4:     lda BUTTONS_NEW
             cmp #BUTTON_D
             bne @skip6         ; if (BUTTON_D) {
             lda #$01
             sta sndEFFECT
-            lda $ad
+            lda B4
             bne @skip5
             lda SEL_LEVEL
             cmp #$05
@@ -819,14 +826,14 @@ update_sel_sprites:
             bpl @skip6
             inc SEL_HEIGHT
             inc SEL_HEIGHT
-            inc SEL_HEIGHT     ;   next level or height row dependent on $ad //TODO clc adc sta vs 3x inc
+            inc SEL_HEIGHT     ;   next level or height row dependent on B4//TODO clc adc sta vs 3x inc
                                ; } endif
 @skip6:     lda BUTTONS_NEW
             cmp #BUTTON_U
             bne @skip8         ; if (BUTTON_U) {
             lda #$01
             sta sndEFFECT
-            lda $ad
+            lda B4
             bne @skip7
             lda SEL_LEVEL
             cmp #$05
@@ -840,7 +847,7 @@ update_sel_sprites:
             bmi @skip8
             dec SEL_HEIGHT
             dec SEL_HEIGHT
-            dec SEL_HEIGHT     ;   prev level or height row dependent on $ad //TODO sec sbc sta vs 3x dec
+            dec SEL_HEIGHT     ;   prev level or height row dependent on B4//TODO sec sbc sta vs 3x dec
                                ; } endif
 @skip8:     lda SEL_TYPE
             beq @level_spr
@@ -849,13 +856,13 @@ update_sel_sprites:
             bne @level_spr     ; if (BUTTON_A && typeB) {
             lda #$01
             sta sndEFFECT
-            lda $ad
+            lda B4
             eor #$01
-            sta $ad            ;   toggle $ad flag
+            sta B4           ;   toggle B4 flag
                                ; } endif     
-@level_spr: lda $ad            ; $ad toggles flickering, only active selector flickers
+@level_spr: lda B4            ; B4 toggles flickering, only active selector flickers
             bne @skip10
-            lda FRAMECOUNT     ; if ($ad == 0) {
+            lda FRAMECOUNT     ; if (B4 == 0) {
             and #$03
             beq @lines_spr:       ;   dont draw level_sel_sprite every 4th frame
 @skip10:    ldx SEL_LEVEL
@@ -877,7 +884,7 @@ update_sel_sprites:
 
 @lines_spr: lda SEL_TYPE
             beq @ret           ; if (typeA) return
-            lda $ad
+            lda B4
             beq @skip13:       ; if (!active line_sel) skip blinking
             lda FRAMECOUNT
             and #$03
@@ -1050,7 +1057,7 @@ height_frame_data:
             .hex 22 f7         ; PPU address
             .hex 38 39   ; $86b0: 22 f7 38 39   Data
             .hex 39 39 39 39   ; $86b4: 39 39 39 39   Data
-            .hex 39 3am
+            .hex 39 3a
             .hex fe            ; control byte: new address follows
             .hex 23 17         ; PPU address
             .hex 3b 11 0e   ; $86bc: 17 3b 11 0e   Data
@@ -1092,14 +1099,14 @@ game_func1:
             sta $85            ; $8701: 85 85     
             sta $bb            ; $8703: 85 bb     
             sta $bc            ; $8705: 85 bc     
-            sta $73            ; $8707: 85 73     
-            sta $74            ; $8709: 85 74     
-            sta $75            ; $870b: 85 75     
+            sta SCORE            ; $8707: 85 73     
+            sta SCORE+1            ; $8709: 85 74     
+            sta SCORE+2            ; $870b: 85 75     
             sta $93            ; $870d: 85 93     
             sta $94            ; $870f: 85 94     
             sta $95            ; $8711: 85 95     
-            sta $70            ; $8713: 85 70     
-            sta $71            ; $8715: 85 71     
+            sta LINES            ; $8713: 85 70     
+            sta LINES+1            ; $8715: 85 71     
             sta $90            ; $8717: 85 90     
             sta $91            ; $8719: 85 91     
             sta $a4            ; $871b: 85 a4     
@@ -1128,12 +1135,12 @@ game_func1:
             ldy #$02           ; $874b: a0 02     
             jsr nextRandom         ; $874d: 20 47 ab  
             jsr gamedemo_spawn         ; $8750: 20 eb 98  
-            sta $bf            ; $8753: 85 bf     
+            sta TETR_NEXT            ; $8753: 85 bf     
             sta $a6            ; $8755: 85 a6     
             lda SEL_TYPE            ; $8757: a5 c1     
             beq @s_typeA         ; $8759: f0 06     
             lda #$25           ; $875b: a9 25     
-            sta $70            ; $875d: 85 70     
+            sta LINES            ; $875d: 85 70     
             sta $90            ; $875f: 85 90     
 @s_typeA:   lda #$47           ; $8761: a9 47     
             sta $a3            ; $8763: 85 a3     
@@ -1149,12 +1156,12 @@ game_func1:
 ; copy some variables
 __8776:     lda #$01           ; $8776: a9 01     
             sta $b7            ; $8778: 85 b7     
-            lda #$04           ; $877a: a9 04     
-            sta $b9            ; $877c: 85 b9     
+            lda #>PLAYFIELD           ; $877a: a9 04     
+            sta PF_PTR+1            ; $877c: 85 b9     
             lda JOY1_RAW_NEW
             sta BUTTONS_NEW
             lda JOY1_RAW_ALL            ; $8782: a5 f7     
-            sta $b6            ; $8784: 85 b6
+            sta BUTTONS_ALL            ; $8784: 85 b6
     
             ldx #$1f
 @loop1:     lda $60,x          ; $8788: b5 60     
@@ -1167,12 +1174,12 @@ __8776:     lda #$01           ; $8776: a9 01
 ;-------------------------------------------------------------------------------
 __8792:     lda #$02           ; $8792: a9 02     
             sta $b7            ; $8794: 85 b7     
-            lda #$05           ; $8796: a9 05     
-            sta $b9            ; $8798: 85 b9     
+            lda #>PLAYFIELD2           ; $8796: a9 05     
+            sta PF_PTR+1            ; $8798: 85 b9     
             lda JOY2_RAW_NEW            ; $879a: a5 f6     
             sta BUTTONS_NEW           ; $879c: 85 b5     
             lda JOY2_RAW_ALL            ; $879e: a5 f8     
-            sta $b6            ; $87a0: 85 b6     
+            sta BUTTONS_ALL            ; $87a0: 85 b6     
             ldx #$1f           ; $87a2: a2 1f     
 __87a4:     lda $80,x          ; $87a4: b5 80     
             sta $40,x          ; $87a6: 95 40     
@@ -1232,7 +1239,7 @@ game_init_start_lines:
             sta $89            ; $87f6: 85 89
      
             lda #$09
-            sta $aa            ; loop counter loop2 (9..0)
+            sta B2           ; loop counter loop2 (9..0)
     
 @loop2:     ldx #RANDOM
             ldy #$02
@@ -1241,17 +1248,17 @@ game_init_start_lines:
             and #$07
             tay                ; index = rnd(0..7)
             lda LINE_TILES,y   ; load tile value
-            sta $ab            ; $880b: 85 ab     
+            sta B3           ; $880b: 85 ab     
             ldx TEMP2+1            ; $880d: a6 a9     
             lda mul10_table,x       ; load another table value (8..19outer counter)
             clc                ; $8812: 18        
-            adc $aa            ; $8813: 65 aa     
+            adc B2           ; $8813: 65 aa     
             tay                ; $8815: a8        
-            lda $ab            ; $8816: a5 ab     
+            lda B3           ; $8816: a5 ab     
             sta PLAYFIELD,y    ; position = loop counter + 10*outer loop counter (80..199), store tile at position
             lda $aa
             beq @skip2         ; if (loop counter == 0) break
-            dec $aa            ; dec loop counter
+            dec B2           ; dec loop counter
             jmp @loop2         ; loop			// TODO use dec $aa, bpl loop2
 @skip2:
 @loop3:     ldx #RANDOM
@@ -1335,7 +1342,7 @@ game_func2:
 
 ;-------------------------------------------------------------------------------
 ; rotate tetrimino
-rotate_tetr:
+tetr_rotate:
             lda TETR_OR
             sta B1            ; save old orientation
             clc
@@ -1349,7 +1356,7 @@ rotate_tetr:
             inx                ;   next index for clockwise rot
             lda rot_table,x
             sta TETR_OR        ;   new orientation ID
-            jsr __948b         ;   test for valid orientation
+            jsr tetr_check_valid         ;   test for valid orientation
             bne @restoreOR     ;   if (not valid) restore orientation
             lda #$05
             sta sndEFFECT
@@ -1362,7 +1369,7 @@ rotate_tetr:
             bne @ret           ; if (button B) !pressed return  
             lda rot_table,x    ;  CCW rot
             sta TETR_OR        ;  new orientation ID
-            jsr __948b         ;  test for valid orientation
+            jsr tetr_check_valid         ;  test for valid orientation
             bne @restoreOR     ;  if (not valid) restore orientation
             lda #$05
             sta sndEFFECT
@@ -1399,7 +1406,7 @@ rot_table:  .hex 03  01        ;  Tl  Tr 0 is Tu
 ; end of rot_table
 
 ;-------------------------------------------------------------------------------
-__8914:     lda $4e            ; $8914: a5 4e     
+tetr_down:     lda $4e            ; $8914: a5 4e     
             bpl __8922         ; $8916: 10 0a     
             lda BUTTONS_NEW           ; $8918: a5 b5     
             and #BUTTON_D           ; $891a: 29 04     
@@ -1407,7 +1414,7 @@ __8914:     lda $4e            ; $8914: a5 4e
             lda #$00           ; $891e: a9 00     
             sta $4e            ; $8920: 85 4e     
 __8922:     bne __8939         ; $8922: d0 15     
-            lda $b6            ; $8924: a5 b6     
+            lda BUTTONS_ALL            ; $8924: a5 b6     
             and #$03           ; $8926: 29 03     
             bne __8973         ; $8928: d0 49     
             lda BUTTONS_NEW           ; $892a: a5 b5     
@@ -1419,7 +1426,7 @@ __8922:     bne __8939         ; $8922: d0 15
             jmp __8973         ; $8936: 4c 73 89  
 
 ;-------------------------------------------------------------------------------
-__8939:     lda $b6            ; $8939: a5 b6     
+__8939:     lda BUTTONS_ALL            ; $8939: a5 b6     
             and #$0f           ; $893b: 29 0f     
             cmp #$04           ; $893d: c9 04     
             beq __894a         ; $893f: f0 09     
@@ -1441,7 +1448,7 @@ __8958:     lda #$00           ; $8958: a9 00
             lda TETR_Y            ; $895c: a5 41     
             sta B1            ; $895e: 85 ae     
             inc TETR_Y            ; $8960: e6 41     
-            jsr __948b         ; $8962: 20 8b 94  
+            jsr tetr_check_valid         ; $8962: 20 8b 94  
             beq __8972         ; $8965: f0 0b     
             lda B1            ; $8967: a5 ae     
             sta TETR_Y            ; $8969: 85 41     
@@ -1477,83 +1484,81 @@ __898e:     .hex 30 2b 26 21   ; $898e: 30 2b 26 21   Data
             .hex 02 01 01 01   ; $89aa: 02 01 01 01   Data
 
 ;-------------------------------------------------------------------------------
-shift_tetr: lda TETR_X
-            sta $ae	       ; save xpos
-            lda $b6            ; $89b2: a5 b6     
-            and #$04           ; $89b4: 29 04     
-            bne __8a09         ; $89b6: d0 51     
-            lda BUTTONS_NEW           ; $89b8: a5 b5     
-            and #$03           ; $89ba: 29 03     
-            bne __89d3         ; $89bc: d0 15     
-            lda $b6            ; $89be: a5 b6     
-            and #$03           ; $89c0: 29 03     
-            beq __8a09         ; $89c2: f0 45     
-            inc DAS_TIMER            ; $89c4: e6 46     
-            lda DAS_TIMER            ; $89c6: a5 46     
-            cmp #$10           ; $89c8: c9 10     
-            bmi __8a09         ; $89ca: 30 3d     
-            lda #$0a           ; $89cc: a9 0a     
-            sta DAS_TIMER            ; $89ce: 85 46     
-            jmp __89d7         ; $89d0: 4c d7 89  
+tetr_shift: lda TETR_X
+            sta B1	       ; save xpos
+            lda BUTTONS_ALL    
+            and #BUTTON_D
+            bne @ret		; if (Button_D) return
+            lda BUTTONS_NEW     
+            and #BUTTON_L | BUTTON_R ; if (L or R JUST pressed) skip1
+            bne @skip1
+                
+            lda BUTTONS_ALL
+            and #BUTTON_L | BUTTON_R
+            beq @ret		; if (L or R holding) {
+            inc DAS_TIMER	;   inc autoshift timer
+            lda DAS_TIMER
+            cmp #16     
+            bmi @ret		;   if (timer < 16) return
+            lda #10		;   timer = 10 
+            sta DAS_TIMER     
+            jmp @skip2         ; } endif
+
+@skip1:     lda #$00    
+            sta DAS_TIMER      ; timer = 0
+@skip2:     lda BUTTONS_ALL
+            and #BUTTON_R
+            beq @skip3         ; if (!R) skip3
+            inc TETR_X		; x++
+            jsr tetr_check_valid 
+            bne @restore         ; if (! valid) restore
+            lda #$03
+            sta sndEFFECT
+            jmp @ret
+
+@skip3:     lda BUTTONS_ALL
+            and #BUTTON_L
+            beq @ret
+            dec TETR_X
+            jsr tetr_check_valid
+            bne @restore
+            lda #$03
+            sta sndEFFECT
+            jmp @ret
+
+@restore:     lda B1
+            sta TETR_X
+            lda #$10
+            sta DAS_TIMER
+@ret:     rts
 
 ;-------------------------------------------------------------------------------
-__89d3:     lda #$00           ; $89d3: a9 00     
-            sta DAS_TIMER            ; $89d5: 85 46     
-__89d7:     lda $b6            ; $89d7: a5 b6     
-            and #$01           ; $89d9: 29 01     
-            beq __89ec         ; $89db: f0 0f     
-            inc TETR_X            ; $89dd: e6 40     
-            jsr __948b         ; $89df: 20 8b 94  
-            bne __8a01         ; $89e2: d0 1d     
-            lda #$03           ; $89e4: a9 03     
-            sta sndEFFECT          ; $89e6: 8d f1 06  
-            jmp __8a09         ; $89e9: 4c 09 8a  
-
-;-------------------------------------------------------------------------------
-__89ec:     lda $b6            ; $89ec: a5 b6     
-            and #$02           ; $89ee: 29 02     
-            beq __8a09         ; $89f0: f0 17     
-            dec TETR_X            ; $89f2: c6 40     
-            jsr __948b         ; $89f4: 20 8b 94  
-            bne __8a01         ; $89f7: d0 08     
-            lda #$03           ; $89f9: a9 03     
-            sta sndEFFECT          ; $89fb: 8d f1 06  
-            jmp __8a09         ; $89fe: 4c 09 8a  
-
-;-------------------------------------------------------------------------------
-__8a01:     lda B1            ; $8a01: a5 ae     
-            sta TETR_X            ; $8a03: 85 40     
-            lda #$10           ; $8a05: a9 10     
-            sta DAS_TIMER            ; $8a07: 85 46     
-__8a09:     rts                ; $8a09: 60        
-
-;-------------------------------------------------------------------------------
-__8a0a:     lda TETR_X            ; $8a0a: a5 40     
+game_write_tetr:     lda TETR_X            ; $8a0a: a5 40     
             asl                ; $8a0c: 0a        
             asl                ; $8a0d: 0a        
             asl                ; $8a0e: 0a        
             adc #$60           ; $8a0f: 69 60     
-            sta $aa            ; $8a11: 85 aa     
+            sta B2           ; $8a11: 85 aa     
             lda N_PLR            ; $8a13: a5 be     
             cmp #$01           ; $8a15: c9 01     
             beq __8a2c         ; $8a17: f0 13     
-            lda $aa            ; $8a19: a5 aa     
+            lda B2           ; $8a19: a5 aa     
             sec                ; $8a1b: 38        
             sbc #$40           ; $8a1c: e9 40     
-            sta $aa            ; $8a1e: 85 aa     
+            sta B2           ; $8a1e: 85 aa     
             lda $b7            ; $8a20: a5 b7     
             cmp #$01           ; $8a22: c9 01     
             beq __8a2c         ; $8a24: f0 06     
-            lda $aa            ; $8a26: a5 aa     
+            lda B2           ; $8a26: a5 aa     
             adc #$6f           ; $8a28: 69 6f     
-            sta $aa            ; $8a2a: 85 aa     
+            sta B2           ; $8a2a: 85 aa     
 __8a2c:     clc                ; $8a2c: 18        
             lda TETR_Y            ; $8a2d: a5 41     
             rol                ; $8a2f: 2a        
             rol                ; $8a30: 2a        
             rol                ; $8a31: 2a        
             adc #$2f           ; $8a32: 69 2f     
-            sta $ab            ; $8a34: 85 ab     
+            sta B3           ; $8a34: 85 ab     
             lda TETR_OR            ; $8a36: a5 42     
             sta $ac            ; $8a38: 85 ac     
             clc                ; $8a3a: 18        
@@ -1572,7 +1577,7 @@ __8a4b:     lda tetrimino_table,x       ; $8a4b: bd 9c 8a
             asl                ; $8a4f: 0a        
             asl                ; $8a50: 0a        
             clc                ; $8a51: 18        
-            adc $ab            ; $8a52: 65 ab     
+            adc B3           ; $8a52: 65 ab     
             sta OAMBASE,y        ; $8a54: 99 00 02  
             sta B1            ; $8a57: 85 ae     
             inc OAM_USED            ; $8a59: e6 b3     
@@ -1606,7 +1611,7 @@ __8a84:     inc OAM_USED            ; $8a84: e6 b3
             asl                ; $8a8b: 0a        
             asl                ; $8a8c: 0a        
             clc                ; $8a8d: 18        
-            adc $aa            ; $8a8e: 65 aa     
+            adc B2           ; $8a8e: 65 aa     
             sta OAMBASE,y        ; $8a90: 99 00 02  
 __8a93:     inc OAM_USED            ; $8a93: e6 b3     
             iny                ; $8a95: c8        
@@ -1663,14 +1668,14 @@ tetrimino_table:
 
 ;-------------------------------------------------------------------------------
 ; write preview tetr to sprite mem
-write_tetr_preview:
+game_tetr_preview:
             lda PREVIEW_FLAG
             bne @skip1         ; if (flag set) exit
             lda #$c8
             sta SPR_X
             lda #$77
             sta SPR_Y          ; set coordinates
-            ldx $bf            ; $8bda: a6 bf     
+            ldx TETR_NEXT            ; $8bda: a6 bf     
             lda PREVIEW_SPRITE_TABLE,x       ; $8bdc: bd e5 8b  
             sta SPR_PTR_INDEX
             jmp spr_drawtoMem
@@ -1678,12 +1683,15 @@ write_tetr_preview:
 @skip1:     rts
 
 ;-------------------------------------------------------------------------------
+; sprite numbers for tetr ids (not all ids are valid spawn ids)
 PREVIEW_SPRITE_TABLE:
             .hex 00 00 06 00   ; $8be5: 00 00 06 00   Data
             .hex 00 00 00 09   ; $8be9: 00 00 00 09   Data
             .hex 08 00 0b 07   ; $8bed: 08 00 0b 07   Data
             .hex 00 00 0a 00   ; $8bf1: 00 00 0a 00   Data
-            .hex 00 00 0c 00   ; $8bf5: 00 00 0c 00   Data
+            .hex 00 00 0c
+;19bytes end of table            
+            .hex 00   ; $8bf5: 00 00 0c 00   Data
             .hex 00 0f 00 00   ; $8bf9: 00 0f 00 00   Data
             .hex 00 00 12 11   ; $8bfd: 00 00 12 11   Data
             .hex 00 14 10 00   ; $8c01: 00 14 10 00   Data
@@ -1748,10 +1756,10 @@ sprPTR__table:
             DW sprPTR2, sprPTR3 ; $8c70: 3a 8d 3f 8d   Data
             .hex 54 8d
             DW sprPTR5 ; 54 8d   ; $8c74: 54 8d 54 8d   Data
-            .hex 69 8d 7a 8d   ; $8c78: 69 8d 7a 8d   Data
-            .hex 8b 8d 9c 8d   ; $8c7c: 8b 8d 9c 8d   Data
-            .hex ad 8d be 8d   ; $8c80: ad 8d be 8d   Data
-            .hex cf 8d e0 8d   ; $8c84: cf 8d e0 8d   Data
+            DW sprPTR6, sprPTR7    ; $8c78: 69 8d 7a 8d   Data
+            DW sprPTR8, sprPTR9    ; $8c7c: 8b 8d 9c 8d   Data
+            DW sprPTR10, sprPTR11    ; $8c80: ad 8d be 8d   Data
+            DW sprPTR12, $8de0    ; $8c84: cf 8d e0 8d   Data
             .hex e0 8d e5 8d   ; $8c88: e0 8d e5 8d   Data
             .hex f6 8d 07 8e   ; $8c8c: f6 8d 07 8e   Data
             .hex 18 8e 29 8e   ; $8c90: 18 8e 29 8e   Data
@@ -1825,37 +1833,63 @@ sprPTR5:
             .hex 00     1c      00             18   ; $8d60: 00 1c 00 18   Data
             .hex 00     0e      00             20   ; $8d64: 00 0e 00 20   Data
             .hex ff
-            
-            .hex 00 7b 02   ; $8d68: ff 00 7b 02   Data
-            .hex fc 00 7b 02   ; $8d6c: fc 00 7b 02   Data
-            .hex 04 00 7b 02   ; $8d70: 04 00 7b 02   Data
-            .hex 0c 08 7b 02   ; $8d74: 0c 08 7b 02   Data
-            .hex 04 ff 00 7d   ; $8d78: 04 ff 00 7d   Data
-            .hex 02 04 00 7d   ; $8d7c: 02 04 00 7d   Data
-            .hex 02 0c 08 7d   ; $8d80: 02 0c 08 7d   Data
-            .hex 02 fc 08 7d   ; $8d84: 02 fc 08 7d   Data
-            .hex 02 04 ff 00   ; $8d88: 02 04 ff 00   Data
-            .hex 7c 02 fc 00   ; $8d8c: 7c 02 fc 00   Data
-            .hex 7c 02 04 08   ; $8d90: 7c 02 04 08   Data
-            .hex 7c 02 04 08   ; $8d94: 7c 02 04 08   Data
-            .hex 7c 02 0c ff   ; $8d98: 7c 02 0c ff   Data
+
+; 'T' tetrimino            
+sprPTR6:
+            .hex 00 7b 02 fc	; 252 X offset (-4)
+            .hex 00 7b 02 04	; 4 
+            .hex 00 7b 02 0c	; 12
+            .hex 08 7b 02 04	; 8 Y offset 4 X offset
+            .hex ff
+
+; 'S' tetrimino
+sprPTR7:            
+            .hex 00 7d 02 04
+            .hex 00 7d 02 0c
+            .hex 08 7d 02 fc
+            .hex 08 7d 02 04
+            .hex ff
+
+; 'Z' terimino
+sprPTR8:            
+            .hex 00 7c 02 fc
+            .hex 00 7c 02 04
+            .hex 08 7c 02 04
+            .hex 08 7c 02 0c
+            .hex ff
+
+; 'J' tetrimino
+sprPTR9:
             .hex 00 7d 02 fc   ; $8d9c: 00 7d 02 fc   Data
             .hex 00 7d 02 04   ; $8da0: 00 7d 02 04   Data
             .hex 00 7d 02 0c   ; $8da4: 00 7d 02 0c   Data
             .hex 08 7d 02 0c   ; $8da8: 08 7d 02 0c   Data
-            .hex ff 00 7c 02   ; $8dac: ff 00 7c 02   Data
-            .hex fc 00 7c 02   ; $8db0: fc 00 7c 02   Data
-            .hex 04 00 7c 02   ; $8db4: 04 00 7c 02   Data
-            .hex 0c 08 7c 02   ; $8db8: 0c 08 7c 02   Data
-            .hex fc ff 00 7b   ; $8dbc: fc ff 00 7b   Data
-            .hex 02 00 00 7b   ; $8dc0: 02 00 00 7b   Data
-            .hex 02 08 08 7b   ; $8dc4: 02 08 08 7b   Data
-            .hex 02 00 08 7b   ; $8dc8: 02 00 08 7b   Data
-            .hex 02 08 ff 04   ; $8dcc: 02 08 ff 04   Data
-            .hex 7b 02 f8 04   ; $8dd0: 7b 02 f8 04   Data
-            .hex 7b 02 00 04   ; $8dd4: 7b 02 00 04   Data
-            .hex 7b 02 08 04   ; $8dd8: 7b 02 08 04   Data
-            .hex 7b 02 10 ff   ; $8ddc: 7b 02 10 ff   Data
+            .hex ff
+ 
+; 'L' tetrimino
+sprPTR10:           
+            .hex 00 7c 02 fc
+            .hex 00 7c 02 04
+            .hex 00 7c 02 0c
+            .hex 08 7c 02 fc
+            .hex ff
+
+; 'O' tetrimino
+sprPTR11:            
+            .hex 00 7b 02 00
+            .hex 00 7b 02 08
+            .hex 08 7b 02 00
+            .hex 08 7b 02 08
+            .hex ff
+
+; 'I' tetrimino
+sprPTR12:            
+            .hex 04 7b 02 f8
+            .hex 04 7b 02 00
+            .hex 04 7b 02 08
+            .hex 04 7b 02 10
+            .hex ff
+
             .hex 00 fc 21 00   ; $8de0: 00 fc 21 00   Data
             .hex ff 02 7b 02   ; $8de4: ff 02 7b 02   Data
             .hex fc 02 7b 02   ; $8de8: fc 02 7b 02   Data
@@ -2291,7 +2325,7 @@ sprPTR83:   .hex 00 27 00 00
             .hex ff            ; $948a: ff            Data
 
 ;-------------------------------------------------------------------------------
-__948b:     lda TETR_Y
+tetr_check_valid:     lda TETR_Y
             asl
             sta TEMP2
             asl
@@ -2310,7 +2344,7 @@ __948b:     lda TETR_Y
             tax                ; or * 12 = index to tetr_table
             ldy #$00
             lda #$04
-            sta $aa            ; loop counter
+            sta B2           ; loop counter: check 4 tiles
 @loop:      lda tetrimino_table,x  ; get y offset of tile
             clc
             adc TETR_Y         ; add ycoord
@@ -2319,31 +2353,32 @@ __948b:     lda TETR_Y
             bcs @false         ;   return false
             lda tetrimino_table,x ; get y offset of tile
             asl
-            sta $ab
+            sta B3
             asl
             asl
             clc
-            adc $ab            ; *10 = pf offset of tile
+            adc B3           ; *10 = pf offset of tile
             clc
             adc TEMP2          ; add pf coord of tetr
-            sta $ad            ; $94c4: 85 ad     
-            inx                ; $94c6: e8        
-            inx                ; $94c7: e8        
-            lda tetrimino_table,x       ; $94c8: bd 9c 8a  
-            clc                ; $94cb: 18        
-            adc $ad            ; $94cc: 65 ad     
-            tay                ; $94ce: a8        
-            lda ($b8),y        ; $94cf: b1 b8     
-            cmp #$ef           ; $94d1: c9 ef     
-            bcc @false         ; $94d3: 90 14     
-            lda tetrimino_table,x       ; $94d5: bd 9c 8a  
-            clc                ; $94d8: 18        
-            adc TETR_X            ; $94d9: 65 40     
-            cmp #$0a           ; $94db: c9 0a     
-            bcs @false         ; $94dd: b0 0a     
-            inx                ; $94df: e8        
-            dec $aa            ; $94e0: c6 aa     
-            bne @loop         ; $94e2: d0 c6     
+            sta B4            ; $94c4: 85 ad     
+            inx
+            inx
+            lda tetrimino_table,x       ; get x offset of tile
+            clc
+            adc B4            ; ad to pf coord
+            tay
+            lda (PF_PTR),y        ; read playfield value
+            cmp #$ef     
+            bcc @false         ; if (!empty) return false     
+            lda tetrimino_table,x       ; read x offset
+            clc       
+            adc TETR_X            ; add x coord
+            cmp #10
+            bcs @false         ; if (tileX >= 10) return false
+            inx        
+            dec $aa
+            bne @loop         ; next tile
+
             lda #$00
             sta TEMP2          ; //TODO remove, use ret value A
             rts                ; return true
@@ -2358,9 +2393,9 @@ __948b:     lda TETR_Y
 tjump_nmi03:
             lda $68            ; $94ee: a5 68     
             cmp #$04           ; $94f0: c9 04     
-            bne __9522         ; $94f2: d0 2e     
-            lda #$04           ; $94f4: a9 04     
-            sta $b9            ; $94f6: 85 b9     
+            bne @skip1         ; $94f2: d0 2e     
+            lda #>PLAYFIELD           ; $94f4: a9 04     
+            sta PF_PTR+1            ; $94f6: 85 b9     
             lda $72            ; $94f8: a5 72     
             sta $52            ; $94fa: 85 52     
             lda $6a            ; $94fc: a5 6a     
@@ -2380,27 +2415,26 @@ tjump_nmi03:
             sta $68            ; $9519: 85 68     
             lda #$00           ; $951b: a9 00     
             sta $69            ; $951d: 85 69     
-            jmp __953a         ; $951f: 4c 3a 95  
+            jmp @skip2         ; $951f: 4c 3a 95  
 
-;-------------------------------------------------------------------------------
-__9522:     lda $69            ; $9522: a5 69     
+@skip1:     lda $69            ; $9522: a5 69     
             sta $49            ; $9524: 85 49     
-            lda #$04           ; $9526: a9 04     
-            sta $b9            ; $9528: 85 b9     
+            lda #>PLAYFIELD           ; $9526: a9 04     
+            sta PF_PTR+1            ; $9528: 85 b9     
             jsr __9725         ; $952a: 20 25 97  
             jsr __9725         ; $952d: 20 25 97  
             jsr __9725         ; $9530: 20 25 97  
             jsr __9725         ; $9533: 20 25 97  
             lda $49            ; $9536: a5 49     
             sta $69            ; $9538: 85 69     
-__953a:     lda N_PLR            ; $953a: a5 be     
+@skip2:     lda N_PLR            ; $953a: a5 be     
             cmp #$02           ; $953c: c9 02     
-            bne __958c         ; $953e: d0 4c     
+            bne @skip4         ; $953e: d0 4c     
             lda $88            ; $9540: a5 88     
             cmp #$04           ; $9542: c9 04     
-            bne __9574         ; $9544: d0 2e     
-            lda #$05           ; $9546: a9 05     
-            sta $b9            ; $9548: 85 b9     
+            bne @skip3         ; $9544: d0 2e     
+            lda #>PLAYFIELD2           ; $9546: a9 05     
+            sta PF_PTR+1            ; $9548: 85 b9     
             lda $92            ; $954a: a5 92     
             sta $52            ; $954c: 85 52     
             lda $8a            ; $954e: a5 8a     
@@ -2420,46 +2454,44 @@ __953a:     lda N_PLR            ; $953a: a5 be
             sta $88            ; $956b: 85 88     
             lda #$00           ; $956d: a9 00     
             sta $89            ; $956f: 85 89     
-            jmp __958c         ; $9571: 4c 8c 95  
+            jmp @skip4         ; $9571: 4c 8c 95  
 
-;-------------------------------------------------------------------------------
-__9574:     lda $89            ; $9574: a5 89     
+@skip3:     lda $89            ; $9574: a5 89     
             sta $49            ; $9576: 85 49     
-            lda #$05           ; $9578: a9 05     
-            sta $b9            ; $957a: 85 b9     
+            lda #>PLAYFIELD2           ; $9578: a9 05     
+            sta PF_PTR+1            ; $957a: 85 b9     
             jsr __9725         ; $957c: 20 25 97  
             jsr __9725         ; $957f: 20 25 97  
             jsr __9725         ; $9582: 20 25 97  
             jsr __9725         ; $9585: 20 25 97  
             lda $49            ; $9588: a5 49     
             sta $89            ; $958a: 85 89     
-__958c:     lda $a3            ; $958c: a5 a3     
+@skip4:     lda $a3            ; $958c: a5 a3     
             and #$01           ; $958e: 29 01     
-            beq __95e3         ; $9590: f0 51     
+            beq @skip6         ; $9590: f0 51     
             lda N_PLR            ; $9592: a5 be     
             cmp #$02           ; $9594: c9 02     
-            beq __95b5         ; $9596: f0 1d     
+            beq @skip5         ; $9596: f0 1d     
             lda #$20           ; $9598: a9 20     
             sta PPUADDR        ; $959a: 8d 06 20  
             lda #$73           ; $959d: a9 73     
             sta PPUADDR        ; $959f: 8d 06 20  
-            lda $71            ; $95a2: a5 71     
+            lda LINES+1            ; $95a2: a5 71     
             sta PPUDATA        ; $95a4: 8d 07 20  
-            lda $70            ; $95a7: a5 70     
-            jsr PPUwrite_packedBCD         ; $95a9: 20 12 97  
+            lda LINES            ; $95a7: a5 70     
+            jsr PPUwrite_packedBCD         ; write LINES Counter
             lda $a3            ; $95ac: a5 a3     
             and #$fe           ; $95ae: 29 fe     
             sta $a3            ; $95b0: 85 a3     
-            jmp __95e3         ; $95b2: 4c e3 95  
+            jmp @skip6         ; $95b2: 4c e3 95  
 
-;-------------------------------------------------------------------------------
-__95b5:     lda #$20           ; $95b5: a9 20     
+@skip5:     lda #$20           ; $95b5: a9 20     
             sta PPUADDR        ; $95b7: 8d 06 20  
             lda #$68           ; $95ba: a9 68     
             sta PPUADDR        ; $95bc: 8d 06 20  
-            lda $71            ; $95bf: a5 71     
+            lda LINES+1            ; $95bf: a5 71     
             sta PPUDATA        ; $95c1: 8d 07 20  
-            lda $70            ; $95c4: a5 70     
+            lda LINES            ; $95c4: a5 70     
             jsr PPUwrite_packedBCD         ; $95c6: 20 12 97  
             lda #$20           ; $95c9: a9 20     
             sta PPUADDR        ; $95cb: 8d 06 20  
@@ -2472,12 +2504,12 @@ __95b5:     lda #$20           ; $95b5: a9 20
             lda $a3            ; $95dd: a5 a3     
             and #$fe           ; $95df: 29 fe     
             sta $a3            ; $95e1: 85 a3     
-__95e3:     lda $a3            ; $95e3: a5 a3     
+@skip6:     lda $a3            ; $95e3: a5 a3     
             and #$02           ; $95e5: 29 02     
-            beq __960e         ; $95e7: f0 25     
+            beq @skip7         ; $95e7: f0 25     
             lda N_PLR            ; $95e9: a5 be     
             cmp #$02           ; $95eb: c9 02     
-            beq __960e         ; $95ed: f0 1f     
+            beq @skip7         ; $95ed: f0 1f     
             ldx $64            ; $95ef: a6 64     
             lda __96b8,x       ; $95f1: bd b8 96  
             sta TEMP2            ; $95f4: 85 a8     
@@ -2491,34 +2523,34 @@ __95e3:     lda $a3            ; $95e3: a5 a3
             lda $a3            ; $9608: a5 a3     
             and #$fd           ; $960a: 29 fd     
             sta $a3            ; $960c: 85 a3     
-__960e:     lda N_PLR            ; $960e: a5 be     
+@skip7:     lda N_PLR            ; $960e: a5 be     
             cmp #$02           ; $9610: c9 02     
-            beq __9639         ; $9612: f0 25     
+            beq @skip8         ; $9612: f0 25     
             lda $a3            ; $9614: a5 a3     
             and #$04           ; $9616: 29 04     
-            beq __9639         ; $9618: f0 1f     
+            beq @skip8         ; $9618: f0 1f     
             lda #$21           ; $961a: a9 21     
             sta PPUADDR        ; $961c: 8d 06 20  
             lda #$18           ; $961f: a9 18     
             sta PPUADDR        ; $9621: 8d 06 20  
-            lda $75            ; $9624: a5 75     
+            lda SCORE+2            ; $9624: a5 75     
             jsr PPUwrite_packedBCD         ; $9626: 20 12 97  
-            lda $74            ; $9629: a5 74     
+            lda SCORE+1            ; $9629: a5 74     
             jsr PPUwrite_packedBCD         ; $962b: 20 12 97  
-            lda $73            ; $962e: a5 73     
+            lda SCORE         ; $962e: a5 73     
             jsr PPUwrite_packedBCD         ; $9630: 20 12 97  
             lda $a3            ; $9633: a5 a3     
             and #$fb           ; $9635: 29 fb     
             sta $a3            ; $9637: 85 a3     
-__9639:     lda N_PLR            ; $9639: a5 be     
+@skip8:     lda N_PLR            ; $9639: a5 be     
             cmp #$02           ; $963b: c9 02     
-            beq __9673         ; $963d: f0 34     
+            beq @skip9         ; $963d: f0 34     
             lda $a3            ; $963f: a5 a3     
             and #$40           ; $9641: 29 40     
-            beq __9673         ; $9643: f0 2e     
+            beq @skip9         ; $9643: f0 2e     
             lda #$00           ; $9645: a9 00     
             sta $b0            ; $9647: 85 b0     
-__9649:     lda $b0            ; $9649: a5 b0     
+@loop1:     lda $b0            ; $9649: a5 b0     
             asl                ; $964b: 0a        
             tax                ; $964c: aa        
             lda __96aa,x       ; $964d: bd aa 96  
@@ -2532,28 +2564,28 @@ __9649:     lda $b0            ; $9649: a5 b0
             inc $b0            ; $9665: e6 b0     
             lda $b0            ; $9667: a5 b0     
             cmp #$07           ; $9669: c9 07     
-            bne __9649         ; $966b: d0 dc     
+            bne @loop1         ; $966b: d0 dc     
             lda $a3            ; $966d: a5 a3     
             and #$bf           ; $966f: 29 bf     
             sta $a3            ; $9671: 85 a3     
-__9673:     lda #$3f           ; $9673: a9 3f     
+@skip9:     lda #$3f           ; $9673: a9 3f     
             sta PPUADDR        ; $9675: 8d 06 20  
             lda #$0e           ; $9678: a9 0e     
             sta PPUADDR        ; $967a: 8d 06 20  
             ldx #$00           ; $967d: a2 00     
             lda $56            ; $967f: a5 56     
             cmp #$04           ; $9681: c9 04     
-            bne __9698         ; $9683: d0 13     
+            bne @skip10         ; $9683: d0 13     
             lda FRAMECOUNT            ; $9685: a5 b1     
             and #$03           ; $9687: 29 03     
-            bne __9698         ; $9689: d0 0d     
+            bne @skip10         ; $9689: d0 0d     
             ldx #$30           ; $968b: a2 30     
             lda FRAMECOUNT            ; $968d: a5 b1     
             and #$07           ; $968f: 29 07     
-            bne __9698         ; $9691: d0 05     
+            bne @skip10         ; $9691: d0 05     
             lda #$09           ; $9693: a9 09     
             sta sndEFFECT          ; $9695: 8d f1 06  
-__9698:     stx PPUDATA        ; $9698: 8e 07 20  
+@skip10:     stx PPUDATA        ; $9698: 8e 07 20  
             ldy #$00           ; $969b: a0 00     
             sty HSCROLL            ; $969d: 84 fd     
             sty PPUSCROLL      ; $969f: 8c 05 20  
@@ -2628,8 +2660,8 @@ __9725:     ldx $49            ; $9725: a6 49
             lda N_PLR            ; $973a: a5 be     
             cmp #$01           ; $973c: c9 01     
             beq __975e         ; $973e: f0 1e     
-            lda $b9            ; $9740: a5 b9     
-            cmp #$05           ; $9742: c9 05     
+            lda PF_PTR+1            ; $9740: a5 b9     
+            cmp #>PLAYFIELD2           ; $9742: c9 05     
             beq __9752         ; $9744: f0 0c     
             lda __96ea,x       ; $9746: bd ea 96  
             sec                ; $9749: 38        
@@ -2650,7 +2682,7 @@ __975e:     lda __96ea,x       ; $975e: bd ea 96
             adc #$06           ; $9762: 69 06     
             sta PPUADDR        ; $9764: 8d 06 20  
 __9767:     ldx #$0a           ; $9767: a2 0a     
-__9769:     lda ($b8),y        ; $9769: b1 b8     
+__9769:     lda (PF_PTR),y        ; $9769: b1 b8     
             sta PPUDATA        ; $976b: 8d 07 20  
             iny                ; $976e: c8        
             dex                ; $976f: ca        
@@ -2668,8 +2700,8 @@ __977f:     lda FRAMECOUNT            ; $977f: a5 b1
             and #$03           ; $9781: 29 03     
             bne __97fd         ; $9783: d0 78     
             lda #$00           ; $9785: a9 00     
-            sta $aa            ; $9787: 85 aa     
-__9789:     ldx $aa            ; $9789: a6 aa     
+            sta B2           ; $9787: 85 aa     
+__9789:     ldx B2           ; $9789: a6 aa     
             lda $4a,x          ; $978b: b5 4a     
             beq __97eb         ; $978d: f0 5c     
             asl                ; $978f: 0a        
@@ -2686,8 +2718,8 @@ __9789:     ldx $aa            ; $9789: a6 aa
             jmp __97bd         ; $97a3: 4c bd 97  
 
 ;-------------------------------------------------------------------------------
-__97a6:     lda $b9            ; $97a6: a5 b9     
-            cmp #$04           ; $97a8: c9 04     
+__97a6:     lda PF_PTR+1            ; $97a6: a5 b9     
+            cmp #>PLAYFIELD           ; $97a8: c9 04     
             bne __97b6         ; $97aa: d0 0a     
             lda TEMP2            ; $97ac: a5 a8     
             sec                ; $97ae: 38        
@@ -2720,8 +2752,8 @@ __97bd:     iny                ; $97bd: c8
             sta PPUADDR        ; $97e3: 8d 06 20  
             lda #$ff           ; $97e6: a9 ff     
             sta PPUDATA        ; $97e8: 8d 07 20  
-__97eb:     inc $aa            ; $97eb: e6 aa     
-            lda $aa            ; $97ed: a5 aa     
+__97eb:     inc B2           ; $97eb: e6 aa     
+            lda B2           ; $97ed: a5 aa     
             cmp #$04           ; $97ef: c9 04     
             bne __9789         ; $97f1: d0 96     
             inc $52            ; $97f3: e6 52     
@@ -2838,7 +2870,7 @@ __98ba:     lda #$00           ; $98ba: a9 00
             sta $48            ; $98c4: 85 48     
             lda #$05           ; $98c6: a9 05     
             sta TETR_X            ; Tetrimino X = 5
-            ldx $bf            ; $98ca: a6 bf     
+            ldx TETR_NEXT            ; $98ca: a6 bf     
             lda tetr_spawn_table,x       ; $98cc: bd 56 99  
             sta TETR_OR            ; $98cf: 85 42     
             jsr incr_tetr_type_counter         ; $98d1: 20 69 99  
@@ -2846,12 +2878,12 @@ __98ba:     lda #$00           ; $98ba: a9 00
             cmp #$01           ; $98d6: c9 01     
             beq __98e1         ; $98d8: f0 07     
             lda $a6            ; $98da: a5 a6     
-            sta $bf            ; $98dc: 85 bf     
+            sta TETR_NEXT            ; $98dc: 85 bf     
             jmp __98e6         ; $98de: 4c e6 98  
 
 ;-------------------------------------------------------------------------------
 __98e1:     jsr gamedemo_spawn         ; $98e1: 20 eb 98  
-            sta $bf            ; $98e4: 85 bf     
+            sta TETR_NEXT            ; $98e4: 85 bf     
 __98e6:     lda #$00           ; $98e6: a9 00     
             sta $4e            ; $98e8: 85 4e     
 __98ea:     rts                ; $98ea: 60        
@@ -2983,7 +3015,7 @@ incr_tetr_type_counter:
 
 ;-------------------------------------------------------------------------------
 jump48_func2:
-            jsr __948b         ; $99a2: 20 8b 94  
+            jsr tetr_check_valid         ; $99a2: 20 8b 94  
             beq @skip1         ; $99a5: f0 11     
             lda #$02           ; $99a7: a9 02     
             sta $06f0          ; $99a9: 8d f0 06  
@@ -3016,29 +3048,29 @@ jump48_func2:
             tax                ; $99d6: aa        
             ldy #$00           ; $99d7: a0 00     
             lda #$04           ; $99d9: a9 04     
-            sta $aa            ; $99db: 85 aa     
+            sta B2           ; $99db: 85 aa     
 @loop1:     lda tetrimino_table,x       ; $99dd: bd 9c 8a  
             asl                ; $99e0: 0a        
-            sta $ab            ; $99e1: 85 ab     
+            sta B3           ; $99e1: 85 ab     
             asl                ; $99e3: 0a        
             asl                ; $99e4: 0a        
             clc                ; $99e5: 18        
-            adc $ab            ; $99e6: 65 ab     
+            adc B3           ; $99e6: 65 ab     
             clc                ; $99e8: 18        
             adc TEMP2            ; $99e9: 65 a8     
-            sta $ad            ; $99eb: 85 ad     
+            sta B4            ; $99eb: 85 ad     
             inx                ; $99ed: e8        
             lda tetrimino_table,x       ; $99ee: bd 9c 8a  
             sta $ac            ; $99f1: 85 ac     
             inx                ; $99f3: e8        
             lda tetrimino_table,x       ; $99f4: bd 9c 8a  
             clc                ; $99f7: 18        
-            adc $ad            ; $99f8: 65 ad     
+            adc B4            ; $99f8: 65 ad     
             tay                ; $99fa: a8        
             lda $ac            ; $99fb: a5 ac     
-            sta ($b8),y        ; $99fd: 91 b8     
+            sta (PF_PTR),y        ; $99fd: 91 b8     
             inx                ; $99ff: e8        
-            dec $aa            ; $9a00: c6 aa     
+            dec B2           ; $9a00: c6 aa     
             bne @loop1         ; $9a02: d0 d9     
             lda #$00           ; $9a04: a9 00     
             sta $57            ; $9a06: 85 57     
@@ -3059,14 +3091,14 @@ jump48_func2:
             lda mul10_table,x       ; $9a21: bd d6 96  
             tay                ; $9a24: a8        
             lda #$00           ; $9a25: a9 00     
-            sta $aa            ; $9a27: 85 aa     
+            sta B2           ; $9a27: 85 aa     
             lda #$13           ; $9a29: a9 13     
             sta TETR_OR            ; $9a2b: 85 42     
 __9a2d:     lda #$4f           ; $9a2d: a9 4f     
-            sta ($b8),y        ; $9a2f: 91 b8     
+            sta (PF_PTR),y        ; $9a2f: 91 b8     
             iny                ; $9a31: c8        
-            inc $aa            ; $9a32: e6 aa     
-            lda $aa            ; $9a34: a5 aa     
+            inc B2           ; $9a32: e6 aa     
+            lda B2           ; $9a34: a5 aa     
             cmp #$0a           ; $9a36: c9 0a     
             bne __9a2d         ; $9a38: d0 f3     
             lda $58            ; $9a3a: a5 58     
@@ -3081,7 +3113,7 @@ __9a46:     rts                ; $9a46: 60
 __9a47:     lda N_PLR            ; $9a47: a5 be     
             cmp #$02           ; $9a49: c9 02     
             beq __9a64         ; $9a4b: f0 17     
-            lda $75            ; $9a4d: a5 75     
+            lda SCORE+2            ; $9a4d: a5 75     
             cmp #$03           ; $9a4f: c9 03     
             bcc __9a5e         ; $9a51: 90 0b     
             lda #$80           ; $9a53: a9 80     
@@ -3122,7 +3154,7 @@ __9a7d:     clc                ; $9a7d: 18
             sta TEMP2            ; $9a8a: 85 a8     
             tay                ; $9a8c: a8        
             ldx #$0a           ; $9a8d: a2 0a     
-__9a8f:     lda ($b8),y        ; $9a8f: b1 b8     
+__9a8f:     lda (PF_PTR),y        ; $9a8f: b1 b8     
             cmp #$ef           ; $9a91: c9 ef     
             beq __9acc         ; $9a93: f0 37     
             iny                ; $9a95: c8        
@@ -3136,18 +3168,18 @@ __9a8f:     lda ($b8),y        ; $9a8f: b1 b8
             sta $4a,x          ; $9aa4: 95 4a     
             ldy TEMP2            ; $9aa6: a4 a8     
             dey                ; $9aa8: 88        
-__9aa9:     lda ($b8),y        ; $9aa9: b1 b8     
+__9aa9:     lda (PF_PTR),y        ; $9aa9: b1 b8     
             ldx #$0a           ; $9aab: a2 0a     
-            stx $b8            ; $9aad: 86 b8     
-            sta ($b8),y        ; $9aaf: 91 b8     
+            stx PF_PTR            ; $9aad: 86 b8     
+            sta (PF_PTR),y        ; $9aaf: 91 b8     
             lda #$00           ; $9ab1: a9 00     
-            sta $b8            ; $9ab3: 85 b8     
+            sta PF_PTR            ; $9ab3: 85 b8     
             dey                ; $9ab5: 88        
             cpy #$ff           ; $9ab6: c0 ff     
             bne __9aa9         ; $9ab8: d0 ef     
             lda #$ef           ; $9aba: a9 ef     
             ldy #$00           ; $9abc: a0 00     
-__9abe:     sta ($b8),y        ; $9abe: 91 b8     
+__9abe:     sta (PF_PTR),y        ; $9abe: 91 b8     
             iny                ; $9ac0: c8        
             cpy #$0a           ; $9ac1: c0 0a     
             bne __9abe         ; $9ac3: d0 f9     
@@ -3198,9 +3230,9 @@ __9b02:     rts                ; $9b02: 60
             lda #$00           ; $9b18: a9 00     
             sta TEMP2            ; $9b1a: 85 a8     
 __9b1c:     ldy TEMP2+1            ; $9b1c: a4 a9     
-            lda ($b8),y        ; $9b1e: b1 b8     
+            lda (PF_PTR),y        ; $9b1e: b1 b8     
             ldy TEMP2            ; $9b20: a4 a8     
-            sta ($b8),y        ; $9b22: 91 b8     
+            sta (PF_PTR),y        ; $9b22: 91 b8     
             inc TEMP2            ; $9b24: e6 a8     
             inc TEMP2+1            ; $9b26: e6 a9     
             lda TEMP2+1            ; $9b28: a5 a9     
@@ -3215,7 +3247,7 @@ __9b31:     cpx $5a            ; $9b31: e4 5a
 
 ;-------------------------------------------------------------------------------
 __9b3a:     lda #$ff           ; $9b3a: a9 ff     
-__9b3c:     sta ($b8),y        ; $9b3c: 91 b8     
+__9b3c:     sta (PF_PTR),y        ; $9b3c: 91 b8     
             inx                ; $9b3e: e8        
             cpx #$0a           ; $9b3f: e0 0a     
             bne __9b45         ; $9b41: d0 02     
@@ -3489,7 +3521,7 @@ __9d17:     ldx #$05           ; $9d17: a2 05
             lda mul10_table,x       ; $9d19: bd d6 96  
             tay                ; $9d1c: a8        
             ldx #$0a           ; $9d1d: a2 0a     
-__9d1f:     lda ($b8),y        ; $9d1f: b1 b8     
+__9d1f:     lda (PF_PTR),y        ; $9d1f: b1 b8     
             cmp #$ef           ; $9d21: c9 ef     
             bne __9d3c         ; $9d23: d0 17     
             iny                ; $9d25: c8        
@@ -3694,7 +3726,7 @@ __9e49:     ldx $64            ; $9e49: a6 64
             asl                ; $9e5d: 0a        
             asl                ; $9e5e: 0a        
             asl                ; $9e5f: 0a        
-            sta $ab            ; $9e60: 85 ab     
+            sta B3           ; $9e60: 85 ab     
             lda HEIGHT            ; $9e62: a5 79     
             asl                ; $9e64: 0a        
             asl                ; $9e65: 0a        
@@ -3741,38 +3773,38 @@ __9ea4:     jsr PPU_copy_data         ; $9ea4: 20 98 aa
             jsr snd_setMUSIC         ; $9ebe: 20 07 9e  
             lda #$80           ; $9ec1: a9 80     
             jsr __a7fd         ; $9ec3: 20 fd a7  
-            lda $73            ; $9ec6: a5 73     
+            lda SCORE            ; $9ec6: a5 73     
             sta $dc            ; $9ec8: 85 dc     
-            lda $74            ; $9eca: a5 74     
+            lda SCORE+1            ; $9eca: a5 74     
             sta $dd            ; $9ecc: 85 dd     
-            lda $75            ; $9ece: a5 75     
+            lda SCORE+2            ; $9ece: a5 75     
             sta $de            ; $9ed0: 85 de     
             lda #$02           ; $9ed2: a9 02     
             sta sndEFFECT          ; $9ed4: 8d f1 06  
             lda #$00           ; $9ed7: a9 00     
-            sta $73            ; $9ed9: 85 73     
-            sta $74            ; $9edb: 85 74     
-            sta $75            ; $9edd: 85 75     
+            sta SCORE            ; $9ed9: 85 73     
+            sta SCORE+1            ; $9edb: 85 74     
+            sta SCORE+2            ; $9edd: 85 75     
             lda #$40           ; $9edf: a9 40     
             jsr __a7fd         ; $9ee1: 20 fd a7  
-            lda $ab            ; $9ee4: a5 ab     
+            lda B3           ; $9ee4: a5 ab     
             beq __9f12         ; $9ee6: f0 2a     
-__9ee8:     dec $ab            ; $9ee8: c6 ab     
-            lda $ab            ; $9eea: a5 ab     
+__9ee8:     dec B3           ; $9ee8: c6 ab     
+            lda B3           ; $9eea: a5 ab     
             and #$0f           ; $9eec: 29 0f     
             cmp #$0f           ; $9eee: c9 0f     
             bne __9efa         ; $9ef0: d0 08     
-            lda $ab            ; $9ef2: a5 ab     
+            lda B3           ; $9ef2: a5 ab     
             and #$f0           ; $9ef4: 29 f0     
             ora #$09           ; $9ef6: 09 09     
-            sta $ab            ; $9ef8: 85 ab     
-__9efa:     lda $ab            ; $9efa: a5 ab     
+            sta B3           ; $9ef8: 85 ab     
+__9efa:     lda B3           ; $9efa: a5 ab     
             jsr __9f62         ; $9efc: 20 62 9f  
             lda #$01           ; $9eff: a9 01     
             sta sndEFFECT          ; $9f01: 8d f1 06  
             lda #$02           ; $9f04: a9 02     
             jsr __a7fd         ; $9f06: 20 fd a7  
-            lda $ab            ; $9f09: a5 ab     
+            lda B3           ; $9f09: a5 ab     
             bne __9ee8         ; $9f0b: d0 db     
             lda #$40           ; $9f0d: a9 40     
             jsr __a7fd         ; $9f0f: 20 fd a7  
@@ -3851,11 +3883,11 @@ tjump_nmi04:
             sta PPUADDR        ; $9f97: 8d 06 20  
             lda #$8e           ; $9f9a: a9 8e     
             sta PPUADDR        ; $9f9c: 8d 06 20  
-            lda $75            ; $9f9f: a5 75     
+            lda SCORE+2            ; $9f9f: a5 75     
             jsr PPUwrite_packedBCD         ; $9fa1: 20 12 97  
-            lda $74            ; $9fa4: a5 74     
+            lda SCORE+1            ; $9fa4: a5 74     
             jsr PPUwrite_packedBCD         ; $9fa6: 20 12 97  
-            lda $73            ; $9fa9: a5 73     
+            lda SCORE            ; $9fa9: a5 73     
             jsr PPUwrite_packedBCD         ; $9fab: 20 12 97  
             lda SEL_TYPE            ; $9fae: a5 c1     
             beq __9fe9         ; $9fb0: f0 37     
@@ -3863,7 +3895,7 @@ tjump_nmi04:
             sta PPUADDR        ; $9fb4: 8d 06 20  
             lda #$b0           ; $9fb7: a9 b0     
             sta PPUADDR        ; $9fb9: 8d 06 20  
-            lda $ab            ; $9fbc: a5 ab     
+            lda B3           ; $9fbc: a5 ab     
             jsr PPUwrite_packedBCD         ; $9fbe: 20 12 97  
             lda #$20           ; $9fc1: a9 20     
             sta PPUADDR        ; $9fc3: 8d 06 20  
@@ -4023,19 +4055,19 @@ __a0fa:     lda $d5            ; $a0fa: a5 d5
             adc TEMP2+1            ; $a100: 65 a9     
             tay                ; $a102: a8        
             lda HS_POINTS,y        ; $a103: b9 30 07  
-            cmp $75            ; $a106: c5 75     
+            cmp SCORE+2            ; $a106: c5 75     
             beq __a10e         ; $a108: f0 04     
             bcs __a124         ; $a10a: b0 18     
             bcc __a134         ; $a10c: 90 26     
 __a10e:     iny                ; $a10e: c8        
             lda HS_POINTS,y        ; $a10f: b9 30 07  
-            cmp $74            ; $a112: c5 74     
+            cmp SCORE+1            ; $a112: c5 74     
             beq __a11a         ; $a114: f0 04     
             bcs __a124         ; $a116: b0 0c     
             bcc __a134         ; $a118: 90 1a     
 __a11a:     iny                ; $a11a: c8        
             lda HS_POINTS,y        ; $a11b: b9 30 07  
-            cmp $73            ; $a11e: c5 73     
+            cmp SCORE            ; $a11e: c5 73     
             beq __a134         ; $a120: f0 12     
             bcc __a134         ; $a122: 90 10     
 __a124:     inc $d5            ; $a124: e6 d5     
@@ -4081,13 +4113,13 @@ __a16a:     sta HS_NAMES,x        ; $a16a: 9d 00 07
             ldx $d5            ; $a171: a6 d5     
             lda __a1f9,x       ; $a173: bd f9 a1  
             tax                ; $a176: aa        
-            lda $75            ; $a177: a5 75     
+            lda SCORE+2            ; $a177: a5 75     
             sta HS_POINTS,x        ; $a179: 9d 30 07  
             inx                ; $a17c: e8        
-            lda $74            ; $a17d: a5 74     
+            lda SCORE+1            ; $a17d: a5 74     
             sta HS_POINTS,x        ; $a17f: 9d 30 07  
             inx                ; $a182: e8        
-            lda $73            ; $a183: a5 73     
+            lda SCORE            ; $a183: a5 73     
             sta HS_POINTS,x        ; $a185: 9d 30 07  
             ldx $d5            ; $a188: a6 d5     
             lda $64            ; $a18a: a5 64     
@@ -4109,12 +4141,12 @@ __a1a3:     lda TEMP2            ; $a1a3: a5 a8
             adc TEMP2+1            ; $a1a6: 65 a9     
             tax                ; $a1a8: aa        
             lda HS_NAMES,x        ; $a1a9: bd 00 07  
-            sta $aa            ; $a1ac: 85 aa     
+            sta B2           ; $a1ac: 85 aa     
             txa                ; $a1ae: 8a        
             clc                ; $a1af: 18        
             adc #$06           ; $a1b0: 69 06     
             tax                ; $a1b2: aa        
-            lda $aa            ; $a1b3: a5 aa     
+            lda B2           ; $a1b3: a5 aa     
             sta HS_NAMES,x        ; $a1b5: 9d 00 07  
             dec TEMP2+1            ; $a1b8: c6 a9     
             lda TEMP2+1            ; $a1ba: a5 a9     
@@ -4425,7 +4457,7 @@ game_pause_mode:
 __a403:     lda __a42e,x       ; $a403: bd 2e a4  
             cmp #$80           ; $a406: c9 80     
             beq __a411         ; $a408: f0 07     
-            sta ($b8),y        ; $a40a: 91 b8     
+            sta (PF_PTR),y        ; $a40a: 91 b8     
             inx                ; $a40c: e8        
             iny                ; $a40d: c8        
             jmp __a403         ; $a40e: 4c 03 a4  
@@ -5039,22 +5071,22 @@ __a95d:     jsr __a527         ; $a95d: 20 27 a5
 ;-------------------------------------------------------------------------------
 __a96e:     lda #$00           ; $a96e: a9 00     
             sta $c4            ; $a970: 85 c4     
-            lda $75            ; $a972: a5 75     
+            lda SCORE+2            ; $a972: a5 75     
             cmp #$05           ; $a974: c9 05     
             bcc __a9a5         ; $a976: 90 2d     
             lda #$01           ; $a978: a9 01     
             sta $c4            ; $a97a: 85 c4     
-            lda $75            ; $a97c: a5 75     
+            lda SCORE+2            ; $a97c: a5 75     
             cmp #$07           ; $a97e: c9 07     
             bcc __a9a5         ; $a980: 90 23     
             lda #$02           ; $a982: a9 02     
             sta $c4            ; $a984: 85 c4     
-            lda $75            ; $a986: a5 75     
+            lda SCORE+2            ; $a986: a5 75     
             cmp #$10           ; $a988: c9 10     
             bcc __a9a5         ; $a98a: 90 19     
             lda #$03           ; $a98c: a9 03     
             sta $c4            ; $a98e: 85 c4     
-            lda $75            ; $a990: a5 75     
+            lda SCORE+2            ; $a990: a5 75     
             cmp #$12           ; $a992: c9 12     
             bcc __a9a5         ; $a994: 90 0f     
             lda #$04           ; $a996: a9 04     
@@ -5410,14 +5442,14 @@ read_joy_safe:
             lda JOY1_RAW_NEW
             sta TEMP2+1
             lda JOY2_RAW_NEW
-            sta $aa  
+            sta B2 
             jsr read_JOY
             jsr read_joy2
             lda JOY1_RAW_NEW
             and TEMP2+1  
             sta JOY1_RAW_NEW
             lda JOY2_RAW_NEW
-            and $aa  
+            and B2 
             sta JOY2_RAW_NEW
 __abbd:     ldx #$01
 @loop:      lda JOY1_RAW_NEW,x
