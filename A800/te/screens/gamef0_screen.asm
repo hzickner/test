@@ -104,28 +104,32 @@ GAME_F0_screen:
 	.DB $00, $00, $00, $00
 	.DB $00, $00, $64, $2a
 ;            .DB 21 20
-;            .DB 20
-;            .DB $2b,   ; $c077: 21 20 20 $2b,   Data
-;            .DB $63, 69 6a 6b   ; $c07b: $63, 69 6a 6b   Data
-;            .DB 6c 6d 6e 6f   ; $c07f: 6c 6d 6e 6f   Data
-;            .DB 5f $64, $6b, $7f,   ; $c083: 5f $64, $6b, $7f,   Data
-;            .DB $7f, $7f, $7f, $7f,   ; $c087: $7f, $7f, $7f, $7f,   Data
-;            .DB $7f, $7f, $7f, $7f,   ; $c08b: $7f, $7f, $7f, $7f,   Data
-;            .DB $7f, $6c, $63, $7f,   ; $c08f: $7f, $6c, $63, $7f,   Data
-;            .DB $7f, $7f, $7f, $7f,   ; $c093: $7f, $7f, $7f, $7f,   Data
-;            .DB $7f, $64, $2b,
+	.DB >(scr_mem+8*32), <(scr_mem+8*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $2b
+	.DB $63, $52, $53, $54
+	.DB $55, $56, $57, $0c
+	.DB $1c, $64, $6b, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $6c, $63, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $64, $2b
 ;            .DB 21 40
-;            .DB 20
-;            .DB $28, $63,   ; $c09b: 40 20 $28, $63,   Data
-;            .DB $7f, $7f, $7f, $7f,   ; $c09f: $7f, $7f, $7f, $7f,   Data
-;            .DB $7f, $7f, $7f, $7f,   ; $c0a3: $7f, $7f, $7f, $7f,   Data
-;            .DB $64, $6b, $7f, $7f,   ; $c0a7: $64, $6b, $7f, $7f,   Data
-;            .DB $7f, $7f, $7f, $7f,   ; $c0ab: $7f, $7f, $7f, $7f,   Data
-;            .DB $7f, $7f, $7f, $7f,   ; $c0af: $7f, $7f, $7f, $7f,   Data
-;            .DB $6c, $65, $66, $66,   ; $c0b3: $6c, $65, $66, $66,   Data
-;            .DB $66, $66, $66, $66,   ; $c0b7: $66, $66, $66, $66,   Data
-;            .DB $67, $2b,
+	.DB >(scr_mem+9*32), <(scr_mem+9*32)
+	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
+	.DB $28, $63
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $64, $6b, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $7f, $7f, $7f, $7f
+	.DB $6c, $65, $66, $66
+	.DB $66, $66, $66, $66
+	.DB $67, $2b
 ;            .DB 21 60   ; $c0bb: $67, $2b, 21 60   Data
+;	.DB >(scr_mem+7*32), <(scr_mem+7*32)
+;	.DB $20			; control byte: VRAM line, ptr inc, $32,bytes of data
 ;            .DB 20
 ;            .DB $28, $63, $7f,   ; $c0bf: 20 $28, $63, $7f,   Data
 ;            .DB 40 41 42 $7f,   ; $c0c3: 40 41 42 $7f,   Data

@@ -1050,7 +1050,7 @@ height_frame_data:
             .hex 22 f7         ; PPU address
             .hex 38 39   ; $86b0: 22 f7 38 39   Data
             .hex 39 39 39 39   ; $86b4: 39 39 39 39   Data
-            .hex 39 3am
+            .hex 39 3a
             .hex fe            ; control byte: new address follows
             .hex 23 17         ; PPU address
             .hex 3b 11 0e   ; $86bc: 17 3b 11 0e   Data
