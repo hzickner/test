@@ -22,11 +22,14 @@ JOY1_RAW_ALL	.DS	1
 JOY2_RAW_NEW	.DS	1
 JOY2_RAW_ALL	.DS	1
 LEVEL		.DS	1
+LINES		.DS	2	;  2byte 3digit BCD LINES counter
 N_PLR		.DS	1
 vNMIEN		.DS	1
 NMI_FUNC_INDEX	.DS	1
 OAM_USED	.DS	1
+PF_PTR		.DS	2	; pointer to playfield data
 PREVIEW_FLAG	.DS	1
+SCORE		.DS	3	; 3byte packed BCD score counter low byte first
 SEL_HEIGHT	.DS	1
 SEL_LEVEL	.DS	1
 SEL_TYPE	.DS	1
@@ -34,6 +37,7 @@ SEL_MUSIC	.DS	1
 SPR_PTR_INDEX	.DS	1
 SPR_X		.DS	1
 SPR_Y		.DS	1
+TETR_NEXT	.DS	1	; next tetrimino max value 18
 
 ;-------------------------------------------------------------------------------
 ; variables
@@ -369,7 +373,7 @@ loop1:	sta TYPE_COUNTERS,x
 ;            lda #$05           ; $86ef: a9 05     
 ;            sta $60            ; $86f1: 85 60     
 ;            sta $80            ; $86f3: 85 80     
-;            lda #$00           ; $86f5: a9 00     
+	lda #$00           ; $86f5: a9 00     
 ;            sta $61            ; $86f7: 85 61     
 ;            sta $81            ; $86f9: 85 81     
 ;            sta $69            ; $86fb: 85 69     
@@ -378,14 +382,14 @@ loop1:	sta TYPE_COUNTERS,x
 ;            sta $85            ; $8701: 85 85     
 ;            sta $bb            ; $8703: 85 bb     
 ;            sta $bc            ; $8705: 85 bc     
-;            sta $73            ; $8707: 85 73     
-;            sta $74            ; $8709: 85 74     
-;            sta $75            ; $870b: 85 75     
+	sta SCORE            ; $8707: 85 73     
+	sta SCORE+1            ; $8709: 85 74     
+	sta SCORE+2            ; $870b: 85 75     
 ;            sta $93            ; $870d: 85 93     
 ;            sta $94            ; $870f: 85 94     
 ;            sta $95            ; $8711: 85 95     
-;            sta $70            ; $8713: 85 70     
-;            sta $71            ; $8715: 85 71     
+;            sta LINES            ; $8713: 85 70     
+;            sta LINES+1            ; $8715: 85 71     
 ;            sta $90            ; $8717: 85 90     
 ;            sta $91            ; $8719: 85 91     
 ;            sta $a4            ; $871b: 85 a4     
@@ -414,17 +418,17 @@ loop1:	sta TYPE_COUNTERS,x
 ;            ldy #$02           ; $874b: a0 02     
 ;            jsr nextRandom         ; $874d: 20 47 ab  
 ;            jsr gamedemo_spawn         ; $8750: 20 eb 98  
-;            sta $bf            ; $8753: 85 bf     
+;            sta TETR_NEXT            ; $8753: 85 bf     
 ;            sta $a6            ; $8755: 85 a6     
 ;            lda SEL_TYPE            ; $8757: a5 c1     
 ;            beq @s_typeA         ; $8759: f0 06     
 ;            lda #$25           ; $875b: a9 25     
-;            sta $70            ; $875d: 85 70     
+;            sta LINES            ; $875d: 85 70     
 ;            sta $90            ; $875f: 85 90     
 ;@s_typeA:   lda #$47           ; $8761: a9 47     
 ;            sta $a3            ; $8763: 85 a3     
 	jsr frame_clear_sprite_ram
-;            jsr init_start_lines
+	jsr game_init_start_lines
 ;            ldx SEL_MUSIC
 ;            lda MUSIC_TABLE,x
 ;            jsr snd_setMUSIC
@@ -447,13 +451,13 @@ loop1:	sta TYPE_COUNTERS,x
 ;            lda $a4            ; $8896: a5 a4     
 ;            beq @skip1         ; $8898: f0 02     
 ;            inc $a4            ; $889a: e6 a4     
-;@skip1:     lda JOY1_RAW_NEW            ; $889c: a5 f5     
-;            and #BUTTON_SELECT
-;            beq @skip2         ; if (not BUTTON_SELECT)
-;            lda PREVIEW_FLAG 
-;            eor #$01
-;            sta PREVIEW_FLAG            ;      flip bit 0 in PREVIEW_FLAG flag
-skip2:	inc GAME_FUNC_INDEX  ; continue with game_func3
+skip1:	lda JOY1_RAW_NEW            ; $889c: a5 f5     
+	and #BUTTON_SELECT
+	beq skip2		; if (not BUTTON_SELECT)
+	lda PREVIEW_FLAG 
+	eor #$01
+	sta PREVIEW_FLAG	;      flip bit 0 in PREVIEW_FLAG flag
+skip2:	inc GAME_FUNC_INDEX	; continue with game_func3
 	rts
 .endp
 
@@ -517,14 +521,15 @@ skip4:	inc GAME_FUNC_INDEX            ; $9d14: e6 a7
 ;            jsr __81b2         ; $8177: 20 b2 81  
 ;            jsr __8a0a         ; $817a: 20 0a 8a  
 ;            jsr __87ae         ; $817d: 20 ae 87  
-;            jsr write_tetr_preview
+	jsr game_tetr_preview
 	inc GAME_FUNC_INDEX	; continue with game_func5     
 	rts
 .endp
 
 ;-------------------------------------------------------------------------------
 ; called via jumptable
-; game_func1
+; game_func5
+; some 2player specific calls
 .proc game_func5
 ;            lda N_PLR
 ;            cmp #$02
@@ -718,6 +723,23 @@ loop5:	sta PLAYFIELD,y
 ;            cpy #$ff
 ;            bne @loop6         ; clear top of 2nd PF
 skip4:	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; write preview tetr to sprite mem
+.proc game_tetr_preview
+	lda PREVIEW_FLAG
+	bne skip1		; if (flag set) exit
+	lda #25
+	sta SPR_X
+	lda #14
+	sta SPR_Y		; set coordinates
+	ldx TETR_NEXT
+	lda PREVIEW_SPRITE_TABLE,x 
+	sta SPR_PTR_INDEX
+	jmp spr_drawtoMem
+
+skip1:	rts
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -2051,6 +2073,16 @@ PF_CLEAR_BYTES:
             ;.hex c8 aa 96 78   ; $8876: c8 aa 96 78   Data
             ;.hex 64 50         ; $887a: 64 50         Data
 ; 6bytes end of data
+
+;-------------------------------------------------------------------------------
+; sprite numbers for tetr ids (not all ids are valid spawn ids)
+PREVIEW_SPRITE_TABLE:
+	.DB $00, $00, $06, $00
+	.DB $00, $00, $00, $09
+	.DB $08, $00, 11, $07
+	.DB $00, $00, 10, $00
+	.DB $00, $00, 12
+;19bytes end of table
 	
 ;-------------------------------------------------------------------------------
 ; contains pointers to sprite definitions
@@ -2060,7 +2092,14 @@ sprPTR__table:
 	.DW sprPTR2
 	.DS 4
 	.DW sprPTR5
-	.DS 154
+	.DW sprPTR6
+	.DW sprPTR7
+	.DW sprPTR8
+	.DW sprPTR9
+	.DW sprPTR10
+	.DW sprPTR11
+	.DW sprPTR12
+	.DS 140
 	.DW sprPTR83
 
 ;-------------------------------------------------------------------------------
@@ -2092,6 +2131,62 @@ sprPTR5:
 		.DB	$00,	$0e,	$00,		$04
 		.DB	$ff
 
+; 'T' tetrimino            
+sprPTR6:
+		.DB 	$00,	$00,	$02,		$00
+		.DB	$00,	$00,	$02,		$01
+		.DB	$00,	$00,	$02,		$02
+		.DB	$01,	$00,	$02,		$01
+		.DB	$ff
+		
+; 'S' tetrimino
+sprPTR7:
+		.DB	$00, 	$00,	$02,		$01
+		.DB     $00,	$00,	$02,		$02
+		.DB	$01,	$00,	$02,		$00
+		.DB     $01,	$00,	$02,		$01
+		.DB	$FF
+
+; 'Z' terimino
+sprPTR8:            
+		.DB	$00, 	$00,	$02,		$00
+		.DB     $00,	$00,	$02,		$01
+		.DB	$01,	$00,	$02,		$01
+		.DB     $01,	$00,	$02,		$02
+		.DB	$FF
+
+; 'J' tetrimino
+sprPTR9:
+		.DB	$00, 	$00,	$02,		$00
+		.DB     $00,	$00,	$02,		$01
+		.DB	$00,	$00,	$02,		$02
+		.DB     $01,	$00,	$02,		$02
+		.DB	$FF
+
+; 'L' tetrimino
+sprPTR10:           
+		.DB	$00, 	$00,	$02,		$00
+		.DB     $00,	$00,	$02,		$01
+		.DB	$00,	$00,	$02,		$02
+		.DB     $01,	$00,	$02,		$00
+		.DB	$FF
+
+; 'O' tetrimino
+sprPTR11:            
+		.DB	$00, 	$00,	$02,		$00
+		.DB     $00,	$00,	$02,		$01
+		.DB	$01,	$00,	$02,		$00
+		.DB     $01,	$00,	$02,		$01
+		.DB	$FF
+
+; 'I' tetrimino
+sprPTR12:            
+		.DB	$00, 	$00,	$02,		$00
+		.DB     $00,	$00,	$02,		$01
+		.DB	$00,	$00,	$02,		$02
+		.DB     $00,	$00,	$02,		$03
+		.DB	$FF
+                                                		
 ; triangle right and left with offsetx 4a used for music selection 
 sprPTR83:	.DB	$00,	$27,	$00,		$00
 		.DB	$00,	$27,	$40,		9
