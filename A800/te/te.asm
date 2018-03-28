@@ -269,6 +269,9 @@ loop	jsr frame_clear_sprite_ram
 ;            lda #$03
 ;            jsr MMCsetreg2	; use CHR bank 3 for nametable an sprites
 ;
+	ldx #2
+	jsr GR_load_palette	; use color palette 2;
+
 ;            jsr PPU_copy_data
 ;            DW PALETTE_DATA_GAME_F0  ; load palette data
 ;
@@ -2055,15 +2058,17 @@ HS_SCRadr_table:
 
 
 PAL_PTR_HIGH:
-	.DB >PALETTE0_DATA, >PALETTE1_DATA
+	.DB >PALETTE0_DATA, >PALETTE1_DATA, >PALETTE2_DATA
 
 PAL_PTR_LOW:
-	.DB <PALETTE0_DATA, <PALETTE1_DATA
+	.DB <PALETTE0_DATA, <PALETTE1_DATA, <PALETTE2_DATA
 
 PALETTE0_DATA:
 	.DB $0e, $ac, $3a, $96, $00
 PALETTE1_DATA:
 	.DB $2c, $c8, $34, $0a, $00
+PALETTE2_DATA:
+	.DB $0a, $ae, $86, $9a, $00	
 
 ;-------------------------------------------------------------------------------
 ; returns number of playfield bytes to clear initially for height x 
