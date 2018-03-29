@@ -144,7 +144,7 @@ TITLE_SCREEN_DATA:
 ;            .DB 21 $82,         ; PPU address (screen0, line 12)
 	.DB >(scr_mem+11*32), <(scr_mem+11*32)
 	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
-	.DB $82, $81, $80
+	.DB $80, $81, $80
 	.DB $7f, $7f, $1f, $7f
 	.DB $7f, $1f, $7f, $20
 	.DB $1f, $7f, $7f, $1f
@@ -226,7 +226,7 @@ TITLE_SCREEN_DATA:
 ;            .DB 22 $84,         ; PPU address (screen0, line 19)
 	.DB >(scr_mem+18*32), <(scr_mem+18*32)
 	.DB $20			; control byte: VRAM line, ptr inc, 32bytes of data
-	.DB $82, $83
+	.DB $80, $83
 	.DB $80, $7f, $7f, $7f
 	.DB $7f, $7f, $7f, $7f
 	.DB $7f, $7f, $7f, $7f

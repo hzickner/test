@@ -88,9 +88,9 @@ TYPE_SCREEN_DATA:
 	.DB $ab, $a8, $38, $39
 	.DB $39, $39, $39, $39
 	.DB $39, $39, $39, $3a
-	.DB $ab, $ab, $38, $39
-	.DB $39, $39, $39, $39
-	.DB $39, $39, $39, $3a
+	.DB $ab, $ab, $b8, $b9
+	.DB $b9, $b9, $b9, $b9
+	.DB $b9, $b9, $b9, $ba
 	.DB $a9, $a8, $ab
 ;            .DB 21 00
 	.DB >(scr_mem+7*32), <(scr_mem+7*32)
@@ -100,9 +100,9 @@ TYPE_SCREEN_DATA:
 	.DB $a8, $3b, $7f, $0a
 	.DB $24, $1d, $22, $19
 	.DB $0e, $7f, $3c, $ab
-	.DB $a8, $3b, $7f, $0b
+	.DB $a8, $bb, $7f, $0b
 	.DB $24, $1d, $22, $19
-	.DB $0e, $7f, $3c, $a8
+	.DB $0e, $7f, $bc, $a8
 	.DB $aa, $ab
 ;            .DB 21 20   ; $b7b3: $aa, $ab, 21 20   Data
 	.DB >(scr_mem+8*32), <(scr_mem+8*32)
@@ -112,9 +112,9 @@ TYPE_SCREEN_DATA:
 	.DB $3d, $3e, $3e, $3e
 	.DB $3e, $3e, $3e, $3e
 	.DB $3e, $3f, $aa, $a8
-	.DB $3d, $3e, $3e, $3e
-	.DB $3e, $3e, $3e, $3e
-	.DB $3e, $3f, $a9, $a8
+	.DB $bd, $be, $be, $be
+	.DB $be, $be, $be, $be
+	.DB $be, $bf, $a9, $a8
 	.DB $a8
 ;            .DB 21 $a9,
 	.DB >(scr_mem+9*32), <(scr_mem+9*32)

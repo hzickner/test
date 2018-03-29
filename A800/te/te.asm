@@ -34,9 +34,11 @@ SEL_HEIGHT	.DS	1
 SEL_LEVEL	.DS	1
 SEL_TYPE	.DS	1
 SEL_MUSIC	.DS	1
+SPAWN_ID	.DS	1	; id of last spawned tetrimino
 SPR_PTR_INDEX	.DS	1
 SPR_X		.DS	1
 SPR_Y		.DS	1
+T_COUNT		.DS	1	; count tetriminoes, contributes to RANDOM selection
 TETR_NEXT	.DS	1	; next tetrimino max value 18
 
 ;-------------------------------------------------------------------------------
@@ -269,12 +271,9 @@ loop	jsr frame_clear_sprite_ram
 ;            lda #$03
 ;            jsr MMCsetreg2	; use CHR bank 3 for nametable an sprites
 ;
-	ldx #2
+	ldx #3
 	jsr GR_load_palette	; use color palette 2;
 
-;            jsr PPU_copy_data
-;            DW PALETTE_DATA_GAME_F0  ; load palette data
-;
 	lda #<GAME_F0_screen
 	ldx #>GAME_F0_screen
 	jsr GR_copy_data		; load screen data
@@ -413,15 +412,15 @@ loop1:	sta TYPE_COUNTERS,x
 ;            lda #$a0           ; $8739: a9 a0     
 ;            sta $6e            ; $873b: 85 6e     
 ;            sta $8e            ; $873d: 85 8e     
-;            jsr gamedemo_spawn
+	jsr gamedemo_spawn
 ;            sta $62            ; $8742: 85 62     
 ;            sta $82            ; $8744: 85 82     
 ;            jsr incr_tetr_type_counter
 ;            ldx #RANDOM           ; $8749: a2 17     
 ;            ldy #$02           ; $874b: a0 02     
 ;            jsr nextRandom         ; $874d: 20 47 ab  
-;            jsr gamedemo_spawn         ; $8750: 20 eb 98  
-;            sta TETR_NEXT            ; $8753: 85 bf     
+	jsr gamedemo_spawn
+	sta TETR_NEXT
 ;            sta $a6            ; $8755: 85 a6     
 ;            lda SEL_TYPE            ; $8757: a5 c1     
 ;            beq @s_typeA         ; $8759: f0 06     
@@ -746,6 +745,57 @@ skip1:	rts
 .endp
 
 ;-------------------------------------------------------------------------------
+; ret A - spawntable entry
+.proc gamedemo_spawn
+	lda GAME_MODE
+	cmp #MODE_DEMO
+	bne TETR_spawn     ; if (demo_mode) {
+;	ldx DEMO_COUNTER
+;	inc DEMO_COUNTER
+;	lda DEMO_DATA,x    ; read table value
+;            lsr
+;            lsr
+;            lsr
+;            lsr                ; /16
+;            and #$07           ; mod 8, bits4-6 -> index (0..7)
+;            tax                ; 
+;            lda spawn_table,x  ; read from spawn table
+;            rts                ; } else TETR_spawn
+;
+;;-------------------------------------------------------------------------------
+;; spawns a new tetrimino
+TETR_spawn:
+	inc T_COUNT
+	lda RANDOM
+	clc
+	adc T_COUNT
+	and #$07		;  random 0..7
+	cmp #$07
+	beq spawn_invalid	; if (7) ivalid spawn
+	tax
+	lda spawn_table,x	; get new spwan_id
+	cmp SPAWN_ID
+	bne spawn_use		; if (new != old) spawn_use
+spawn_invalid:     
+	lda RANDOM
+	and #$07		; random 0..7
+	clc
+	adc SPAWN_ID		; random 0..25 (max spawn_id=18)
+
+l1:	cmp #$07
+	bcc s1
+	sec
+	sbc #$07
+	bpl l1			; modulo 7
+
+s1:	tax			; x = 0..6
+	lda spawn_table,x
+spawn_use:
+	sta SPAWN_ID
+	rts
+.endp            
+            
+;-------------------------------------------------------------------------------
 ; copy data to screen
 ; thread main
 ; SRC pointer in AX
@@ -928,6 +978,7 @@ ret:	sty BGS_USED
 ;-------------------------------------------------------------------------------
 ; update SW sprites on screen
 ; thread NMI
+; //TODO move pointer arithmetik out of nmi code
 .proc GR_updateSprites
 	jsr GR_restoreBG
 	ldx #0
@@ -1360,6 +1411,9 @@ skip2:	;lda #$02           ; $82a7: a9 02
 	lda #>font_type
 	sta CHBAS
 
+	ldx #2
+	jsr GR_load_palette	; use color palette 2;
+
 ;            jsr PPU_copy_data
 ;            DW PALETTE_DATA_MODE1_2_3
 ;            
@@ -1493,8 +1547,16 @@ skip8:	jsr spr_drawtoMem
 	ldx #>LEVEL_SCREEN_DATA
 	jsr GR_copy_data		; load screen data
 
+	ldx COLOR2
+	ldy COLOR3
+	stx COLOR3
+	sty COLOR2			; swap colors in case of type B
+
 	lda SEL_TYPE
 	bne skip1
+	
+	stx COLOR2
+	sty COLOR3
 					; if (type A) use level_screen_data2
 	lda #<LEVEL_SCREEN_DATA2
 	ldx #>LEVEL_SCREEN_DATA2
@@ -2058,18 +2120,20 @@ HS_SCRadr_table:
 
 
 PAL_PTR_HIGH:
-	.DB >PALETTE0_DATA, >PALETTE1_DATA, >PALETTE2_DATA
+	.DB >PALETTE0_DATA, >PALETTE1_DATA, >PALETTE2_DATA, >PALETTE3_DATA
 
 PAL_PTR_LOW:
-	.DB <PALETTE0_DATA, <PALETTE1_DATA, <PALETTE2_DATA
+	.DB <PALETTE0_DATA, <PALETTE1_DATA, <PALETTE2_DATA, <PALETTE3_DATA
 
 PALETTE0_DATA:
 	.DB $0e, $ac, $3a, $96, $00
 PALETTE1_DATA:
 	.DB $2c, $c8, $34, $0a, $00
 PALETTE2_DATA:
-	.DB $0a, $ae, $86, $9a, $00	
-
+	.DB $0a, $2e, $34, $94, $00	
+PALETTE3_DATA:
+	.DB $0a, $ae, $84, $98, $00
+	
 ;-------------------------------------------------------------------------------
 ; returns number of playfield bytes to clear initially for height x 
 PF_CLEAR_BYTES:
@@ -2088,6 +2152,14 @@ PREVIEW_SPRITE_TABLE:
 	.DB $00, $00, 10, $00
 	.DB $00, $00, 12
 ;19bytes end of table
+
+;-------------------------------------------------------------------------------
+; spawn table
+; spawn orientation for every tetrimino type            
+spawn_table:
+	.DB $02, $07, $08, $0a   ; T J Z O
+	.DB $0b, $0e, $12, $02   ; S L I T //TODO do we need last entry?
+; end of spawn_table 8bytes
 	
 ;-------------------------------------------------------------------------------
 ; contains pointers to sprite definitions
@@ -2138,58 +2210,58 @@ sprPTR5:
 
 ; 'T' tetrimino            
 sprPTR6:
-		.DB 	$00,	$00,	$02,		$00
-		.DB	$00,	$00,	$02,		$01
-		.DB	$00,	$00,	$02,		$02
-		.DB	$01,	$00,	$02,		$01
+		.DB 	$00,	$58,	$02,		$00
+		.DB	$00,	$58,	$02,		$01
+		.DB	$00,	$58,	$02,		$02
+		.DB	$01,	$58,	$02,		$01
 		.DB	$ff
 		
 ; 'S' tetrimino
 sprPTR7:
-		.DB	$00, 	$00,	$02,		$01
-		.DB     $00,	$00,	$02,		$02
-		.DB	$01,	$00,	$02,		$00
-		.DB     $01,	$00,	$02,		$01
+		.DB	$00, 	$59,	$02,		$01
+		.DB     $00,	$59,	$02,		$02
+		.DB	$01,	$59,	$02,		$00
+		.DB     $01,	$59,	$02,		$01
 		.DB	$FF
 
 ; 'Z' terimino
 sprPTR8:            
-		.DB	$00, 	$00,	$02,		$00
-		.DB     $00,	$00,	$02,		$01
-		.DB	$01,	$00,	$02,		$01
-		.DB     $01,	$00,	$02,		$02
+		.DB	$00, 	$d9,	$02,		$00
+		.DB     $00,	$d9,	$02,		$01
+		.DB	$01,	$d9,	$02,		$01
+		.DB     $01,	$d9,	$02,		$02
 		.DB	$FF
 
 ; 'J' tetrimino
 sprPTR9:
-		.DB	$00, 	$00,	$02,		$00
-		.DB     $00,	$00,	$02,		$01
-		.DB	$00,	$00,	$02,		$02
-		.DB     $01,	$00,	$02,		$02
+		.DB	$00, 	$59,	$02,		$00
+		.DB     $00,	$59,	$02,		$01
+		.DB	$00,	$59,	$02,		$02
+		.DB     $01,	$59,	$02,		$02
 		.DB	$FF
 
 ; 'L' tetrimino
 sprPTR10:           
-		.DB	$00, 	$00,	$02,		$00
-		.DB     $00,	$00,	$02,		$01
-		.DB	$00,	$00,	$02,		$02
-		.DB     $01,	$00,	$02,		$00
+		.DB	$00, 	$d9,	$02,		$00
+		.DB     $00,	$d9,	$02,		$01
+		.DB	$00,	$d9,	$02,		$02
+		.DB     $01,	$d9,	$02,		$00
 		.DB	$FF
 
 ; 'O' tetrimino
 sprPTR11:            
-		.DB	$00, 	$00,	$02,		$00
-		.DB     $00,	$00,	$02,		$01
-		.DB	$01,	$00,	$02,		$00
-		.DB     $01,	$00,	$02,		$01
+		.DB	$00, 	$58,	$02,		$00
+		.DB     $00,	$58,	$02,		$01
+		.DB	$01,	$58,	$02,		$00
+		.DB     $01,	$58,	$02,		$01
 		.DB	$FF
 
 ; 'I' tetrimino
 sprPTR12:            
-		.DB	$00, 	$00,	$02,		$00
-		.DB     $00,	$00,	$02,		$01
-		.DB	$00,	$00,	$02,		$02
-		.DB     $00,	$00,	$02,		$03
+		.DB	$00, 	$58,	$02,		$00
+		.DB     $00,	$58,	$02,		$01
+		.DB	$00,	$58,	$02,		$02
+		.DB     $00,	$58,	$02,		$03
 		.DB	$FF
                                                 		
 ; triangle right and left with offsetx 4a used for music selection 
