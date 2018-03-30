@@ -13,25 +13,22 @@ B1_N		.DS	1	; temp variable for nmi thread
 B2		.DS	1
 B2_N		.DS	1
 BGS_USED	.DS	1
+BUTTONS_ALL	.DS	1	; cur plr bits for buttons pressed A B Select Start Up Down Left Right
+BUTTONS_NEW	.DS	1	; cur plr bits for just pressed buttons
 COUNTDOWN	.DS	1
+CUR_PLR		.DS	1	; 0 / 1 for PLR1 / PLR2
 GAME_FUNC_INDEX	.DS	1
 GAME_MODE	.DS	1
-HEIGHT		.DS	1
 JOY1_RAW_NEW	.DS	1
 JOY1_RAW_ALL	.DS	1
 JOY2_RAW_NEW	.DS	1
 JOY2_RAW_ALL	.DS	1
-LEVEL		.DS	1
-LINES		.DS	2	;  2byte 3digit BCD LINES counter
 N_PLR		.DS	1
 vNMIEN		.DS	1
 NMI_FUNC_INDEX	.DS	1
 OAM_USED	.DS	1
 PF_PTR		.DS	2	; pointer to playfield data
 PREVIEW_FLAG	.DS	1
-SCORE		.DS	3	; 3byte packed BCD score counter low byte first
-SEL_HEIGHT	.DS	1
-SEL_LEVEL	.DS	1
 SEL_TYPE	.DS	1
 SEL_MUSIC	.DS	1
 SPAWN_ID	.DS	1	; id of last spawned tetrimino
@@ -40,6 +37,43 @@ SPR_X		.DS	1
 SPR_Y		.DS	1
 T_COUNT		.DS	1	; count tetriminoes, contributes to RANDOM selection
 TETR_NEXT	.DS	1	; next tetrimino max value 18
+
+; game vars for cur plr
+	.align $10
+TETR_X		.DS	1	; X coordinate of current tetrimino
+TETR_Y		.DS	1	; Y coordinate of current tetrimino
+TETR_OR		.DS	1	; Orientation of current tetrimino
+SEL_LEVEL	.DS	1
+GAME_PHASE	.DS	1	; jump table index
+ST_LINES	.DS	2
+ST_SCORE	.DS	3
+SEL_HEIGHT	.DS	1
+
+G_VARS		equ	TETR_X
+; saved game vars for plr 1
+	.align $10
+P1_X		.DS	1
+P1_Y		.DS	1
+P1_OR		.DS	1	
+P1_LEVEL	.DS	1
+P1_PHASE	.DS	1
+P1_LINES	.DS	2	;  2byte 3digit BCD P1_LINES counter
+P1_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
+P1_HEIGHT	.DS	1
+
+G_VARS1		equ	P1_X
+; saved game vars for plr 1
+	.align $10
+P2_X		.DS	1
+P2_Y		.DS	1
+P2_OR		.DS	1	
+P2_LEVEL	.DS	1
+P2_PHASE	.DS	1
+P2_LINES	.DS	2	;  2byte 3digit BCD P1_LINES counter
+P2_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
+P2_HEIGHT	.DS	1
+
+G_VARS2		equ	P2_X
 
 ;-------------------------------------------------------------------------------
 ; variables
@@ -346,9 +380,9 @@ s1:
 	jsr frame_GR_rendering_on
 	jsr frame_clear_sprite_ram  ; //TODO 3 frame_funtions?
 ;            lda #$01           ; $869f: a9 01     
-;            sta $68            ; $86a1: 85 68     
-;            sta $88            ; $86a3: 85 88     
-;            lda LEVEL            ; $86a5: a5 67     
+;            sta P1_PHASE            ; $86a1: 85 68     
+;            sta P2_PHASE            ; $86a3: 85 88     
+;            lda P1_LEVEL            ; $86a5: a5 67     
 ;            sta $64            ; $86a7: 85 64     
 ;            lda $87            ; $86a9: a5 87     
 ;            sta $84            ; $86ab: 85 84     
@@ -384,14 +418,14 @@ loop1:	sta TYPE_COUNTERS,x
 ;            sta $85            ; $8701: 85 85     
 ;            sta $bb            ; $8703: 85 bb     
 ;            sta $bc            ; $8705: 85 bc     
-	sta SCORE            ; $8707: 85 73     
-	sta SCORE+1            ; $8709: 85 74     
-	sta SCORE+2            ; $870b: 85 75     
+	sta P1_SCORE            ; $8707: 85 73     
+	sta P1_SCORE+1            ; $8709: 85 74     
+	sta P1_SCORE+2            ; $870b: 85 75     
 ;            sta $93            ; $870d: 85 93     
 ;            sta $94            ; $870f: 85 94     
 ;            sta $95            ; $8711: 85 95     
-;            sta LINES            ; $8713: 85 70     
-;            sta LINES+1            ; $8715: 85 71     
+;            sta P1_LINES            ; $8713: 85 70     
+;            sta P1_LINES+1            ; $8715: 85 71     
 ;            sta $90            ; $8717: 85 90     
 ;            sta $91            ; $8719: 85 91     
 ;            sta $a4            ; $871b: 85 a4     
@@ -404,7 +438,7 @@ loop1:	sta TYPE_COUNTERS,x
 ;            sta $cf            ; $8729: 85 cf     
 ;            sta DEMO_COUNTER            ; $872b: 85 d3     
 ;            sta $d1            ; $872d: 85 d1     
-;            sta SPAWN_ID            ; $872f: 85 19     
+	sta SPAWN_ID
 ;            lda #$dd           ; $8731: a9 dd     
 ;            sta $d2            ; $8733: 85 d2     
 ;            lda #$03           ; $8735: a9 03     
@@ -425,7 +459,7 @@ loop1:	sta TYPE_COUNTERS,x
 ;            lda SEL_TYPE            ; $8757: a5 c1     
 ;            beq @s_typeA         ; $8759: f0 06     
 ;            lda #$25           ; $875b: a9 25     
-;            sta LINES            ; $875d: 85 70     
+;            sta P1_LINES            ; $875d: 85 70     
 ;            sta $90            ; $875f: 85 90     
 ;@s_typeA:   lda #$47           ; $8761: a9 47     
 ;            sta $a3            ; $8763: 85 a3     
@@ -469,34 +503,34 @@ skip2:	inc GAME_FUNC_INDEX	; continue with game_func3
 .proc game_func3
 ;            lda #$05           ; $9cbf: a9 05     
 ;            sta TEMP2+1            ; $9cc1: 85 a9     
-;            lda $68            ; $9cc3: a5 68     
-;            cmp #$00           ; $9cc5: c9 00     
-;            beq @skip1         ; $9cc7: f0 10     
-;            lda N_PLR            ; $9cc9: a5 be     
-;            cmp #$01           ; $9ccb: c9 01     
-;            beq @skip4         ; if (1 player) exit to game_func4
-;
-;            lda #$04           ; $9ccf: a9 04     
-;            sta TEMP2+1            ; $9cd1: 85 a9     
-;            lda $88            ; $9cd3: a5 88     
-;            cmp #$00           ; $9cd5: c9 00     
-;            bne @skip4         ; $9cd7: d0 3b     
-;@skip1:     lda N_PLR            ; $9cd9: a5 be     
-;            cmp #$01           ; $9cdb: c9 01     
-;            beq @skip2         ; $9cdd: f0 05     
+	lda P1_PHASE
+	cmp #$00
+	beq skip1
+	lda N_PLR
+	cmp #$01
+	beq skip4		; if (1 player) exit to game_func4
+
+;	lda #$04
+;	sta TEMP2+1
+	lda P2_PHASE
+	cmp #$00
+	bne skip4
+skip1:	lda N_PLR     
+	cmp #$01
+	beq skip2
 ;            lda #$09           ; $9cdf: a9 09     
 ;            sta GAME_FUNC_INDEX            ; $9ce1: 85 a7     
 ;            rts                ; $9ce3: 60        
 ;
-;@skip2:     lda #$03           ; $9ce4: a9 03     
+skip2:	lda #$03
 ;            sta NMI_FUNC_INDEX            ; $9ce6: 85 bd     
 ;            lda N_PLR            ; $9ce8: a5 be     
 ;            cmp #$01           ; $9cea: c9 01     
 ;            bne @skip3         ; $9cec: d0 03     
 ;            jsr __a0ee         ; $9cee: 20 ee a0  
-;@skip3:     lda #$01           ; $9cf1: a9 01     
-;            sta $68            ; $9cf3: 85 68     
-;            sta $88            ; $9cf5: 85 88     
+skip3:	lda #$01
+	sta P1_PHASE
+	sta P2_PHASE
 ;            lda #$ef           ; $9cf7: a9 ef     
 ;            ldx #$04           ; $9cf9: a2 04     
 ;            ldy #$05           ; $9cfb: a0 05     
@@ -504,14 +538,13 @@ skip2:	inc GAME_FUNC_INDEX	; continue with game_func3
 ;            lda #$00           ; $9d00: a9 00     
 ;            sta $69            ; $9d02: 85 69     
 ;            sta $89            ; $9d04: 85 89     
-;            lda #$01           ; $9d06: a9 01     
-;            sta $68            ; $9d08: 85 68     
-;            sta $88            ; $9d0a: 85 88     
-;            jsr frame_clear_sprite_ram         ; $9d0c: 20 2f aa  
-;            lda #MODE_LEVEL
-;            sta GAME_MODE            ; $9d11: 85 c0     
-;            rts                ; $9d13: 60        
-skip4:	inc GAME_FUNC_INDEX            ; $9d14: e6 a7     
+
+	jsr frame_clear_sprite_ram
+	lda #MODE_LEVEL
+	sta GAME_MODE
+	rts			; return to level selection?
+
+skip4:	inc GAME_FUNC_INDEX	; continue with game_func4
 	rts
 .endp
 
@@ -519,9 +552,9 @@ skip4:	inc GAME_FUNC_INDEX            ; $9d14: e6 a7
 ; called via jumptable
 ; game_func1
 .proc game_func4
-;            jsr __8776         ; $8174: 20 76 87  
+	jsr plr1_init
 ;            jsr __81b2         ; $8177: 20 b2 81  
-;            jsr __8a0a         ; $817a: 20 0a 8a  
+	jsr game_write_tetr         ; $817a: 20 0a 8a  
 ;            jsr __87ae         ; $817d: 20 ae 87  
 	jsr game_tetr_preview
 	inc GAME_FUNC_INDEX	; continue with game_func5     
@@ -538,7 +571,7 @@ skip4:	inc GAME_FUNC_INDEX            ; $9d14: e6 a7
 ;            bne @skip1         ; if (2 players) {
 ;            jsr __8792         ; $818c: 20 92 87  
 ;            jsr __81d9         ; $818f: 20 d9 81  
-;            jsr __8a0a         ; $8192: 20 0a 8a  
+;            jsr game_write_tetr         ; $8192: 20 0a 8a  
 ;            jsr __87c8         ; $8195: 20 c8 87 } endif 
 skip1:	inc GAME_FUNC_INDEX	; continue with game_abort_test     
 	rts
@@ -585,10 +618,10 @@ skip1:
 ;            bne @skip2         ; //TODO replace with beq @skip5
 ;            jmp @skip5         ; if (start pressed) ret with next game_func
 ;
-;@skip2:     lda $68
+;@skip2:     lda P1_PHASE
 ;            cmp #$0a
 ;            bne @skip3         ; //TODO replace with beq @skip5
-;            jmp @skip5         ; if ( $68 == 10 ) ret with next game_func
+;            jmp @skip5         ; if ( P1_PHASE == 10 ) ret with next game_func
 ;
 ;@skip3:     lda #$05           ; $a3aa: a9 05     
 ;            sta $068d          ; sound related
@@ -708,7 +741,7 @@ loop3:
 ;            sta PLAYFIELD2,x
 ;            dex
 ;            bne @loop4         ; copy PLAYFIELD (1..200) to PLAYFIELD2 (1..200) //TODO used?
-	ldx HEIGHT
+	ldx P1_HEIGHT
 	lda PF_CLEAR_BYTES,x	; get number of bytes to clear from top of playfield  
 	tay
 	lda #$7f		; clear value
@@ -742,6 +775,84 @@ skip4:	rts
 	jmp spr_drawtoMem
 
 skip1:	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; write tetrimino to spr_RAM
+.proc game_write_tetr
+	lda TETR_X
+	clc
+	adc #13
+	sta B2
+;            lda N_PLR
+;            cmp #$01
+;            beq @skip1		; if (2 players) {
+;            lda B2
+;            sec
+;            sbc #64
+;            sta B2		;   B2-=64
+;            lda CUR_PLR
+;            cmp #$01
+;            beq @skip1		;   if (CUR_PLR != 1) {
+;            lda B2
+;            adc #111		;	B2+=111 } 
+;            sta B2		
+;				; } endif    
+skip1:	clc
+	lda TETR_Y
+	clc
+	adc #7		; *8+47
+	sta B1    
+	lda TETR_OR       
+	asl
+	asl
+	sta TEMP2
+	asl
+	adc TEMP2	; *12
+	tax
+	ldy OAM_USED
+	lda #$04
+	sta TEMP2+1		; loop counter
+loop1:	lda tetrimino_table,x	; load y - offset
+	clc
+	adc B1			; *8 + B3
+	sta OAMBASE,y		; write to sprite mem
+	sta B1
+	inc OAM_USED
+	iny
+	inx
+	lda tetrimino_table,x	; load tile id
+	sta OAMBASE,y		; wite to sprite mem
+	inc OAM_USED
+	iny
+	inx
+	lda #$02
+	sta OAMBASE,y		; wite spr attribute
+	lda B1
+	cmp #6
+	bcs skip2		; if (B1 < 71) {
+	inc OAM_USED
+	dey
+	lda #$7f
+	sta OAMBASE,y		;   write tile id #$ff
+	iny
+	iny
+	lda #$00		;   write spr_x 0
+	sta OAMBASE,y
+	jmp skip3		;   skip3
+				; } endif
+skip2:	inc OAM_USED
+	iny
+	lda tetrimino_table,x	; load x - offset
+	clc
+	adc B2			; *8 + B2
+	sta OAMBASE,y
+skip3:	inc OAM_USED
+	iny
+	inx
+	dec TEMP2+1
+	bne loop1
+	rts
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -1571,37 +1682,37 @@ skip1:
 	lda #$00
 	sta B1			; init level height and selection flag
 ;            sta $af
-loop1:	lda LEVEL
+loop1:	lda P1_LEVEL
 	cmp #10
 	bcc skip2		; if (A < 10) skip2
 	sec
 	sbc #10
-	sta LEVEL
+	sta P1_LEVEL
 	jmp loop1		; LEVEL = LEVEL mod 10
 ;
 skip2:
 loop0:
 ;     lda #$00
-;            sta $b7            ; $b7 = 0 //TODO remove: not used
-	lda LEVEL
+;            sta CUR_PLR            ; CUR_PLR = 0 //TODO remove: not used
+	lda P1_LEVEL
 	sta SEL_LEVEL
-	lda HEIGHT
+	lda P1_HEIGHT
 	sta SEL_HEIGHT
 	jsr update_sel_sprites
 	lda SEL_LEVEL
-	sta LEVEL
+	sta P1_LEVEL
 	lda SEL_HEIGHT
-	sta HEIGHT		; save selected values
+	sta P1_HEIGHT		; save selected values
 	lda JOY1_RAW_NEW
 	cmp #BUTTON_START
 	bne not_start		; if (BUTTON_Start) {
 	lda JOY1_RAW_ALL
 	cmp #BUTTON_A | BUTTON_START
 	bne skip3		;   if (JOY1_RAW_ALL == 144) {
-	lda LEVEL
+	lda P1_LEVEL
 	clc
 	adc #10			;     LEVEL += 10
-	sta LEVEL		;   } endif
+	sta P1_LEVEL		;   } endif
 skip3:	lda #$00
 	sta GAME_FUNC_INDEX            ; GAME_FUNC_INDEX = 0
 ;            lda #$02
@@ -1741,6 +1852,28 @@ skip:
 	jsr read_joy_safe  ; if (GAME_MODE != DEMO) read controllers and return
 	rts
 .endp
+
+;-------------------------------------------------------------------------------
+; set playfield, controls and game variables to plr1
+; copy some variables
+.proc plr1_init
+	lda #$01
+	sta CUR_PLR
+	lda #>PLAYFIELD
+	sta PF_PTR+1
+	lda JOY1_RAW_NEW
+	sta BUTTONS_NEW
+	lda JOY1_RAW_ALL
+	sta BUTTONS_ALL
+
+	ldx #$f
+loop1:	lda G_VARS1,x   
+	sta G_VARS,x    
+	dex
+	bpl loop1
+
+	rts
+.endp            
 
 ;-------------------------------------------------------------------------------
 ; read 2controllers and option keys
@@ -1962,9 +2095,9 @@ skip10:	ldx SEL_LEVEL
 ;	ldx SEL_LEVEL       ; //TODO: remove reload of X
 	lda SPR_SEL_X_TABLE,x	; get x coord from table
 	sta SPR_X
-;            lda $b7
+;            lda CUR_PLR
 ;            cmp #$01
-;            bne @skip11:       ; if ($b7 == 1) { //TODO remove: never true
+;            bne @skip11:       ; if (CUR_PLR == 1) { //TODO remove: never true
 ;            clc
 ;            lda SPR_Y
 ;            adc #80            ;   SPR_Y += 80
@@ -1988,9 +2121,9 @@ skip13:	ldx SEL_HEIGHT
 ;            ldx SEL_HEIGHT
 	lda SPR_LINE_SEL_X_TABLE,x
 	sta SPR_X		; x coord
-;            lda $b7
+;            lda CUR_PLR
 ;            cmp #$01
-;            bne @skip14:       ; if ($b7 == 1) { //TODO remove: never true
+;            bne @skip14:       ; if (CUR_PLR == 1) { //TODO remove: never true
 ;            clc
 ;            lda SPR_Y
 ;            adc #$50           ;   SPR_Y += 80
@@ -2308,6 +2441,34 @@ SPR_SEL_Y_TABLE:
 	.DB 9, 9, 9, 9, 9
 	.DB 11, 11, 11, 11, 11
 ; 10bytes end of table
+
+;-------------------------------------------------------------------------------
+; tetriminos
+;                Y0 T0 X0  Y1 T1 X1  Y2 T2 X2  Y3 T3 X3
+tetrimino_table:
+            .DB $00, $58, $ff,  $00, $58, $00,  $00, $58, $01,  $ff, $58, $00   ; 00: T up
+            .DB $ff, $58, $00,  $00, $58, $00,  $00, $58, $01,  $01, $58, $00   ; $01,: T right
+            .DB $00, $58, $ff,  $00, $58, $00,  $00, $58, $01,  $01, $58, $00   ; 02: T down (spawn)
+            .DB $ff, $58, $00,  $00, $58, $ff,  $00, $58, $00,  $01, $58, $00   ; 03: T left
+            .DB $ff, $58, $00,  $00, $58, $00,  $01, $58, $ff,  $01, $58, $00   ; 04: J left
+            .DB $ff, $58, $ff,  $00, $58, $ff,  $00, $58, $00,  $00, $58, $01
+            .DB $ff, $58, $00,  $ff, $58, $01,  $00, $58, $00,  $01, $58, $00
+            .DB $00, $58, $ff,  $00, $58, $00,  $00, $58, $01,  $01, $58, $01
+            .DB $00, $59, $ff,  $00, $59, $00,  $01, $59, $00,  $01, $59, $01
+            .DB $ff, $59, $01,  $00, $59, $00,  $00, $59, $01,  $01, $59, $00
+            .DB $00, $58, $ff,  $00, $58, $00,  $01, $58, $ff,  $01, $58, $00
+            .DB $00, $58, $00,  $00, $58, $01,  $01, $58, $ff,  $01, $58, $00
+            .DB $ff, $58, $00,  $00, $58, $00,  $00, $58, $01,  $01, $58, $01
+            .DB $ff, $59, $00,  $00, $59, $00,  $01, $59, $00,  $01, $59, $01
+            .DB $00, $59, $ff,  $00, $59, $00,  $00, $59, $01,  $01, $59, $ff
+            .DB $ff, $59, $ff,  $ff, $59, $00,  $00, $59, $00,  $01, $59, $00
+            .DB $ff, $59, $01,  $00, $59, $ff,  $00, $59, $00,  $00, $59, $01
+            .DB $fe, $58, $00,  $ff, $58, $00,  $00, $58, $00,  $01, $58, $00   ; 17: I up down
+            .DB $00, $58, $fe,  $00, $58, $ff,  $00, $58, $00,  $00, $58, $01   ; 18: I left right
+            .DB $00, $ff, $00,  $00, $ff, $00,  $00, $ff, $00,  $00, $ff, $00   ; 19: $13 invalid tetrimino
+;-------------------------------------------------------------------------------
+; end of tetriminos
+; 20x12 bytes 240bytes
 
 ;-------------------------------------------------------------------------------
 ; static data with alignment
