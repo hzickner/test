@@ -12,6 +12,8 @@ B1		.DS	1	; temp variable for main thread
 B1_N		.DS	1	; temp variable for nmi thread
 B2		.DS	1
 B2_N		.DS	1
+B3		.DS	1
+B4		.DS	1
 BGS_USED	.DS	1
 BUTTONS_ALL	.DS	1	; cur plr bits for buttons pressed A B Select Start Up Down Left Right
 BUTTONS_NEW	.DS	1	; cur plr bits for just pressed buttons
@@ -43,8 +45,10 @@ TETR_NEXT	.DS	1	; next tetrimino max value 18
 TETR_X		.DS	1	; X coordinate of current tetrimino
 TETR_Y		.DS	1	; Y coordinate of current tetrimino
 TETR_OR		.DS	1	; Orientation of current tetrimino
+DAS_TIMER	.DS	1	; timer for delayed auto shift when holding left/right
 SEL_LEVEL	.DS	1
 GAME_PHASE	.DS	1	; jump table index
+DAR_TIMER	.DS	1	; down autorepeat timer
 ST_LINES	.DS	2
 ST_SCORE	.DS	3
 SEL_HEIGHT	.DS	1
@@ -54,9 +58,11 @@ G_VARS		equ	TETR_X
 	.align $10
 P1_X		.DS	1
 P1_Y		.DS	1
-P1_OR		.DS	1	
+P1_OR		.DS	1
+P1_DAS		.DS	1	
 P1_LEVEL	.DS	1
 P1_PHASE	.DS	1
+P1_DAR		.DS	1	; down autorepeat timer
 P1_LINES	.DS	2	;  2byte 3digit BCD P1_LINES counter
 P1_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
 P1_HEIGHT	.DS	1
@@ -66,9 +72,11 @@ G_VARS1		equ	P1_X
 	.align $10
 P2_X		.DS	1
 P2_Y		.DS	1
-P2_OR		.DS	1	
+P2_OR		.DS	1
+P2_DAS		.DS	1
 P2_LEVEL	.DS	1
 P2_PHASE	.DS	1
+P2_DAR		.DS	1	; down autorepeat timer
 P2_LINES	.DS	2	;  2byte 3digit BCD P1_LINES counter
 P2_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
 P2_HEIGHT	.DS	1
@@ -131,6 +139,23 @@ jt_h:
 jt_l:
 	.DB <(game_init_screen-1), <(game_func1-1), <(game_func2-1), <(game_func3-1)
 	.DB <(game_func4-1), <(game_func5-1), <(game_abort_test-1), <(game_pause_mode-1), <(game_loop_to2-1)	
+.endp
+
+;-------------------------------------------------------------------------------
+; calls function dependant on GAME_FUNC_INDEX
+.proc call_gamephase_func
+	ldx GAME_PHASE
+	lda jt_h,x
+	pha
+	lda jt_l,x
+	pha
+	rts
+	
+jt_h: 
+	.DB >(phase_func0-1), >(phase_func1-1)
+
+jt_l:
+	.DB <(phase_func0-1), <(phase_func1-1)
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -443,9 +468,9 @@ loop1:	sta TYPE_COUNTERS,x
 ;            sta $d2            ; $8733: 85 d2     
 ;            lda #$03           ; $8735: a9 03     
 ;            sta NMI_FUNC_INDEX   ; use nmi_func3
-;            lda #$a0           ; $8739: a9 a0     
-;            sta $6e            ; $873b: 85 6e     
-;            sta $8e            ; $873d: 85 8e     
+	lda #$a0           ; $8739: a9 a0     
+	sta P1_DAR            ; $873b: 85 6e     
+	sta P2_DAR            ; $873d: 85 8e     
 	jsr gamedemo_spawn
 ;            sta $62            ; $8742: 85 62     
 ;            sta $82            ; $8744: 85 82     
@@ -1681,7 +1706,7 @@ skip1:
 	jsr frame_clear_sprite_ram
 	lda #$00
 	sta B1			; init level height and selection flag
-;            sta $af
+;            sta B5
 loop1:	lda P1_LEVEL
 	cmp #10
 	bcc skip2		; if (A < 10) skip2
@@ -1854,6 +1879,21 @@ skip:
 .endp
 
 ;-------------------------------------------------------------------------------
+; clear tetrimino orientation $13 is empty tetr
+.proc phase_func0
+	lda #$13
+	sta TETR_OR
+	rts
+.endp	
+
+.proc phase_func1
+	jsr tetr_shift
+	jsr tetr_rotate
+;	jsr tetr_down
+	rts
+.endp    
+            
+;-------------------------------------------------------------------------------
 ; set playfield, controls and game variables to plr1
 ; copy some variables
 .proc plr1_init
@@ -1990,6 +2030,166 @@ loop:	lda (TEMP2),y		; while (*TEMP2 != FF) do {
 	stx OAM_USED
 	jmp loop		; } end while
 skip:	rts
+.endp
+
+;-------------------------------------------------------------------------------
+.proc tetr_check_valid
+	lda TETR_Y
+	asl
+	sta TEMP2
+	asl
+	asl
+	clc
+	adc TEMP2
+	adc TETR_X
+	sta TEMP2		; y*10+x = PF coord //TODO test use of mul10_table
+	lda TETR_OR
+	asl
+	asl
+	sta TEMP2+1
+	asl
+	clc
+	adc TEMP2+1
+	tax			; or * 12 = index to tetr_table
+	ldy #$00
+	lda #$04
+	sta B2			; loop counter: check 4 tiles
+loop:	lda tetrimino_table,x	; get y offset of tile
+	clc
+	adc TETR_Y		; add ycoord
+	adc #$02		; +2 //TODO remove addition compare with 20 instead
+	cmp #22			; if (>=22)    
+	bcs false		;   return false
+	lda tetrimino_table,x	; get y offset of tile
+	asl
+	sta B3
+	asl
+	asl
+	clc
+	adc B3			; *10 = pf offset of tile
+	clc
+	adc TEMP2		; add pf coord of tetr
+	sta B4
+	inx
+	inx
+	lda tetrimino_table,x	; get x offset of tile
+	clc
+	adc B4			; ad to pf coord
+	tay
+	lda (PF_PTR),y		; read playfield value
+	cmp #$7f     
+	bcc false		; if (!empty) return false     
+	lda tetrimino_table,x	; read x offset
+	clc       
+	adc TETR_X		; add x coord
+	cmp #10
+	bcs false		; if (tileX >= 10) return false
+	inx        
+	dec B2
+	bne loop		; next tile
+
+	lda #$00
+	sta TEMP2		; //TODO remove, use ret value A
+	rts			; return true
+
+false:	lda #$ff
+	sta TEMP2		; //TODO remove, use ret value A
+	rts			; return false
+.endp
+
+;-------------------------------------------------------------------------------
+; rotate tetrimino
+.proc tetr_rotate
+	lda TETR_OR
+	sta B1			; save old orientation
+	clc
+	lda TETR_OR
+	asl
+	tax			; line of rot_table = 2 * orientation
+	lda BUTTONS_NEW		; button value
+	and #BUTTON_A
+;	cmp #BUTTON_A		; //TODO not necessary? and sets zero flag  
+	bne skip1		; if (button A) pressed   
+	inx			;   next index for clockwise rot
+	lda rot_table,x
+	sta TETR_OR		;   new orientation ID
+	jsr tetr_check_valid	;   test for valid orientation
+	bne restoreOR		;   if (not valid) restore orientation
+;	lda #$05
+;            sta sndEFFECT
+	rts			;   return
+
+				; else
+skip1:	lda BUTTONS_NEW		; button value
+	and #BUTTON_U
+;            cmp #BUTTON_B      ; //TODO not necessary?   
+	bne ret			; if (button B) !pressed return  
+	lda rot_table,x		;  CCW rot
+	sta TETR_OR		;  new orientation ID
+	jsr tetr_check_valid	;  test for valid orientation
+	bne restoreOR		;  if (not valid) restore orientation
+;            lda #$05
+;            sta sndEFFECT
+	rts			;  return
+
+restoreOR:
+	lda B1
+	sta TETR_OR		; restore tetr orientation
+
+ret:	rts
+.endp
+
+;-------------------------------------------------------------------------------
+.proc tetr_shift
+	lda TETR_X
+	sta B1			; save xpos
+	lda BUTTONS_ALL    
+	and #BUTTON_D
+	bne ret			; if (Button_D) return
+	lda BUTTONS_NEW     
+	and #BUTTON_L | BUTTON_R	; if (L or R JUST pressed) skip1
+	bne skip1
+      
+	lda BUTTONS_ALL
+	and #BUTTON_L | BUTTON_R
+	beq ret			; if (L or R holding) {
+	inc DAS_TIMER		;   inc autoshift timer
+	lda DAS_TIMER
+	cmp #16     
+	bmi ret			;   if (timer < 16) return
+	lda #10			;   timer = 10 
+	sta DAS_TIMER     
+	jmp skip2		; } endif
+
+skip1:	lda #$00    
+	sta DAS_TIMER		; timer = 0
+skip2:	lda BUTTONS_ALL
+	and #BUTTON_R
+	beq skip3		; if (!R) skip3
+	inc TETR_X		; x++
+	jsr tetr_check_valid 
+	bne restore		; if (! valid) restore
+;	lda #$03
+;            sta sndEFFECT
+	jmp ret
+
+skip3:	lda BUTTONS_ALL
+	and #BUTTON_L
+	beq ret
+	dec TETR_X
+	jsr tetr_check_valid
+	bne restore
+;	lda #$03
+;	sta sndEFFECT
+	jmp ret
+
+restore:
+	lda B1
+	sta TETR_X
+	lda #$10
+	sta DAS_TIMER
+	
+ret:	rts
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -2285,6 +2485,32 @@ PREVIEW_SPRITE_TABLE:
 	.DB $00, $00, 10, $00
 	.DB $00, $00, 12
 ;19bytes end of table
+
+;-------------------------------------------------------------------------------
+; Tetrimino rotation
+; line number is index to tetrimino table
+;                CCW CW
+; 38 bytes
+rot_table:  .DB $03, $01        ;  Tl  Tr 0 is Tu
+            .DB $00, $02        ;  Tu  Td 1 is Tr
+            .DB $01, $03
+            .DB $02, $00
+            .DB $07, $05
+            .DB $04, $06
+            .DB $05, $07
+            .DB $06, $04
+            .DB $09, $09
+            .DB $08, $08
+            .DB $0a, $0a
+            .DB $0c, $0c
+            .DB $0b, $0b
+            .DB $10, $0e
+            .DB $0d, $0f
+            .DB $0e, $10
+            .DB $0f, $0d
+            .DB $12, $12         ;  Ih  Ih 17 is Iv
+            .DB $11, $11         ;  Iv  Iv 18 is Ih
+; 38bytes end of rot_table
 
 ;-------------------------------------------------------------------------------
 ; spawn table
