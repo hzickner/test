@@ -21,6 +21,7 @@ TETR_OR              = $42      ; Orientation of current tetrimino
 DAS_TIMER            = $46      ; timer for delayed auto shift when holding left/right
 SEL_LEVEL            = $47      ; selected level (selection)
 GAME_PHASE           = $48      ; jump table index
+DAR_TIMER            = $4e      ; down autorepeat timer
 ST_LINES             = $50      ; 2 byte little endian BCD nr of cleared lines
 ST_SCORE             = $53      ; 3 byte little endian BCD score
 SEL_HEIGHT           = $59      ; selected height
@@ -30,6 +31,7 @@ P1_OR                = $62
 P1_DAS               = $66
 P1_LEVEL             = $67
 P1_PHASE             = $68
+P1_DAR               = $6e      ; down autorepeat timer
 P1_LINES             = $70	;  2byte 3digit BCD LINES counter
 P1_SCORE             = $73	; 3byte packed BCD score counter low byte first
 P1_HEIGHT            = $79
@@ -39,6 +41,7 @@ P2_OR                = $82
 P2_DAS               = $86
 P2_LEVEL             = $87
 P2_PHASE             = $88
+P2_DAR               = $8e      ; down autorepeat timer
 P2_LINES             = $90	;  2byte 3digit BCD LINES counter
 P2_SCORE             = $93	; 3byte packed BCD score counter low byte first
 P2_HEIGHT            = $99
@@ -51,6 +54,7 @@ B2                   = $aa	; byte variable
 B3                   = $ab	; byte variable
 B4                   = $ad	; byte variable
 B1                   = $ae      ; byte variable
+B5                   = $af      ; byte variable
 FRAMECOUNT           = $b1      ; 16bit frame counter
 OAM_USED             = $b3      ; sprite memory used
 BUTTONS_NEW          = $b5      ; bits for just pressed buttons
@@ -388,10 +392,10 @@ table_jump_game_phase:     lda GAME_PHASE            ; $81b2: a5 48
 ;-------------------------------------------------------------------------------
 
 jump48_func1:
-            jsr tetr_shift         ; $81cf: 20 ae 89  
-            jsr tetr_rotate         ; $81d2: 20 ab 88  
-            jsr tetr_down         ; $81d5: 20 14 89  
-            rts                ; $81d8: 60        
+            jsr tetr_shift
+            jsr tetr_rotate
+            jsr tetr_down
+            rts
 
 ;-------------------------------------------------------------------------------
 __81d9:     lda GAME_PHASE            ; $81d9: a5 48     
@@ -713,7 +717,7 @@ mode_func_level:
             jsr frame_clear_sprite_ram
             lda #$00
             sta B1
-            sta $af
+            sta B5
 @loop1:     lda P1_LEVEL
             cmp #10
             bcc @skip2         ; if (A < 10) skip2
@@ -1140,8 +1144,8 @@ game_func1:
             lda #$03           ; $8735: a9 03     
             sta NMI_FUNC_INDEX   ; use nmi_func3
             lda #$a0           ; $8739: a9 a0     
-            sta $6e            ; $873b: 85 6e     
-            sta $8e            ; $873d: 85 8e     
+            sta P1_DAR            ; $873b: 85 6e     
+            sta P2_DAR            ; $873d: 85 8e     
             jsr gamedemo_spawn
             sta P1_OR            ; $8742: 85 62     
             sta P2_OR            ; $8744: 85 82     
@@ -1272,7 +1276,7 @@ game_init_start_lines:
             tay                ; $8815: a8        
             lda B3           ; $8816: a5 ab     
             sta PLAYFIELD,y    ; position = loop counter + 10*outer loop counter (80..199), store tile at position
-            lda $aa
+            lda B2
             beq @skip2         ; if (loop counter == 0) break
             dec B2           ; dec loop counter
             jmp @loop2         ; loop			// TODO use dec $aa, bpl loop2
@@ -1376,7 +1380,7 @@ tetr_rotate:
             bne @restoreOR     ;   if (not valid) restore orientation
             lda #$05
             sta sndEFFECT
-            jmp @ret           ;   return
+            jmp @ret           ;   return //TODO call rts directly
 
                                ; else
 @skip1:     lda BUTTONS_NEW    ; button value
@@ -1422,72 +1426,75 @@ rot_table:  .hex 03  01        ;  Tl  Tr 0 is Tu
 ; end of rot_table
 
 ;-------------------------------------------------------------------------------
-tetr_down:     lda $4e            ; $8914: a5 4e     
-            bpl __8922         ; $8916: 10 0a     
-            lda BUTTONS_NEW           ; $8918: a5 b5     
-            and #BUTTON_D           ; $891a: 29 04     
-            beq __8989         ; $891c: f0 6b     
-            lda #$00           ; $891e: a9 00     
-            sta $4e            ; $8920: 85 4e     
-__8922:     bne __8939         ; $8922: d0 15     
-            lda BUTTONS_ALL            ; $8924: a5 b6     
-            and #$03           ; $8926: 29 03     
-            bne __8973         ; $8928: d0 49     
-            lda BUTTONS_NEW           ; $892a: a5 b5     
-            and #$0f           ; $892c: 29 0f     
-            cmp #BUTTON_D           ; $892e: c9 04     
-            bne __8973         ; $8930: d0 41     
-            lda #$01           ; $8932: a9 01     
-            sta $4e            ; $8934: 85 4e     
-            jmp __8973         ; $8936: 4c 73 89  
-
-;-------------------------------------------------------------------------------
-__8939:     lda BUTTONS_ALL            ; $8939: a5 b6     
+tetr_down:
+	lda DAR_TIMER
+	bpl @skip1		; if (dar < 0) {
+	lda BUTTONS_NEW
+	and #BUTTON_D
+            beq @skip6		;   if (button_d) skip6
+            lda #$00    
+            sta DAR_TIMER	;   reset DAR_TIMER
+				; } endif    
+; DAR_TIMER >= 0
+@skip1:     bne @skip2         ; if (dar == 0) {
+            lda BUTTONS_ALL
+            and #BUTTON_R | BUTTON_L
+            bne @skip4         ; if (button_r | button_l) skip4
+            lda BUTTONS_NEW 
+            and #$0f
+            cmp #BUTTON_D
+            bne @skip4         ; if (button_d just pressed) 
+            lda #$01
+            sta DAR_TIMER	;   dar=1
+            jmp @skip4
+				; } endif skip4
+; DAR_TIMER > 0
+@skip2:     lda BUTTONS_ALL
             and #$0f           ; $893b: 29 0f     
-            cmp #$04           ; $893d: c9 04     
-            beq __894a         ; $893f: f0 09     
+            cmp #BUTTON_D
+            beq @skip3         ; $893f: f0 09     
             lda #$00           ; $8941: a9 00     
-            sta $4e            ; $8943: 85 4e     
+            sta DAR_TIMER	; dar = 0
             sta $4f            ; $8945: 85 4f     
-            jmp __8973         ; $8947: 4c 73 89  
+            jmp @skip4         ; $8947: 4c 73 89  
 
 ;-------------------------------------------------------------------------------
-__894a:     inc $4e            ; $894a: e6 4e     
-            lda $4e            ; $894c: a5 4e     
+@skip3:     inc DAR_TIMER            ; $894a: e6 4e     
+            lda DAR_TIMER            ; $894c: a5 4e     
             cmp #$03           ; $894e: c9 03     
-            bcc __8973         ; $8950: 90 21     
+            bcc @skip4         ; $8950: 90 21     
             lda #$01           ; $8952: a9 01     
-            sta $4e            ; $8954: 85 4e     
+            sta DAR_TIMER            ; $8954: 85 4e     
             inc $4f            ; $8956: e6 4f     
-__8958:     lda #$00           ; $8958: a9 00     
+@loop1:     lda #$00           ; $8958: a9 00     
             sta $45            ; $895a: 85 45     
             lda TETR_Y            ; $895c: a5 41     
             sta B1            ; $895e: 85 ae     
             inc TETR_Y            ; $8960: e6 41     
             jsr tetr_check_valid         ; $8962: 20 8b 94  
-            beq __8972         ; $8965: f0 0b     
+            beq @ret         ; $8965: f0 0b     
             lda B1            ; $8967: a5 ae     
             sta TETR_Y            ; $8969: 85 41     
             lda #$02           ; $896b: a9 02     
             sta GAME_PHASE            ; $896d: 85 48     
             jsr __9caf         ; $896f: 20 af 9c  
-__8972:     rts                ; $8972: 60        
+@ret:     rts                ; $8972: 60        
 
 ;-------------------------------------------------------------------------------
-__8973:     lda #$01           ; $8973: a9 01     
+@skip4:     lda #$01           ; $8973: a9 01     
             ldx $44            ; $8975: a6 44     
             cpx #$1d           ; $8977: e0 1d     
-            bcs __897e         ; $8979: b0 03     
+            bcs @skip5         ; $8979: b0 03     
             lda __898e,x       ; $897b: bd 8e 89  
-__897e:     sta $af            ; $897e: 85 af     
+@skip5:     sta B5            ; $897e: 85 af     
             lda $45            ; $8980: a5 45     
-            cmp $af            ; $8982: c5 af     
-            bpl __8958         ; $8984: 10 d2     
-            jmp __8972         ; $8986: 4c 72 89  
+            cmp B5            ; $8982: c5 af     
+            bpl @loop1         ; $8984: 10 d2     
+            jmp @ret         ; $8986: 4c 72 89  
 
-;-------------------------------------------------------------------------------
-__8989:     inc $4e            ; $8989: e6 4e     
-            jmp __8972         ; $898b: 4c 72 89  
+; DAR_TIMER < 0 and BUTTON_D
+@skip6:     inc DAR_TIMER
+            jmp @ret
 
 ;-------------------------------------------------------------------------------
 __898e:     .hex 30 2b 26 21   ; $898e: 30 2b 26 21   Data
@@ -2904,7 +2911,7 @@ __98ba:     lda #$00           ; $98ba: a9 00
 __98e1:     jsr gamedemo_spawn         ; $98e1: 20 eb 98  
             sta TETR_NEXT            ; $98e4: 85 bf     
 __98e6:     lda #$00           ; $98e6: a9 00     
-            sta $4e            ; $98e8: 85 4e     
+            sta DAR_TIMER            ; $98e8: 85 4e     
 __98ea:     rts                ; $98ea: 60        
 
 ;-------------------------------------------------------------------------------
