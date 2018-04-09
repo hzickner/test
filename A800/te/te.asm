@@ -14,6 +14,7 @@ B2		.DS	1
 B2_N		.DS	1
 B3		.DS	1
 B4		.DS	1
+B5		.DS	1
 BGS_USED	.DS	1
 BUTTONS_ALL	.DS	1	; cur plr bits for buttons pressed A B Select Start Up Down Left Right
 BUTTONS_NEW	.DS	1	; cur plr bits for just pressed buttons
@@ -45,10 +46,14 @@ TETR_NEXT	.DS	1	; next tetrimino max value 18
 TETR_X		.DS	1	; X coordinate of current tetrimino
 TETR_Y		.DS	1	; Y coordinate of current tetrimino
 TETR_OR		.DS	1	; Orientation of current tetrimino
+LEVEL		.DS	1
+FALL_TIMER	.DS	1
 DAS_TIMER	.DS	1	; timer for delayed auto shift when holding left/right
 SEL_LEVEL	.DS	1
 GAME_PHASE	.DS	1	; jump table index
+BGU_COUNT	.DS	1
 DAR_TIMER	.DS	1	; down autorepeat timer
+DAR_COUNT	.DS	1
 ST_LINES	.DS	2
 ST_SCORE	.DS	3
 SEL_HEIGHT	.DS	1
@@ -59,10 +64,14 @@ G_VARS		equ	TETR_X
 P1_X		.DS	1
 P1_Y		.DS	1
 P1_OR		.DS	1
+P1_LVL		.DS	1
+P1_FALLT	.DS	1
 P1_DAS		.DS	1	
 P1_LEVEL	.DS	1
 P1_PHASE	.DS	1
+P1_BGUC		.DS	1
 P1_DAR		.DS	1	; down autorepeat timer
+P1_DARC		.DS	1
 P1_LINES	.DS	2	;  2byte 3digit BCD P1_LINES counter
 P1_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
 P1_HEIGHT	.DS	1
@@ -73,10 +82,14 @@ G_VARS1		equ	P1_X
 P2_X		.DS	1
 P2_Y		.DS	1
 P2_OR		.DS	1
+P2_LVL		.DS	1
+P2_FALLT	.DS	1
 P2_DAS		.DS	1
 P2_LEVEL	.DS	1
 P2_PHASE	.DS	1
+P2_BGUC		.DS	1
 P2_DAR		.DS	1	; down autorepeat timer
+P2_DARC		.DS	1
 P2_LINES	.DS	2	;  2byte 3digit BCD P1_LINES counter
 P2_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
 P2_HEIGHT	.DS	1
@@ -408,9 +421,9 @@ s1:
 ;            sta P1_PHASE            ; $86a1: 85 68     
 ;            sta P2_PHASE            ; $86a3: 85 88     
 ;            lda P1_LEVEL            ; $86a5: a5 67     
-;            sta $64            ; $86a7: 85 64     
+;            sta P1_LVL            ; $86a7: 85 64     
 ;            lda $87            ; $86a9: a5 87     
-;            sta $84            ; $86ab: 85 84     
+;            sta P2_LVL            ; $86ab: 85 84     
 	inc GAME_FUNC_INDEX	; game_func1
 
 	rts
@@ -437,10 +450,10 @@ loop1:	sta TYPE_COUNTERS,x
 	lda #$00           ; $86f5: a9 00     
 ;            sta $61            ; $86f7: 85 61     
 ;            sta $81            ; $86f9: 85 81     
-;            sta $69            ; $86fb: 85 69     
-;            sta $89            ; $86fd: 85 89     
-;            sta $65            ; $86ff: 85 65     
-;            sta $85            ; $8701: 85 85     
+;            sta P1_BGUC            ; $86fb: 85 69     
+;            sta P2_BGUC            ; $86fd: 85 89     
+;            sta P1_FALLT            ; $86ff: 85 65     
+;            sta P2_FALLT            ; $8701: 85 85     
 ;            sta $bb            ; $8703: 85 bb     
 ;            sta $bc            ; $8705: 85 bc     
 	sta P1_SCORE            ; $8707: 85 73     
@@ -507,8 +520,8 @@ loop1:	sta TYPE_COUNTERS,x
 ;            jsr MMCsetreg2     ; CHR page 3 for bkg and sprites
 ;            lda #$00
 ;            sta OAM_USED       ; no sprites allocated
-;            inc $65            ; $8892: e6 65     
-;            inc $85            ; $8894: e6 85     
+;            inc P1_FALLT            ; $8892: e6 65     
+;            inc P2_FALLT            ; $8894: e6 85     
 ;            lda $a4            ; $8896: a5 a4     
 ;            beq @skip1         ; $8898: f0 02     
 ;            inc $a4            ; $889a: e6 a4     
@@ -561,8 +574,8 @@ skip3:	lda #$01
 ;            ldy #$05           ; $9cfb: a0 05     
 ;            jsr memset         ; fill page 4-5 with $ef
 ;            lda #$00           ; $9d00: a9 00     
-;            sta $69            ; $9d02: 85 69     
-;            sta $89            ; $9d04: 85 89     
+;            sta P1_BGUC            ; $9d02: 85 69     
+;            sta P2_BGUC            ; $9d04: 85 89     
 
 	jsr frame_clear_sprite_ram
 	lda #MODE_LEVEL
@@ -678,7 +691,7 @@ skip4:
 ;            sta PPUMASK        ; re enable BKG rendering  
 ;            lda #$00           ; $a3e4: a9 00     
 ;            sta $068d          ; sound related
-;            sta $69            ; $a3e9: 85 69     
+;            sta P1_BGUC            ; $a3e9: 85 69     
 ;            lda #$03
 ;            sta NMI_FUNC_INDEX ; use nmi_func3
 skip5:	inc GAME_FUNC_INDEX	; continue with game_func8
@@ -714,8 +727,8 @@ loop1:	lda TEMP2
 	sbc TEMP2
 	sta TEMP2+1		; 20-loopcounter (8..19)
 ;            lda #$00           ; $87f2: a9 00     
-;            sta $69            ; $87f4: 85 69     
-;            sta $89            ; $87f6: 85 89
+;            sta P1_BGUC            ; $87f4: 85 69     
+;            sta P2_BGUC            ; $87f6: 85 89
 ;     
 	lda #$09
 	sta B1			; loop counter loop2 (9..0)
@@ -1992,6 +2005,20 @@ loop:	lda JOY1_RAW_NEW,x
 .endp
 
 ;-------------------------------------------------------------------------------
+.proc set_BGU_COUNT
+	ldx TETR_Y
+	dex
+	dex
+	txa
+	bpl skip1
+	lda #$00
+skip1:	cmp BGU_COUNT
+	bpl skip2
+	sta BGU_COUNT		; BGU_COUNT = MAX (Y-2, BGU_COUNT)
+skip2:	rts
+.endp
+
+;-------------------------------------------------------------------------------
 ; read SPR_PTR_INDEX
 ; draw this sprite of one or multiple tiles to RAM
 .proc spr_drawtoMem  
@@ -2095,6 +2122,79 @@ loop:	lda tetrimino_table,x	; get y offset of tile
 false:	lda #$ff
 	sta TEMP2		; //TODO remove, use ret value A
 	rts			; return false
+.endp
+
+;-------------------------------------------------------------------------------
+; handles falling and dropping of tetriminos
+.proc tetr_down
+	lda DAR_TIMER
+	bpl skip1		; if (dar < 0) {
+	lda BUTTONS_NEW
+	and #BUTTON_D
+	beq skip6		;   if (button_d) skip6
+	lda #$00    
+	sta DAR_TIMER		;   reset DAR_TIMER
+				; } endif    
+; DAR_TIMER >= 0
+skip1	bne skip2		; if (dar == 0) {
+	lda BUTTONS_ALL
+	and #BUTTON_R | BUTTON_L
+	bne skip4		; if (button_r | button_l) skip4
+	lda BUTTONS_NEW 
+	and #$0f
+	cmp #BUTTON_D
+	bne skip4		; if (button_d just pressed) 
+	lda #$01
+	sta DAR_TIMER		;   dar=1
+	jmp skip4
+				; } endif skip4
+; DAR_TIMER > 0
+skip2:	lda BUTTONS_ALL
+	and #$0f
+	cmp #BUTTON_D
+	beq skip3		; if (button_d pressed) skip3
+	lda #$00    
+	sta DAR_TIMER		; dar = 0
+	sta DAR_COUNT		; dar_count = 0
+	jmp skip4
+
+; button down pressed
+; every 3rd frame 1 line down
+skip3:	inc DAR_TIMER
+	lda DAR_TIMER
+	cmp #$03
+	bcc skip4		; if (DAR_TIMER < 3) skip4
+	lda #$01
+	sta DAR_TIMER
+	inc DAR_COUNT
+loop1:	lda #$00
+	sta FALL_TIMER
+	lda TETR_Y
+	sta B1
+	inc TETR_Y
+	jsr tetr_check_valid
+	beq ret
+	lda B1
+	sta TETR_Y
+	lda #$02
+	sta GAME_PHASE
+	jsr set_BGU_COUNT
+ret:	rts
+
+skip4:	lda #$01
+	ldx LEVEL
+	cpx #29
+	bcs skip5		; if (level >= 29) skip5
+	lda DROPSPEED_TABLE,x
+skip5:	sta B5
+	lda FALL_TIMER
+	cmp B5
+	bpl loop1		; if (FALL_TIMER >= B5) drop
+	rts
+
+; DAR_TIMER < 0 and BUTTON_D
+skip6:	inc DAR_TIMER
+	rts
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -2343,6 +2443,19 @@ ret:	rts
 	ICL "screens/level_screen2.asm"		;//TODO minimize data
 	ICL "screens/score_screen.asm"
 	ICL "screens/gamef0_screen.asm"
+
+;-------------------------------------------------------------------------------
+; frames per drop for every level from 0..29
+DROPSPEED_TABLE:
+            .DB $30, $2b, $26, $21   ; $898e: 30 2b 26 21   Data
+            .DB $1c, $17, $12, $0d   ; $8992: 1c 17 12 0d   Data
+            .DB $08, $06, $05, $05   ; $8996: 08 06 05 05   Data
+            .DB $05, $04, $04, $04   ; $899a: 05 04 04 04   Data
+            .DB $03, $03, $03, $02   ; $899e: 03 03 03 02   Data
+            .DB $02, $02, $02, $02   ; $89a2: 02 02 02 02   Data
+            .DB $02, $02, $02, $02   ; $89a6: 02 02 02 02   Data
+            .DB $02
+; 29bytes end of table            
 
 ;-------------------------------------------------------------------------------
 ; screen data for the display of start height 
