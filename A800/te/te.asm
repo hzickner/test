@@ -20,6 +20,7 @@ BUTTONS_ALL	.DS	1	; cur plr bits for buttons pressed A B Select Start Up Down Le
 BUTTONS_NEW	.DS	1	; cur plr bits for just pressed buttons
 COUNTDOWN	.DS	1
 CUR_PLR		.DS	1	; 0 / 1 for PLR1 / PLR2
+DEMO_COUNTER	.DS	1	; counter for demo mode
 GAME_FUNC_INDEX	.DS	1
 GAME_MODE	.DS	1
 JOY1_RAW_NEW	.DS	1
@@ -72,7 +73,7 @@ P1_PHASE	.DS	1
 P1_BGUC		.DS	1
 P1_DAR		.DS	1	; down autorepeat timer
 P1_DARC		.DS	1
-P1_LINES	.DS	2	;  2byte 3digit BCD P1_LINES counter
+P1_LINES	.DS	2	; 2byte 3digit BCD P1_LINES counter
 P1_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
 P1_HEIGHT	.DS	1
 
@@ -90,7 +91,7 @@ P2_PHASE	.DS	1
 P2_BGUC		.DS	1
 P2_DAR		.DS	1	; down autorepeat timer
 P2_DARC		.DS	1
-P2_LINES	.DS	2	;  2byte 3digit BCD P1_LINES counter
+P2_LINES	.DS	2	; 2byte 3digit BCD P1_LINES counter
 P2_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
 P2_HEIGHT	.DS	1
 
@@ -422,7 +423,7 @@ s1:
 ;            sta P2_PHASE            ; $86a3: 85 88     
 ;            lda P1_LEVEL            ; $86a5: a5 67     
 ;            sta P1_LVL            ; $86a7: 85 64     
-;            lda $87            ; $86a9: a5 87     
+;            lda P2_LEVEL            ; $86a9: a5 87     
 ;            sta P2_LVL            ; $86ab: 85 84     
 	inc GAME_FUNC_INDEX	; game_func1
 
@@ -450,10 +451,10 @@ loop1:	sta TYPE_COUNTERS,x
 	lda #$00           ; $86f5: a9 00     
 ;            sta $61            ; $86f7: 85 61     
 ;            sta $81            ; $86f9: 85 81     
-;            sta P1_BGUC            ; $86fb: 85 69     
-;            sta P2_BGUC            ; $86fd: 85 89     
-;            sta P1_FALLT            ; $86ff: 85 65     
-;            sta P2_FALLT            ; $8701: 85 85     
+	sta P1_BGUC
+	sta P2_BGUC
+	sta P1_FALLT
+	sta P2_FALLT
 ;            sta $bb            ; $8703: 85 bb     
 ;            sta $bc            ; $8705: 85 bc     
 	sta P1_SCORE            ; $8707: 85 73     
@@ -462,10 +463,10 @@ loop1:	sta TYPE_COUNTERS,x
 ;            sta $93            ; $870d: 85 93     
 ;            sta $94            ; $870f: 85 94     
 ;            sta $95            ; $8711: 85 95     
-;            sta P1_LINES            ; $8713: 85 70     
-;            sta P1_LINES+1            ; $8715: 85 71     
-;            sta $90            ; $8717: 85 90     
-;            sta $91            ; $8719: 85 91     
+	sta P1_LINES
+	sta P1_LINES+1
+	sta P2_LINES
+	sta P2_LINES+1
 ;            sta $a4            ; $871b: 85 a4     
 ;            sta $d8            ; $871d: 85 d8     
 ;            sta $d9            ; $871f: 85 d9     
@@ -474,7 +475,7 @@ loop1:	sta TYPE_COUNTERS,x
 ;            sta $ba            ; $8725: 85 ba     
 ;            sta $ce            ; $8727: 85 ce     
 ;            sta $cf            ; $8729: 85 cf     
-;            sta DEMO_COUNTER            ; $872b: 85 d3     
+	sta DEMO_COUNTER
 ;            sta $d1            ; $872d: 85 d1     
 	sta SPAWN_ID
 ;            lda #$dd           ; $8731: a9 dd     
@@ -498,7 +499,7 @@ loop1:	sta TYPE_COUNTERS,x
 ;            beq @s_typeA         ; $8759: f0 06     
 ;            lda #$25           ; $875b: a9 25     
 ;            sta P1_LINES            ; $875d: 85 70     
-;            sta $90            ; $875f: 85 90     
+;            sta P2_LINES            ; $875f: 85 90     
 ;@s_typeA:   lda #$47           ; $8761: a9 47     
 ;            sta $a3            ; $8763: 85 a3     
 	jsr frame_clear_sprite_ram
@@ -1298,10 +1299,35 @@ ret:	rts
 	inc TEMP1
 	rts
 .endp            
+
+;-------------------------------------------------------------------------------
+; entry for first start
+.proc start
+	jmp main
+.endp
+
+;-------------------------------------------------------------------------------
+; entry for reset
+.proc reset
+	lda #%00000010
+	and CONSOL
+	bne s1
+	jmp COLDSV		; reset + select for cold start	
+s1:
+	jmp main
+.endp
 	
 ;-------------------------------------------------------------------------------
-; main function, program entry	
+; main function
 .proc main
+	lda #<reset
+	sta CASINI
+	sta DOSVEC
+	sta DOSINI
+	lda #>reset
+	sta CASINI+1
+	sta DOSVEC+1
+	sta DOSINI+1		; init reset vectors
 
 	cld
 	;sei
@@ -1902,7 +1928,7 @@ skip:
 .proc phase_func1
 	jsr tetr_shift
 	jsr tetr_rotate
-;	jsr tetr_down
+	jsr tetr_down
 	rts
 .endp    
             
@@ -2849,4 +2875,4 @@ scr_mem		.DS	SCR_MEMSIZE
 ;-------------------------------------------------------------------------------
 ; start vector
 ;-------------------------------------------------------------------------------
-	run main	
+	run start	

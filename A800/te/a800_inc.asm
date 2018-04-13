@@ -1,5 +1,8 @@
 ; memory locations
+CASINI		equ	$02
 RTCLOK		equ	$12		; high byte of 3byte frame counter
+DOSVEC		equ	$0A
+DOSINI		equ	$0C
 VDSLST		equ	$200		; pointer to DLI routine
 SDMCTL		equ	$22F
 SDLSTL		equ	$230
@@ -28,6 +31,7 @@ NMIEN		equ	$D40E
 
 SETVBV		equ	$E45C
 XITVBV		equ	$E462
+COLDSV		equ	$E477
 
 ; defines
 
