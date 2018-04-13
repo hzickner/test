@@ -394,11 +394,11 @@ mode_func_gamedemo2:
 table_jump_game_phase:     lda GAME_PHASE            ; $81b2: a5 48     
             jsr table_jump         ; $81b4: 20 82 ac  
             DW jump48_func0, jump48_func1 ;.hex 2f 9e cf      ; $81b7: 2f 9e cf  Invalid Opcode - RLA __cf9e
-            DW jump48_func2, $9a6b ;.hex a2 99 6b   ; $81ba: 81 a2 99 6b   Data
-            .hex 39 9e 58   ; $81be: 9a 39 9e 58   Data
-            .hex 9b f2 a3 03   ; $81c2: 9b f2 a3 03   Data
-            .hex 9b 8e 98 39   ; $81c6: 9b 8e 98 39   Data
-            .hex 9e 11 9a 37   ; $81ca: 9e 11 9a 37   Data
+            DW jump48_func2, jump48_func3 ;.hex a2 99 6b   ; $81ba: 81 a2 99 6b   Data
+            DW jump48_func4, jump48_func5   ; $81be: 9a 39 9e 58   Data
+            DW jump48_func6, jump48_func7   ; $81c2: 9b f2 a3 03   Data
+            DW jump48_func8, $9e39   ; $81c6: 9b 8e 98 39   Data
+            .hex 11 9a 37   ; $81ca: 9e 11 9a 37   Data
             .hex 9e            ; $81ce: 9e            Data
 
 ;-------------------------------------------------------------------------------
@@ -2882,30 +2882,30 @@ __9881:     inc P2_BGUC            ; $9881: e6 89
 __988d:     rts                ; $988d: 60        
 
 ;-------------------------------------------------------------------------------
+jump48_func8:
             lda BGU_COUNT            ; $988e: a5 49     
             cmp #$20           ; $9890: c9 20     
-            bmi __98ea         ; $9892: 30 56     
+            bmi @ret         ; $9892: 30 56     
             lda N_PLR            ; $9894: a5 be     
             cmp #$01           ; $9896: c9 01     
-            beq __98ba         ; $9898: f0 20     
+            beq @skip2         ; $9898: f0 20     
             lda $a4            ; $989a: a5 a4     
             cmp #$00           ; $989c: c9 00     
-            bne __98ae         ; $989e: d0 0e     
+            bne @skip1         ; $989e: d0 0e     
             inc $a4            ; $98a0: e6 a4     
             lda CUR_PLR            ; $98a2: a5 b7     
             sta $a5            ; $98a4: 85 a5     
             jsr gamedemo_spawn         ; $98a6: 20 eb 98  
             sta $a6            ; $98a9: 85 a6     
-            jmp __98ea         ; $98ab: 4c ea 98  
+            jmp @ret         ; $98ab: 4c ea 98  
 
-;-------------------------------------------------------------------------------
-__98ae:     lda $a5            ; $98ae: a5 a5     
+@skip1:     lda $a5            ; $98ae: a5 a5     
             cmp CUR_PLR            ; $98b0: c5 b7     
-            bne __98ea         ; $98b2: d0 36     
+            bne @ret         ; $98b2: d0 36     
             lda $a4            ; $98b4: a5 a4     
             cmp #$1c           ; $98b6: c9 1c     
-            bne __98ea         ; $98b8: d0 30     
-__98ba:     lda #$00           ; $98ba: a9 00     
+            bne @ret         ; $98b8: d0 30     
+@skip2:     lda #$00           ; $98ba: a9 00     
             sta $a4            ; $98bc: 85 a4     
             sta FALL_TIMER            ; $98be: 85 45     
             sta TETR_Y            ; Tetrimino Y = 0
@@ -2919,17 +2919,16 @@ __98ba:     lda #$00           ; $98ba: a9 00
             jsr incr_tetr_type_counter         ; $98d1: 20 69 99  
             lda N_PLR            ; $98d4: a5 be     
             cmp #$01           ; $98d6: c9 01     
-            beq __98e1         ; $98d8: f0 07     
+            beq @skip3         ; $98d8: f0 07     
             lda $a6            ; $98da: a5 a6     
             sta TETR_NEXT            ; $98dc: 85 bf     
-            jmp __98e6         ; $98de: 4c e6 98  
+            jmp @skip4         ; $98de: 4c e6 98  
 
-;-------------------------------------------------------------------------------
-__98e1:     jsr gamedemo_spawn         ; $98e1: 20 eb 98  
+@skip3:     jsr gamedemo_spawn         ; $98e1: 20 eb 98  
             sta TETR_NEXT            ; $98e4: 85 bf     
-__98e6:     lda #$00           ; $98e6: a9 00     
+@skip4:     lda #$00           ; $98e6: a9 00     
             sta DAR_TIMER            ; $98e8: 85 4e     
-__98ea:     rts                ; $98ea: 60        
+@ret:     rts                ; $98ea: 60        
 
 ;-------------------------------------------------------------------------------
 ; ret A - spawntable entry
@@ -3175,18 +3174,18 @@ __9a64:     lda #$00           ; $9a64: a9 00
 __9a6a:     rts                ; $9a6a: 60        
 
 ;-------------------------------------------------------------------------------
+jump48_func3:
 __9a6b:     lda BGU_COUNT            ; $9a6b: a5 49     
             cmp #$20           ; $9a6d: c9 20     
-            bpl __9a74         ; $9a6f: 10 03     
-            jmp __9b02         ; $9a71: 4c 02 9b  
+            bpl @skip1         ; $9a6f: 10 03     
+            jmp @ret         ; $9a71: 4c 02 9b  
 
-;-------------------------------------------------------------------------------
-__9a74:     lda TETR_Y            ; $9a74: a5 41     
+@skip1:     lda TETR_Y            ; $9a74: a5 41     
             sec                ; $9a76: 38        
             sbc #$02           ; $9a77: e9 02     
-            bpl __9a7d         ; $9a79: 10 02     
+            bpl @skip2         ; $9a79: 10 02     
             lda #$00           ; $9a7b: a9 00     
-__9a7d:     clc                ; $9a7d: 18        
+@skip2:     clc                ; $9a7d: 18        
             adc $57            ; $9a7e: 65 57     
             sta TEMP2+1            ; $9a80: 85 a9     
             asl                ; $9a82: 0a        
@@ -3198,12 +3197,12 @@ __9a7d:     clc                ; $9a7d: 18
             sta TEMP2            ; $9a8a: 85 a8     
             tay                ; $9a8c: a8        
             ldx #$0a           ; $9a8d: a2 0a     
-__9a8f:     lda (PF_PTR),y        ; $9a8f: b1 b8     
+@loop1:     lda (PF_PTR),y        ; $9a8f: b1 b8     
             cmp #$ef           ; $9a91: c9 ef     
-            beq __9acc         ; $9a93: f0 37     
+            beq @skip3         ; $9a93: f0 37     
             iny                ; $9a95: c8        
             dex                ; $9a96: ca        
-            bne __9a8f         ; $9a97: d0 f6     
+            bne @loop1         ; $9a97: d0 f6     
             lda #$0a           ; $9a99: a9 0a     
             sta sndEFFECT          ; $9a9b: 8d f1 06  
             inc $56            ; $9a9e: e6 56     
@@ -3212,7 +3211,7 @@ __9a8f:     lda (PF_PTR),y        ; $9a8f: b1 b8
             sta $4a,x          ; $9aa4: 95 4a     
             ldy TEMP2            ; $9aa6: a4 a8     
             dey                ; $9aa8: 88        
-__9aa9:     lda (PF_PTR),y        ; $9aa9: b1 b8     
+@loop2:     lda (PF_PTR),y        ; $9aa9: b1 b8     
             ldx #$0a           ; $9aab: a2 0a     
             stx PF_PTR            ; $9aad: 86 b8     
             sta (PF_PTR),y        ; $9aaf: 91 b8     
@@ -3220,25 +3219,24 @@ __9aa9:     lda (PF_PTR),y        ; $9aa9: b1 b8
             sta PF_PTR            ; $9ab3: 85 b8     
             dey                ; $9ab5: 88        
             cpy #$ff           ; $9ab6: c0 ff     
-            bne __9aa9         ; $9ab8: d0 ef     
+            bne @loop2         ; $9ab8: d0 ef     
             lda #$ef           ; $9aba: a9 ef     
             ldy #$00           ; $9abc: a0 00     
-__9abe:     sta (PF_PTR),y        ; $9abe: 91 b8     
+@loop3:     sta (PF_PTR),y        ; $9abe: 91 b8     
             iny                ; $9ac0: c8        
             cpy #$0a           ; $9ac1: c0 0a     
-            bne __9abe         ; $9ac3: d0 f9     
+            bne @loop3         ; $9ac3: d0 f9     
             lda #$13           ; $9ac5: a9 13     
             sta TETR_OR            ; $9ac7: 85 42     
-            jmp __9ad2         ; $9ac9: 4c d2 9a  
+            jmp @skip4         ; $9ac9: 4c d2 9a  
 
-;-------------------------------------------------------------------------------
-__9acc:     ldx $57            ; $9acc: a6 57     
+@skip3:     ldx $57            ; $9acc: a6 57     
             lda #$00           ; $9ace: a9 00     
             sta $4a,x          ; $9ad0: 95 4a     
-__9ad2:     inc $57            ; $9ad2: e6 57     
+@skip4:     inc $57            ; $9ad2: e6 57     
             lda $57            ; $9ad4: a5 57     
             cmp #$04           ; $9ad6: c9 04     
-            bmi __9b02         ; $9ad8: 30 28     
+            bmi @ret         ; $9ad8: 30 28     
             ldy $56            ; $9ada: a4 56     
             lda __9b53,y       ; $9adc: b9 53 9b  
             clc                ; $9adf: 18        
@@ -3249,31 +3247,32 @@ __9ad2:     inc $57            ; $9ad2: e6 57
             sta $52            ; $9ae8: 85 52     
             lda $56            ; $9aea: a5 56     
             cmp #$04           ; $9aec: c9 04     
-            bne __9af5         ; $9aee: d0 05     
+            bne @skip5         ; $9aee: d0 05     
             lda #$04           ; $9af0: a9 04     
             sta sndEFFECT          ; $9af2: 8d f1 06  
-__9af5:     inc GAME_PHASE            ; $9af5: e6 48     
+@skip5:     inc GAME_PHASE            ; $9af5: e6 48     
             lda $56            ; $9af7: a5 56     
-            bne __9b02         ; $9af9: d0 07     
+            bne @ret         ; $9af9: d0 07     
             inc GAME_PHASE            ; $9afb: e6 48     
             lda #$07           ; $9afd: a9 07     
             sta sndEFFECT          ; $9aff: 8d f1 06  
-__9b02:     rts                ; $9b02: 60        
+@ret:     rts                ; $9b02: 60        
 
 ;-------------------------------------------------------------------------------
+jump48_func7:
             lda N_PLR            ; $9b03: a5 be     
             cmp #$01           ; $9b05: c9 01     
-            beq __9b50         ; $9b07: f0 47     
+            beq @skip4         ; $9b07: f0 47     
             ldy $bb            ; $9b09: a4 bb     
-            beq __9b50         ; $9b0b: f0 43     
+            beq @skip4         ; $9b0b: f0 43     
             lda BGU_COUNT            ; $9b0d: a5 49     
             cmp #$20           ; $9b0f: c9 20     
-            bmi __9b52         ; $9b11: 30 3f     
+            bmi @ret         ; $9b11: 30 3f     
             lda mul10_table,y       ; $9b13: b9 d6 96  
             sta TEMP2+1            ; $9b16: 85 a9     
             lda #$00           ; $9b18: a9 00     
             sta TEMP2            ; $9b1a: 85 a8     
-__9b1c:     ldy TEMP2+1            ; $9b1c: a4 a9     
+@loop1:     ldy TEMP2+1            ; $9b1c: a4 a9     
             lda (PF_PTR),y        ; $9b1e: b1 b8     
             ldy TEMP2            ; $9b20: a4 a8     
             sta (PF_PTR),y        ; $9b22: 91 b8     
@@ -3281,42 +3280,41 @@ __9b1c:     ldy TEMP2+1            ; $9b1c: a4 a9
             inc TEMP2+1            ; $9b26: e6 a9     
             lda TEMP2+1            ; $9b28: a5 a9     
             cmp #$c8           ; $9b2a: c9 c8     
-            bne __9b1c         ; $9b2c: d0 ee     
+            bne @loop1         ; $9b2c: d0 ee     
             iny                ; $9b2e: c8        
             ldx #$00           ; $9b2f: a2 00     
-__9b31:     cpx $5a            ; $9b31: e4 5a     
-            beq __9b3a         ; $9b33: f0 05     
+@loop2:     cpx $5a            ; $9b31: e4 5a     
+            beq @skip1         ; $9b33: f0 05     
             lda #$78           ; $9b35: a9 78     
-            jmp __9b3c         ; $9b37: 4c 3c 9b  
+            jmp @skip2         ; $9b37: 4c 3c 9b  
 
-;-------------------------------------------------------------------------------
-__9b3a:     lda #$ff           ; $9b3a: a9 ff     
-__9b3c:     sta (PF_PTR),y        ; $9b3c: 91 b8     
+@skip1:     lda #$ff           ; $9b3a: a9 ff     
+@skip2:     sta (PF_PTR),y        ; $9b3c: 91 b8     
             inx                ; $9b3e: e8        
             cpx #$0a           ; $9b3f: e0 0a     
-            bne __9b45         ; $9b41: d0 02     
+            bne @skip3         ; $9b41: d0 02     
             ldx #$00           ; $9b43: a2 00     
-__9b45:     iny                ; $9b45: c8        
+@skip3:     iny                ; $9b45: c8        
             cpy #$c8           ; $9b46: c0 c8     
-            bne __9b31         ; $9b48: d0 e7     
+            bne @loop2         ; $9b48: d0 e7     
             lda #$00           ; $9b4a: a9 00     
             sta $bb            ; $9b4c: 85 bb     
             sta BGU_COUNT            ; $9b4e: 85 49     
-__9b50:     inc GAME_PHASE            ; $9b50: e6 48     
-__9b52:     rts                ; $9b52: 60        
+@skip4:     inc GAME_PHASE            ; $9b50: e6 48     
+@ret:     rts                ; $9b52: 60        
 
 ;-------------------------------------------------------------------------------
 __9b53:     .hex 00 00 01 02   ; $9b53: 00 00 01 02   Data
             .hex 04            ; $9b57: 04            Data
 
 ;-------------------------------------------------------------------------------
+jump48_func5:
             jsr music_speed         ; $9b58: 20 17 9d  
             lda $56            ; $9b5b: a5 56     
-            bne __9b62         ; $9b5d: d0 03     
-            jmp __9bfe         ; $9b5f: 4c fe 9b  
+            bne @skip1         ; $9b5d: d0 03     
+            jmp @skip8         ; $9b5f: 4c fe 9b  
 
-;-------------------------------------------------------------------------------
-__9b62:     tax                ; $9b62: aa        
+@skip1:     tax                ; $9b62: aa        
             dex                ; $9b63: ca        
             lda $d8,x          ; $9b64: b5 d8     
             clc                ; $9b66: 18        
@@ -3324,62 +3322,59 @@ __9b62:     tax                ; $9b62: aa
             sta $d8,x          ; $9b69: 95 d8     
             and #$0f           ; $9b6b: 29 0f     
             cmp #$0a           ; $9b6d: c9 0a     
-            bmi __9b78         ; $9b6f: 30 07     
+            bmi @skip2         ; $9b6f: 30 07     
             lda $d8,x          ; $9b71: b5 d8     
             clc                ; $9b73: 18        
             adc #$06           ; $9b74: 69 06     
             sta $d8,x          ; $9b76: 95 d8     
-__9b78:     lda $a3            ; $9b78: a5 a3     
+@skip2:     lda $a3            ; $9b78: a5 a3     
             ora #$01           ; $9b7a: 09 01     
             sta $a3            ; $9b7c: 85 a3     
             lda SEL_TYPE            ; $9b7e: a5 c1     
-            beq __9ba6         ; $9b80: f0 24     
+            beq @skip4         ; $9b80: f0 24     
             lda $56            ; $9b82: a5 56     
             sta TEMP2            ; $9b84: 85 a8     
             lda ST_LINES            ; $9b86: a5 50     
             sec                ; $9b88: 38        
             sbc TEMP2            ; $9b89: e5 a8     
             sta ST_LINES            ; $9b8b: 85 50     
-            bpl __9b96         ; $9b8d: 10 07     
+            bpl @skip3         ; $9b8d: 10 07     
             lda #$00           ; $9b8f: a9 00     
             sta ST_LINES            ; $9b91: 85 50     
-            jmp __9bfe         ; $9b93: 4c fe 9b  
+            jmp @skip8         ; $9b93: 4c fe 9b  
 
-;-------------------------------------------------------------------------------
-__9b96:     and #$0f           ; $9b96: 29 0f     
+@skip3:     and #$0f           ; $9b96: 29 0f     
             cmp #$0a           ; $9b98: c9 0a     
-            bmi __9bfe         ; $9b9a: 30 62     
+            bmi @skip8         ; $9b9a: 30 62     
             lda ST_LINES            ; $9b9c: a5 50     
             sec                ; $9b9e: 38        
             sbc #$06           ; $9b9f: e9 06     
             sta ST_LINES            ; $9ba1: 85 50     
-            jmp __9bfe         ; $9ba3: 4c fe 9b  
+            jmp @skip8         ; $9ba3: 4c fe 9b  
 
-;-------------------------------------------------------------------------------
-__9ba6:     ldx $56            ; $9ba6: a6 56     
-__9ba8:     inc ST_LINES            ; $9ba8: e6 50     
+@skip4:     ldx $56            ; $9ba6: a6 56     
+@loop1:     inc ST_LINES            ; $9ba8: e6 50     
             lda ST_LINES            ; $9baa: a5 50     
             and #$0f           ; $9bac: 29 0f     
             cmp #$0a           ; $9bae: c9 0a     
-            bmi __9bc7         ; $9bb0: 30 15     
+            bmi @skip5         ; $9bb0: 30 15     
             lda ST_LINES            ; $9bb2: a5 50     
             clc                ; $9bb4: 18        
             adc #$06           ; $9bb5: 69 06     
             sta ST_LINES            ; $9bb7: 85 50     
             and #$f0           ; $9bb9: 29 f0     
             cmp #$a0           ; $9bbb: c9 a0     
-            bcc __9bc7         ; $9bbd: 90 08     
+            bcc @skip5         ; $9bbd: 90 08     
             lda ST_LINES            ; $9bbf: a5 50     
             and #$0f           ; $9bc1: 29 0f     
             sta ST_LINES            ; $9bc3: 85 50     
             inc ST_LINES+1            ; $9bc5: e6 51     
-__9bc7:     lda ST_LINES            ; $9bc7: a5 50     
+@skip5:     lda ST_LINES            ; $9bc7: a5 50     
             and #$0f           ; $9bc9: 29 0f     
-            bne __9bfb         ; $9bcb: d0 2e     
-            jmp __9bd0         ; $9bcd: 4c d0 9b  
+            bne @skip7         ; $9bcb: d0 2e     
+            jmp @skip6         ; $9bcd: 4c d0 9b  
 
-;-------------------------------------------------------------------------------
-__9bd0:     lda ST_LINES+1            ; $9bd0: a5 51     
+@skip6:     lda ST_LINES+1            ; $9bd0: a5 51     
             sta TEMP2+1            ; $9bd2: 85 a9     
             lda ST_LINES            ; $9bd4: a5 50     
             sta TEMP2            ; $9bd6: 85 a8     
@@ -3393,46 +3388,46 @@ __9bd0:     lda ST_LINES+1            ; $9bd0: a5 51
             ror TEMP2            ; $9be6: 66 a8     
             lda LEVEL            ; $9be8: a5 44     
             cmp TEMP2            ; $9bea: c5 a8     
-            bpl __9bfb         ; $9bec: 10 0d     
+            bpl @skip7         ; $9bec: 10 0d     
             inc LEVEL            ; $9bee: e6 44     
             lda #$06           ; $9bf0: a9 06     
             sta sndEFFECT          ; $9bf2: 8d f1 06  
             lda $a3            ; $9bf5: a5 a3     
             ora #$02           ; $9bf7: 09 02     
             sta $a3            ; $9bf9: 85 a3     
-__9bfb:     dex                ; $9bfb: ca        
-            bne __9ba8         ; $9bfc: d0 aa     
-__9bfe:     lda DAR_COUNT            ; $9bfe: a5 4f     
+@skip7:     dex                ; $9bfb: ca        
+            bne @loop1         ; $9bfc: d0 aa     
+@skip8:     lda DAR_COUNT            ; $9bfe: a5 4f     
             cmp #$02           ; $9c00: c9 02     
-            bmi __9c2d         ; $9c02: 30 29     
+            bmi @skip11         ; $9c02: 30 29     
             clc                ; $9c04: 18        
             dec ST_SCORE            ; $9c05: c6 53     
             adc ST_SCORE            ; $9c07: 65 53     
             sta ST_SCORE            ; $9c09: 85 53     
             and #$0f           ; $9c0b: 29 0f     
             cmp #$0a           ; $9c0d: c9 0a     
-            bcc __9c18         ; $9c0f: 90 07     
+            bcc @skip9         ; $9c0f: 90 07     
             lda ST_SCORE            ; $9c11: a5 53     
             clc                ; $9c13: 18        
             adc #$06           ; $9c14: 69 06     
             sta ST_SCORE            ; $9c16: 85 53     
-__9c18:     lda ST_SCORE            ; $9c18: a5 53     
+@skip9:     lda ST_SCORE            ; $9c18: a5 53     
             and #$f0           ; $9c1a: 29 f0     
             cmp #$a0           ; $9c1c: c9 a0     
-            bcc __9c27         ; $9c1e: 90 07     
+            bcc @skip10         ; $9c1e: 90 07     
             clc                ; $9c20: 18        
             adc #$60           ; $9c21: 69 60     
             sta ST_SCORE            ; $9c23: 85 53     
             inc ST_SCORE+1            ; $9c25: e6 54     
-__9c27:     lda $a3            ; $9c27: a5 a3     
+@skip10:     lda $a3            ; $9c27: a5 a3     
             ora #$04           ; $9c29: 09 04     
             sta $a3            ; $9c2b: 85 a3     
-__9c2d:     lda #$00           ; $9c2d: a9 00     
+@skip11:     lda #$00           ; $9c2d: a9 00     
             sta DAR_COUNT            ; $9c2f: 85 4f     
             lda LEVEL            ; $9c31: a5 44     
             sta TEMP2            ; $9c33: 85 a8     
             inc TEMP2            ; $9c35: e6 a8     
-__9c37:     lda $56            ; $9c37: a5 56     
+@loop2:     lda $56            ; $9c37: a5 56     
             asl                ; $9c39: 0a        
             tax                ; $9c3a: aa        
             lda __9ca5,x       ; $9c3b: bd a5 9c  
@@ -3440,50 +3435,50 @@ __9c37:     lda $56            ; $9c37: a5 56
             adc ST_SCORE            ; $9c3f: 65 53     
             sta ST_SCORE            ; $9c41: 85 53     
             cmp #$a0           ; $9c43: c9 a0     
-            bcc __9c4e         ; $9c45: 90 07     
+            bcc @skip12         ; $9c45: 90 07     
             clc                ; $9c47: 18        
             adc #$60           ; $9c48: 69 60     
             sta ST_SCORE            ; $9c4a: 85 53     
             inc ST_SCORE+1            ; $9c4c: e6 54     
-__9c4e:     inx                ; $9c4e: e8        
+@skip12:     inx                ; $9c4e: e8        
             lda __9ca5,x       ; $9c4f: bd a5 9c  
             clc                ; $9c52: 18        
             adc ST_SCORE+1            ; $9c53: 65 54     
             sta ST_SCORE+1            ; $9c55: 85 54     
             and #$0f           ; $9c57: 29 0f     
             cmp #$0a           ; $9c59: c9 0a     
-            bcc __9c64         ; $9c5b: 90 07     
+            bcc @skip13         ; $9c5b: 90 07     
             lda ST_SCORE+1            ; $9c5d: a5 54     
             clc                ; $9c5f: 18        
             adc #$06           ; $9c60: 69 06     
             sta ST_SCORE+1            ; $9c62: 85 54     
-__9c64:     lda ST_SCORE+1            ; $9c64: a5 54     
+@skip13:     lda ST_SCORE+1            ; $9c64: a5 54     
             and #$f0           ; $9c66: 29 f0     
             cmp #$a0           ; $9c68: c9 a0     
-            bcc __9c75         ; $9c6a: 90 09     
+            bcc @skip14         ; $9c6a: 90 09     
             lda ST_SCORE+1            ; $9c6c: a5 54     
             clc                ; $9c6e: 18        
             adc #$60           ; $9c6f: 69 60     
             sta ST_SCORE+1            ; $9c71: 85 54     
             inc ST_SCORE+2            ; $9c73: e6 55     
-__9c75:     lda ST_SCORE+2            ; $9c75: a5 55     
+@skip14:     lda ST_SCORE+2            ; $9c75: a5 55     
             and #$0f           ; $9c77: 29 0f     
             cmp #$0a           ; $9c79: c9 0a     
-            bcc __9c84         ; $9c7b: 90 07     
+            bcc @skip15         ; $9c7b: 90 07     
             lda ST_SCORE+2            ; $9c7d: a5 55     
             clc                ; $9c7f: 18        
             adc #$06           ; $9c80: 69 06     
             sta ST_SCORE+2            ; $9c82: 85 55     
-__9c84:     lda ST_SCORE+2            ; $9c84: a5 55     
+@skip15:     lda ST_SCORE+2            ; $9c84: a5 55     
             and #$f0           ; $9c86: 29 f0     
             cmp #$a0           ; $9c88: c9 a0     
-            bcc __9c94         ; $9c8a: 90 08     
+            bcc @skip16         ; $9c8a: 90 08     
             lda #$99           ; $9c8c: a9 99     
             sta ST_SCORE            ; $9c8e: 85 53     
             sta ST_SCORE+1            ; $9c90: 85 54     
             sta ST_SCORE+2            ; $9c92: 85 55     
-__9c94:     dec TEMP2            ; $9c94: c6 a8     
-            bne __9c37         ; $9c96: d0 9f     
+@skip16:     dec TEMP2            ; $9c94: c6 a8     
+            bne @loop2         ; $9c96: d0 9f     
             lda $a3            ; $9c98: a5 a3     
             ora #$04           ; $9c9a: 09 04     
             sta $a3            ; $9c9c: 85 a3     
@@ -3748,6 +3743,9 @@ jump48_func0:
 
 ;-------------------------------------------------------------------------------
             inc GAME_PHASE            ; $9e37: e6 48     
+
+;-------------------------------------------------------------------------------
+jump48_func4:
             rts                ; $9e39: 60        
 
 ;-------------------------------------------------------------------------------
@@ -4495,24 +4493,24 @@ game_pause_mode:
             rts
 
 ;-------------------------------------------------------------------------------
+jump48_func6:
             lda SEL_TYPE            ; $a3f2: a5 c1     
-            beq __a42b         ; $a3f4: f0 35     
+            beq @skip2         ; $a3f4: f0 35     
             lda ST_LINES            ; $a3f6: a5 50     
-            bne __a42b         ; $a3f8: d0 31     
+            bne @skip2         ; $a3f8: d0 31     
             lda #$02           ; $a3fa: a9 02     
             jsr snd_setMUSIC         ; $a3fc: 20 07 9e  
             ldy #$46           ; $a3ff: a0 46     
             ldx #$00           ; $a401: a2 00     
-__a403:     lda __a42e,x       ; $a403: bd 2e a4  
+@loop1:     lda __a42e,x       ; $a403: bd 2e a4  
             cmp #$80           ; $a406: c9 80     
-            beq __a411         ; $a408: f0 07     
+            beq @skip1         ; $a408: f0 07     
             sta (PF_PTR),y        ; $a40a: 91 b8     
             inx                ; $a40c: e8        
             iny                ; $a40d: c8        
-            jmp __a403         ; $a40e: 4c 03 a4  
+            jmp @loop1         ; $a40e: 4c 03 a4  
 
-;-------------------------------------------------------------------------------
-__a411:     lda #$00           ; $a411: a9 00     
+@skip1:     lda #$00           ; $a411: a9 00     
             sta P1_BGUC            ; $a413: 85 69     
             jsr __a44d         ; $a415: 20 4d a4  
             lda #$00           ; $a418: a9 00     
@@ -4525,8 +4523,7 @@ __a411:     lda #$00           ; $a411: a9 00
             inc GAME_FUNC_INDEX            ; $a428: e6 a7     
             rts                ; $a42a: 60        
 
-;-------------------------------------------------------------------------------
-__a42b:     inc GAME_PHASE            ; $a42b: e6 48     
+@skip2:     inc GAME_PHASE            ; $a42b: e6 48     
             rts                ; $a42d: 60        
 
 ;-------------------------------------------------------------------------------
