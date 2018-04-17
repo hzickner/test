@@ -24,10 +24,15 @@ DAS_TIMER            = $46      ; timer for delayed auto shift when holding left
 SEL_LEVEL            = $47      ; selected level (selection)
 GAME_PHASE           = $48      ; jump table index
 BGU_COUNT            = $49      ; bg update counter
+LNUM_CLEAR           = $4a      ; 4bytes cleared line numbers
 DAR_TIMER            = $4e      ; down autorepeat timer
 DAR_COUNT            = $4f
 ST_LINES             = $50      ; 2 byte little endian BCD nr of cleared lines
+LCLEAR_ANI           = $52      ; animation counter 0..4
 ST_SCORE             = $53      ; 3 byte little endian BCD score
+LCLEARED             = $56	; number of lines being cleared 
+LCLEAR_CHECK         = $57	; line clear check counter
+GOV_ANI              = $58	; negative - delay, 0 - top, 20 - finish
 SEL_HEIGHT           = $59      ; selected height
 P1_X                 = $60
 P1_Y                 = $61
@@ -38,10 +43,15 @@ P1_DAS               = $66
 P1_LEVEL             = $67
 P1_PHASE             = $68
 P1_BGUC              = $69
+P1_LNUM_CLEAR        = $6a      ; 4bytes cleared line numbers
 P1_DAR               = $6e      ; down autorepeat timer
 P1_DARC              = $6f
-P1_LINES             = $70	;  2byte 3digit BCD LINES counter
+P1_LINES             = $70	; 2byte 3digit BCD LINES counter
+P1_LCLEAR_ANI        = $72      ; animation counter 0..4
 P1_SCORE             = $73	; 3byte packed BCD score counter low byte first
+P1_LCLEARED          = $76	; number of lines being cleared 
+P1_LCLEAR_CHECK      = $77	; line clear check counter
+P1_GOV_ANI           = $78
 P1_HEIGHT            = $79
 P2_X                 = $80
 P2_Y                 = $81
@@ -52,10 +62,15 @@ P2_DAS               = $86
 P2_LEVEL             = $87
 P2_PHASE             = $88
 P2_BGUC              = $89
+P2_LNUM_CLEAR        = $8a      ; 4bytes cleared line numbers
 P2_DAR               = $8e      ; down autorepeat timer
 P2_DARC              = $8f
-P2_LINES             = $90	;  2byte 3digit BCD LINES counter
+P2_LINES             = $90	; 2byte 3digit BCD LINES counter
+P2_LCLEAR_ANI        = $92      ; animation counter 0..4
 P2_SCORE             = $93	; 3byte packed BCD score counter low byte first
+P2_LCLEARED          = $96	; number of lines being cleared 
+P2_LCLEAR_CHECK      = $97	; line clear check counter
+P2_GOV_ANI           = $98
 P2_HEIGHT            = $99
 SPR_X                = $a0      ; sprite x coord
 SPR_Y                = $a1      ; sprite y coord
@@ -64,6 +79,7 @@ GAME_FUNC_INDEX      = $a7      ; index of function called from mode_func_gamede
 TEMP2                = $a8      ; 2 byte temporary
 B2                   = $aa	; byte variable
 B3                   = $ab	; byte variable
+B6                   = $ac	; byte variable
 B4                   = $ad	; byte variable
 B1                   = $ae      ; byte variable
 B5                   = $af      ; byte variable
@@ -73,6 +89,7 @@ BUTTONS_NEW          = $b5      ; bits for just pressed buttons
 BUTTONS_ALL          = $b6      ; bits for buttons pressed A B Select Start Up Down Left Right
 CUR_PLR              = $b7	; 0 / 1 for PLR1 / PLR2
 PF_PTR               = $b8	; pointer to playfield data
+SPAWN_LINES_OPP      = $bc      ; number of extra lines to spawn on opponents pf
 NMI_FUNC_INDEX       = $bd      ; index of function called from NMI
 N_PLR                = $be      ; number of players 1 or 2, only 1 supported
 TETR_NEXT            = $bf	; next tetrimino
@@ -371,7 +388,7 @@ game_func5:
             cmp #$02
             bne @skip1         ; if (2 players) {
             jsr __8792         ; $818c: 20 92 87  
-            jsr __81d9         ; $818f: 20 d9 81  
+            jsr table_jump_game_phase2         ; $818f: 20 d9 81  
             jsr game_write_tetr         ; $8192: 20 0a 8a  
             jsr __87c8         ; $8195: 20 c8 87 } endif 
 @skip1:     inc GAME_FUNC_INDEX ; continue with game_abort_test     
@@ -381,7 +398,6 @@ game_func5:
 mode_func_gamedemo2:
             lda GAME_FUNC_INDEX            ; $819b: a5 a7     
             jsr table_jump         ; $819d: 20 82 ac  
-
 ;-------------------------------------------------------------------------------
 ; jump table used by mode_func_gamedemo2
             DW game_init_screen, game_func1
@@ -391,15 +407,15 @@ mode_func_gamedemo2:
             DW game_loop_to2
 
 ;-------------------------------------------------------------------------------
-table_jump_game_phase:     lda GAME_PHASE            ; $81b2: a5 48     
+table_jump_game_phase:
+            lda GAME_PHASE            ; $81b2: a5 48     
             jsr table_jump         ; $81b4: 20 82 ac  
             DW jump48_func0, jump48_func1 ;.hex 2f 9e cf      ; $81b7: 2f 9e cf  Invalid Opcode - RLA __cf9e
             DW jump48_func2, jump48_func3 ;.hex a2 99 6b   ; $81ba: 81 a2 99 6b   Data
             DW jump48_func4, jump48_func5   ; $81be: 9a 39 9e 58   Data
             DW jump48_func6, jump48_func7   ; $81c2: 9b f2 a3 03   Data
-            DW jump48_func8, $9e39   ; $81c6: 9b 8e 98 39   Data
-            .hex 11 9a 37   ; $81ca: 9e 11 9a 37   Data
-            .hex 9e            ; $81ce: 9e            Data
+            DW jump48_func8, jump48_func9   ; $81c6: 9b 8e 98 39   Data
+            DW jump48_func10, jump48_func11 ;.hex 11 9a 37   ; $81ca: 9e 11 9a 37   Data
 
 ;-------------------------------------------------------------------------------
 
@@ -410,19 +426,17 @@ jump48_func1:
             rts
 
 ;-------------------------------------------------------------------------------
-__81d9:     lda GAME_PHASE            ; $81d9: a5 48     
+table_jump_game_phase2:		; //TODO identical to table_jump_game_phase
+            lda GAME_PHASE            ; $81d9: a5 48     
             jsr table_jump         ; $81db: 20 82 ac  
-            .hex 2f 9e f6      ; $81de: 2f 9e f6  Invalid Opcode - RLA __f69e
-            sta ($a2,x)        ; $81e1: 81 a2     
-            sta __9a6b,y       ; $81e3: 99 6b 9a  
-            and $589e,y        ; $81e6: 39 9e 58  
-            .hex 9b            ; $81e9: 9b        Invalid Opcode - TAS 
-            .hex f2            ; $81ea: f2        Invalid Opcode - KIL 
-            .hex a3 03         ; $81eb: a3 03     Invalid Opcode - LAX ($03,x)
-            .hex 9b            ; $81ed: 9b        Invalid Opcode - TAS 
-            stx $3998          ; $81ee: 8e 98 39  
-            .hex 9e 11 9a      ; $81f1: 9e 11 9a  Invalid Opcode - SHX __9a11,y
-            .hex 37 9e         ; $81f4: 37 9e     Invalid Opcode - RLA $9e,x
+            DW jump48_func0, jump48_2_func1 ;.hex 2f 9e f6      ; $81de: 2f 9e f6  Invalid Opcode - RLA __f69e
+            DW jump48_func2, jump48_func3 ;sta ($a2,x)        ; $81e1: 81 a2 sta __9a6b,y       ; $81e3: 99 6b 9a  
+            DW jump48_func4, jump48_func5 ;and $589e,y        ; $81e6: 39 9e 58 .hex 9b            ; $81e9: 9b        Invalid Opcode - TAS 
+            DW jump48_func6, jump48_func7 ;.hex f2            ; $81ea: f2        Invalid Opcode - KIL .hex a3 03         ; $81eb: a3 03     Invalid Opcode - LAX ($03,x) .hex 9b            ; $81ed: 9b        Invalid Opcode - TAS 
+            DW jump48_func8, jump48_func9 ; stx $3998          ; $81ee: 8e 98 39  
+            DW jump48_func10, jump48_func11 ;.hex 9e 11 9a      ; $81f1: 9e 11 9a  Invalid Opcode - SHX __9a11,y .hex 37 9e         ; $81f4: 37 9e     Invalid Opcode - RLA $9e,x
+
+jump48_2_func1:	;//TODO identical to jump48_func1
             jsr tetr_shift         ; $81f6: 20 ae 89  
             jsr tetr_rotate         ; $81f9: 20 ab 88  
             jsr tetr_down         ; $81fc: 20 14 89  
@@ -1129,7 +1143,7 @@ game_func1:
             sta P1_FALLT            ; $86ff: 85 65     
             sta P2_FALLT            ; $8701: 85 85     
             sta $bb            ; $8703: 85 bb     
-            sta $bc            ; $8705: 85 bc     
+            sta SPAWN_LINES_OPP            ; $8705: 85 bc     
             sta P1_SCORE            ; $8707: 85 73     
             sta P1_SCORE+1            ; $8709: 85 74     
             sta P1_SCORE+2            ; $870b: 85 75     
@@ -1231,9 +1245,9 @@ __87b0:     lda $40,x          ; $87b0: b5 40
             cmp #$01           ; $87bb: c9 01     
             beq __87c7         ; $87bd: f0 08     
             ldx $bb            ; $87bf: a6 bb     
-            lda $bc            ; $87c1: a5 bc     
+            lda SPAWN_LINES_OPP            ; $87c1: a5 bc     
             sta $bb            ; $87c3: 85 bb     
-            stx $bc            ; $87c5: 86 bc     
+            stx SPAWN_LINES_OPP            ; $87c5: 86 bc     
 __87c7:     rts                ; $87c7: 60        
 
 ;-------------------------------------------------------------------------------
@@ -1244,9 +1258,9 @@ __87ca:     lda $40,x          ; $87ca: b5 40
             cpx #$ff           ; $87cf: e0 ff     
             bne __87ca         ; $87d1: d0 f7     
             ldx $bb            ; $87d3: a6 bb     
-            lda $bc            ; $87d5: a5 bc     
+            lda SPAWN_LINES_OPP            ; $87d5: a5 bc     
             sta $bb            ; $87d7: 85 bb     
-            stx $bc            ; $87d9: 86 bc     
+            stx SPAWN_LINES_OPP            ; $87d9: 86 bc     
             rts                ; $87db: 60        
 
 ;-------------------------------------------------------------------------------
@@ -1300,11 +1314,11 @@ game_init_start_lines:
             and #$0f
             cmp #10
             bpl @loop3         ; rnd(0..9)
-            sta $ac            ; $8833: 85 ac     
+            sta B6            ; $8833: 85 ac     
             ldx TEMP2+1            ; $8835: a6 a9     
             lda mul10_table,x       ; $8837: bd d6 96  
             clc                ; $883a: 18        
-            adc $ac            ; $883b: 65 ac     
+            adc B6            ; $883b: 65 ac     
             tay                ; $883d: a8        
             lda #$ef           ; $883e: a9 ef     
             sta PLAYFIELD,y    ; position = rnd0..9 + 10*outer loop counter (80..199), store empty tile at position
@@ -1491,7 +1505,7 @@ tetr_down:
             sta TETR_Y
             lda #$02
             sta GAME_PHASE
-            jsr set_BGU_COUNT         ; $896f: 20 af 9c  
+            jsr set_BGU_COUNT
 @ret:     rts
 
 @skip4:     lda #$01
@@ -1603,9 +1617,9 @@ game_write_tetr:
             adc #$2f		; *8+47
             sta B3    
             lda TETR_OR
-            sta $ac
+            sta B6
             clc       
-            lda $ac            ; //TODO remove: value is still in A
+            lda B6            ; //TODO remove: value is still in A
             rol
             rol
             sta TEMP2
@@ -2434,81 +2448,84 @@ tetr_check_valid:     lda TETR_Y
 ; function 03 called by table_jump_nmi
 ; used in game_func1
 tjump_nmi03:
-            lda P1_PHASE            ; $94ee: a5 68     
-            cmp #$04           ; $94f0: c9 04     
-            bne @skip1         ; $94f2: d0 2e     
-            lda #>PLAYFIELD           ; $94f4: a9 04     
-            sta PF_PTR+1            ; $94f6: 85 b9     
-            lda $72            ; $94f8: a5 72     
-            sta $52            ; $94fa: 85 52     
-            lda $6a            ; $94fc: a5 6a     
-            sta $4a            ; $94fe: 85 4a     
-            lda $6b            ; $9500: a5 6b     
-            sta $4b            ; $9502: 85 4b     
-            lda $6c            ; $9504: a5 6c     
-            sta $4c            ; $9506: 85 4c     
-            lda $6d            ; $9508: a5 6d     
-            sta $4d            ; $950a: 85 4d     
-            lda P1_PHASE            ; $950c: a5 68     
-            sta GAME_PHASE            ; $950e: 85 48     
-            jsr __977f         ; $9510: 20 7f 97  
-            lda $52            ; $9513: a5 52     
-            sta $72            ; $9515: 85 72     
-            lda GAME_PHASE            ; $9517: a5 48     
-            sta P1_PHASE            ; $9519: 85 68     
-            lda #$00           ; $951b: a9 00     
-            sta P1_BGUC            ; $951d: 85 69     
-            jmp @skip2         ; $951f: 4c 3a 95  
+            lda P1_PHASE
+            cmp #$04
+            bne @skip1		; if (P1_PHASE==4) {
+            lda #>PLAYFIELD
+            sta PF_PTR+1
+            lda P1_LCLEAR_ANI
+            sta LCLEAR_ANI
+            lda P1_LNUM_CLEAR
+            sta LNUM_CLEAR
+            lda P1_LNUM_CLEAR+1
+            sta LNUM_CLEAR+1
+            lda P1_LNUM_CLEAR+2
+            sta LNUM_CLEAR+2
+            lda P1_LNUM_CLEAR+3
+            sta LNUM_CLEAR+3
+            lda P1_PHASE
+            sta GAME_PHASE
+            jsr gr_clearLines	; line clear animation for player1
+            lda LCLEAR_ANI
+            sta P1_LCLEAR_ANI
+            lda GAME_PHASE
+            sta P1_PHASE
+            lda #$00
+            sta P1_BGUC
+            jmp @skip2         
 
-@skip1:     lda P1_BGUC            ; $9522: a5 69     
-            sta BGU_COUNT            ; $9524: 85 49     
-            lda #>PLAYFIELD           ; $9526: a9 04     
-            sta PF_PTR+1            ; $9528: 85 b9     
-            jsr __9725         ; $952a: 20 25 97  
-            jsr __9725         ; $952d: 20 25 97  
-            jsr __9725         ; $9530: 20 25 97  
-            jsr __9725         ; $9533: 20 25 97  
-            lda BGU_COUNT            ; $9536: a5 49     
-            sta P1_BGUC            ; $9538: 85 69     
-@skip2:     lda N_PLR            ; $953a: a5 be     
-            cmp #$02           ; $953c: c9 02     
-            bne @skip4         ; $953e: d0 4c     
-            lda P2_PHASE            ; $9540: a5 88     
-            cmp #$04           ; $9542: c9 04     
-            bne @skip3         ; $9544: d0 2e     
-            lda #>PLAYFIELD2           ; $9546: a9 05     
-            sta PF_PTR+1            ; $9548: 85 b9     
-            lda $92            ; $954a: a5 92     
-            sta $52            ; $954c: 85 52     
-            lda $8a            ; $954e: a5 8a     
-            sta $4a            ; $9550: 85 4a     
-            lda $8b            ; $9552: a5 8b     
-            sta $4b            ; $9554: 85 4b     
-            lda $8c            ; $9556: a5 8c     
-            sta $4c            ; $9558: 85 4c     
-            lda $8d            ; $955a: a5 8d     
-            sta $4d            ; $955c: 85 4d     
-            lda P2_PHASE            ; $955e: a5 88     
-            sta GAME_PHASE            ; $9560: 85 48     
-            jsr __977f         ; $9562: 20 7f 97  
-            lda $52            ; $9565: a5 52     
-            sta $92            ; $9567: 85 92     
-            lda GAME_PHASE            ; $9569: a5 48     
-            sta P2_PHASE            ; $956b: 85 88     
-            lda #$00           ; $956d: a9 00     
-            sta P2_BGUC            ; $956f: 85 89     
-            jmp @skip4         ; $9571: 4c 8c 95  
+; P1_PHASE != 4				; } endif
+@skip1:     lda P1_BGUC
+            sta BGU_COUNT
+            lda #>PLAYFIELD
+            sta PF_PTR+1
+            jsr GR_updatePFLine
+            jsr GR_updatePFLine
+            jsr GR_updatePFLine
+            jsr GR_updatePFLine		; update next 4 PFLines on screen for PLR1
+            lda BGU_COUNT
+            sta P1_BGUC
+    
+@skip2:     lda N_PLR
+            cmp #$02
+            bne @skip4
+            lda P2_PHASE
+            cmp #$04
+            bne @skip3
+            lda #>PLAYFIELD2
+            sta PF_PTR+1
+            lda P2_LCLEAR_ANI
+            sta LCLEAR_ANI
+            lda P2_LNUM_CLEAR
+            sta LNUM_CLEAR
+            lda P2_LNUM_CLEAR+1
+            sta LNUM_CLEAR+1
+            lda P2_LNUM_CLEAR+2
+            sta LNUM_CLEAR+2
+            lda P2_LNUM_CLEAR+3
+            sta LNUM_CLEAR+3
+            lda P2_PHASE
+            sta GAME_PHASE
+            jsr gr_clearLines         ; line clear animation for player2
+            lda LCLEAR_ANI
+            sta P2_LCLEAR_ANI
+            lda GAME_PHASE
+            sta P2_PHASE 
+            lda #$00  
+            sta P2_BGUC   
+            jmp @skip4
 
-@skip3:     lda P2_BGUC            ; $9574: a5 89     
-            sta BGU_COUNT            ; $9576: 85 49     
-            lda #>PLAYFIELD2           ; $9578: a9 05     
-            sta PF_PTR+1            ; $957a: 85 b9     
-            jsr __9725         ; $957c: 20 25 97  
-            jsr __9725         ; $957f: 20 25 97  
-            jsr __9725         ; $9582: 20 25 97  
-            jsr __9725         ; $9585: 20 25 97  
-            lda BGU_COUNT            ; $9588: a5 49     
-            sta P2_BGUC            ; $958a: 85 89     
+@skip3:     lda P2_BGUC
+            sta BGU_COUNT
+            lda #>PLAYFIELD2
+            sta PF_PTR+1
+            jsr GR_updatePFLine
+            jsr GR_updatePFLine
+            jsr GR_updatePFLine
+            jsr GR_updatePFLine         ; update next 4 PFLines on screen for PLR2
+            lda BGU_COUNT
+            sta P2_BGUC
+             
 @skip4:     lda $a3            ; $958c: a5 a3     
             and #$01           ; $958e: 29 01     
             beq @skip6         ; $9590: f0 51     
@@ -2616,7 +2633,7 @@ tjump_nmi03:
             lda #$0e           ; $9678: a9 0e     
             sta PPUADDR        ; $967a: 8d 06 20  
             ldx #$00           ; $967d: a2 00     
-            lda $56            ; $967f: a5 56     
+            lda LCLEARED            ; $967f: a5 56     
             cmp #$04           ; $9681: c9 04     
             bne @skip10         ; $9683: d0 13     
             lda FRAMECOUNT            ; $9685: a5 b1     
@@ -2661,6 +2678,7 @@ mul10_table:
             DB 160, 170, 180, 190 ;.hex a0 aa b4 be   ; $96e6: a0 aa b4 be   Data
 ; 20bytes end of data
 
+; table of 20 screen addresses
 __96ea:     .hex c6 20 e6 20   ; $96ea: c6 20 e6 20   Data
             .hex 06 21 26 21   ; $96ee: 06 21 26 21   Data
             .hex 46 21 66 21   ; $96f2: 46 21 66 21   Data
@@ -2688,123 +2706,130 @@ PPUwrite_packedBCD:     sta TEMP2
             rts
 
 ;-------------------------------------------------------------------------------
-__9725:     ldx BGU_COUNT            ; $9725: a6 49     
-            cpx #$15           ; $9727: e0 15     
-            bpl __977e         ; $9729: 10 53     
+; thread nmi
+; updates the PFLine BGU_COUNT
+GR_updatePFLine:
+	ldx BGU_COUNT
+            cpx #21
+            bpl @ret         ; if (BGU_COUNT > 20) return
             lda mul10_table,x       ; //TODO replace lda tay with ldy
-            tay                ; $972e: a8        
-            txa                ; $972f: 8a        
-            asl                ; $9730: 0a        
-            tax                ; $9731: aa        
-            inx                ; $9732: e8        
-            lda __96ea,x       ; $9733: bd ea 96  
-            sta PPUADDR        ; $9736: 8d 06 20  
-            dex                ; $9739: ca        
-            lda N_PLR            ; $973a: a5 be     
-            cmp #$01           ; $973c: c9 01     
-            beq __975e         ; $973e: f0 1e     
-            lda PF_PTR+1            ; $9740: a5 b9     
-            cmp #>PLAYFIELD2           ; $9742: c9 05     
-            beq __9752         ; $9744: f0 0c     
-            lda __96ea,x       ; $9746: bd ea 96  
-            sec                ; $9749: 38        
-            sbc #$02           ; $974a: e9 02     
-            sta PPUADDR        ; $974c: 8d 06 20  
-            jmp __9767         ; $974f: 4c 67 97  
+            tay
+            txa
+            asl
+            tax
+            inx                ; X=BGU_COUNT*2+1
+            lda __96ea,x       ; high byte of screen address  
+            sta PPUADDR
+            dex
+            lda N_PLR
+            cmp #$01
+            beq @skip2
+            lda PF_PTR+1
+            cmp #>PLAYFIELD2
+            beq @skip1
+; 2PLR PLR1
+            lda __96ea,x
+            sec
+            sbc #$02
+            sta PPUADDR        ; write low byte
+            jmp @skip3
+; 2PLR PLR2
+@skip1:     lda __96ea,x
+            clc
+            adc #$0c
+            sta PPUADDR        ; write low byte
+            jmp @skip3
+; 1PLR
+@skip2:     lda __96ea,x
+            clc 
+            adc #$06
+            sta PPUADDR        ; write low byte
+
+@skip3:     ldx #10
+@loop1:     lda (PF_PTR),y
+            sta PPUDATA
+            iny   
+            dex
+            bne @loop1         ; write PF line to screen
+
+            inc BGU_COUNT            ; ++count
+            lda BGU_COUNT
+            cmp #20
+            bmi @ret         ; if (count < 20) return
+            lda #32
+            sta BGU_COUNT            ; count = 32
+@ret:     rts
 
 ;-------------------------------------------------------------------------------
-__9752:     lda __96ea,x       ; $9752: bd ea 96  
-            clc                ; $9755: 18        
-            adc #$0c           ; $9756: 69 0c     
-            sta PPUADDR        ; $9758: 8d 06 20  
-            jmp __9767         ; $975b: 4c 67 97  
-
-;-------------------------------------------------------------------------------
-__975e:     lda __96ea,x       ; $975e: bd ea 96  
-            clc                ; $9761: 18        
-            adc #$06           ; $9762: 69 06     
-            sta PPUADDR        ; $9764: 8d 06 20  
-__9767:     ldx #$0a           ; $9767: a2 0a     
-__9769:     lda (PF_PTR),y        ; $9769: b1 b8     
-            sta PPUDATA        ; $976b: 8d 07 20  
-            iny                ; $976e: c8        
-            dex                ; $976f: ca        
-            bne __9769         ; $9770: d0 f7     
-            inc BGU_COUNT            ; $9772: e6 49     
-            lda BGU_COUNT            ; $9774: a5 49     
-            cmp #$14           ; $9776: c9 14     
-            bmi __977e         ; $9778: 30 04     
-            lda #$20           ; $977a: a9 20     
-            sta BGU_COUNT            ; $977c: 85 49     
-__977e:     rts                ; $977e: 60        
-
-;-------------------------------------------------------------------------------
-__977f:     lda FRAMECOUNT            ; $977f: a5 b1     
-            and #$03           ; $9781: 29 03     
-            bne __97fd         ; $9783: d0 78     
-            lda #$00           ; $9785: a9 00     
-            sta B2           ; $9787: 85 aa     
-__9789:     ldx B2           ; $9789: a6 aa     
-            lda $4a,x          ; $978b: b5 4a     
-            beq __97eb         ; $978d: f0 5c     
-            asl                ; $978f: 0a        
-            tay                ; $9790: a8        
-            lda __96ea,y       ; $9791: b9 ea 96  
-            sta TEMP2            ; $9794: 85 a8     
-            lda N_PLR            ; $9796: a5 be     
-            cmp #$01           ; $9798: c9 01     
-            bne __97a6         ; $979a: d0 0a     
-            lda TEMP2            ; $979c: a5 a8     
-            clc                ; $979e: 18        
-            adc #$06           ; $979f: 69 06     
-            sta TEMP2            ; $97a1: 85 a8     
-            jmp __97bd         ; $97a3: 4c bd 97  
-
-;-------------------------------------------------------------------------------
-__97a6:     lda PF_PTR+1            ; $97a6: a5 b9     
+; line clear animation
+; thread nmi
+gr_clearLines:     lda FRAMECOUNT
+            and #$03
+            bne @ret         ; only every 4th frame do
+            lda #$00    
+            sta B2		; loop variable 0..3
+@loop1:     ldx B2
+            lda LNUM_CLEAR,x          ; get line number
+            beq @skip4         ; if (0) skip4
+            asl
+            tay
+            lda __96ea,y       ; low byte of screen address
+            sta TEMP2
+            lda N_PLR
+            cmp #$01
+            bne @skip1         ; if (1PLR) {
+            lda TEMP2
+            clc   
+            adc #$06
+            sta TEMP2            ; low byte +=6
+            jmp @skip3
+				; } else {
+@skip1:     lda PF_PTR+1            ; $97a6: a5 b9     
             cmp #>PLAYFIELD           ; $97a8: c9 04     
-            bne __97b6         ; $97aa: d0 0a     
-            lda TEMP2            ; $97ac: a5 a8     
-            sec                ; $97ae: 38        
-            sbc #$02           ; $97af: e9 02     
-            sta TEMP2            ; $97b1: 85 a8     
-            jmp __97bd         ; $97b3: 4c bd 97  
-
-;-------------------------------------------------------------------------------
-__97b6:     lda TEMP2            ; $97b6: a5 a8     
-            clc                ; $97b8: 18        
-            adc #$0c           ; $97b9: 69 0c     
-            sta TEMP2            ; $97bb: 85 a8     
-__97bd:     iny                ; $97bd: c8        
-            lda __96ea,y       ; $97be: b9 ea 96  
-            sta TEMP2+1            ; $97c1: 85 a9     
-            sta PPUADDR        ; $97c3: 8d 06 20  
-            ldx $52            ; $97c6: a6 52     
-            lda __97fe,x       ; $97c8: bd fe 97  
-            clc                ; $97cb: 18        
-            adc TEMP2            ; $97cc: 65 a8     
-            sta PPUADDR        ; $97ce: 8d 06 20  
-            lda #$ff           ; $97d1: a9 ff     
-            sta PPUDATA        ; $97d3: 8d 07 20  
-            lda TEMP2+1            ; $97d6: a5 a9     
-            sta PPUADDR        ; $97d8: 8d 06 20  
-            ldx $52            ; $97db: a6 52     
-            lda __9803,x       ; $97dd: bd 03 98  
-            clc                ; $97e0: 18        
-            adc TEMP2            ; $97e1: 65 a8     
-            sta PPUADDR        ; $97e3: 8d 06 20  
-            lda #$ff           ; $97e6: a9 ff     
-            sta PPUDATA        ; $97e8: 8d 07 20  
-__97eb:     inc B2           ; $97eb: e6 aa     
-            lda B2           ; $97ed: a5 aa     
-            cmp #$04           ; $97ef: c9 04     
-            bne __9789         ; $97f1: d0 96     
-            inc $52            ; $97f3: e6 52     
-            lda $52            ; $97f5: a5 52     
-            cmp #$05           ; $97f7: c9 05     
-            bmi __97fd         ; $97f9: 30 02     
-            inc GAME_PHASE            ; $97fb: e6 48     
-__97fd:     rts                ; $97fd: 60        
+            bne @skip2         ; if (PF_PTR == PF1) { , (2PLR PLR1)
+            lda TEMP2
+            sec    
+            sbc #$02           ; low byte -=2
+            sta TEMP2
+            jmp @skip3
+				; } endif
+@skip2:     lda TEMP2            ; (2PLR PLR2)
+            clc
+            adc #12		; low byte +=12
+            sta TEMP2
+				; } else
+     
+@skip3:     iny
+            lda __96ea,y       ; high byte of screen address
+            sta TEMP2+1
+            sta PPUADDR
+            ldx LCLEAR_ANI            ; $97c6: a6 52     
+            lda __97fe,x       ; read offset from table
+            clc
+            adc TEMP2            ; add low byte of screen address
+            sta PPUADDR
+            lda #$ff
+            sta PPUDATA        ; write SPACE
+            lda TEMP2+1
+            sta PPUADDR
+            ldx LCLEAR_ANI
+            lda __9803,x       ; read offset from table
+            clc
+            adc TEMP2            ; add low byte of screen address
+            sta PPUADDR
+            lda #$ff
+            sta PPUDATA        ; write space
+@skip4:     inc B2
+            lda B2
+            cmp #$04
+            bne @loop1         ; loop 4 times
+     
+            inc LCLEAR_ANI
+            lda LCLEAR_ANI
+            cmp #$05
+            bmi @ret
+            inc GAME_PHASE            ; if (counter==5) next game phase
+@ret:     rts
 
 ;-------------------------------------------------------------------------------
 __97fe:     .hex 04 03 02 01   ; $97fe: 04 03 02 01   Data
@@ -3058,205 +3083,208 @@ incr_tetr_type_counter:
 ;-------------------------------------------------------------------------------
 ; write tetrimino to playfield
 jump48_func2:
-            jsr tetr_check_valid         ; $99a2: 20 8b 94  
-            beq @skip1         ; $99a5: f0 11     
+            jsr tetr_check_valid
+            beq @skip1		; if (!valid) {
             lda #$02           ; $99a7: a9 02     
             sta $06f0          ; $99a9: 8d f0 06  
-            lda #10           ; $99ac: a9 0a     
-            sta GAME_PHASE            ; $99ae: 85 48     
-            lda #$f0           ; $99b0: a9 f0     
-            sta $58            ; $99b2: 85 58     
-            jsr snd_reset_call         ; $99b4: 20 03 e0  
-            rts                ; $99b7: 60        
-
-@skip1:     lda BGU_COUNT            ; $99b8: a5 49     
-            cmp #$20           ; $99ba: c9 20     
-            bmi @skip2         ; $99bc: 30 52     
-            lda TETR_Y            ; $99be: a5 41     
-            asl                ; $99c0: 0a        
-            sta TEMP2            ; $99c1: 85 a8     
-            asl                ; $99c3: 0a        
-            asl                ; $99c4: 0a        
-            clc                ; $99c5: 18        
+            lda #10
+            sta GAME_PHASE	; GAME_PHASE = 10 //TODO check!
+            lda #$f0
+            sta GOV_ANI		; set delay value for GOV_ANI
+            jsr snd_reset_call
+            rts
+				; } endif
+@skip1:     lda BGU_COUNT
+            cmp #32
+            bmi @ret		; if (BGU_COUNT < 32) return
+            lda TETR_Y
+            asl
+            sta TEMP2
+            asl
+            asl
+            clc
             adc TEMP2            ; //TODO checkk use of table
-            adc TETR_X            ; $99c8: 65 40     
+            adc TETR_X
             sta TEMP2            ; Y*10 + X
-            lda TETR_OR            ; $99cc: a5 42     
-            asl                ; $99ce: 0a        
-            asl                ; $99cf: 0a        
-            sta TEMP2+1            ; $99d0: 85 a9     
-            asl                ; $99d2: 0a        
-            clc                ; $99d3: 18        
-            adc TEMP2+1            ; $99d4: 65 a9     
+            lda TETR_OR
+            asl
+            asl
+            sta TEMP2+1
+            asl
+            clc
+            adc TEMP2+1
             tax                ; OR*12
-            ldy #$00           ; $99d7: a0 00     
-            lda #$04           ; $99d9: a9 04     
-            sta B2           ; $99db: 85 aa     
+            ldy #$00
+            lda #$04
+            sta B2           ; loop counter
 @loop1:     lda tetrimino_table,x       ; Y offset
-            asl                ; $99e0: 0a        
-            sta B3           ; $99e1: 85 ab     
-            asl                ; $99e3: 0a        
-            asl                ; $99e4: 0a        
-            clc                ; $99e5: 18        
+            asl
+            sta B3
+            asl
+            asl
+            clc
             adc B3           ; *10 //TODO check use of table
-            clc                ; $99e8: 18        
-            adc TEMP2            ; $99e9: 65 a8     
-            sta B4            ; $99eb: 85 ad     
-            inx                ; $99ed: e8        
+            clc
+            adc TEMP2
+            sta B4
+            inx
             lda tetrimino_table,x       ; tile id
-            sta $ac            ; $99f1: 85 ac     
-            inx                ; $99f3: e8        
+            sta B6
+            inx
             lda tetrimino_table,x       ; X offset
-            clc                ; $99f7: 18        
-            adc B4            ; $99f8: 65 ad     
-            tay                ; $99fa: a8        
-            lda $ac            ; $99fb: a5 ac     
+            clc
+            adc B4
+            tay
+            lda B6
             sta (PF_PTR),y        ; write tile to  playfield
-            inx                ; $99ff: e8        
-            dec B2           ; $9a00: c6 aa     
+            inx
+            dec B2
             bne @loop1         ; loop 4 tiles
-            lda #$00           ; $9a04: a9 00     
-            sta $57            ; $9a06: 85 57     
-            jsr set_BGU_COUNT         ; $9a08: 20 af 9c  
-            jsr music_speed         ; $9a0b: 20 17 9d  
-            inc GAME_PHASE            ; $9a0e: e6 48     
-@skip2:     rts                ; $9a10: 60        
+
+            lda #$00
+            sta LCLEAR_CHECK
+            jsr set_BGU_COUNT
+            jsr music_speed
+            inc GAME_PHASE
+@ret:     rts
 
 ;-------------------------------------------------------------------------------
-            lda $58            ; $9a11: a5 58     
+jump48_func10:
+            lda GOV_ANI            ; $9a11: a5 58     
             cmp #$14           ; $9a13: c9 14     
-            beq __9a47         ; $9a15: f0 30     
+            beq @skip2         ; $9a15: f0 30     
             lda FRAMECOUNT            ; $9a17: a5 b1     
             and #$03           ; $9a19: 29 03     
-            bne __9a46         ; $9a1b: d0 29     
-            ldx $58            ; $9a1d: a6 58     
-            bmi __9a3e         ; $9a1f: 30 1d     
+            bne @ret         ; $9a1b: d0 29     
+            ldx GOV_ANI            ; $9a1d: a6 58     
+            bmi @skip1         ; $9a1f: 30 1d     
             lda mul10_table,x       ; $9a21: bd d6 96  
             tay                ; $9a24: a8        
             lda #$00           ; $9a25: a9 00     
             sta B2           ; $9a27: 85 aa     
             lda #$13           ; $9a29: a9 13     
             sta TETR_OR            ; $9a2b: 85 42     
-__9a2d:     lda #$4f           ; $9a2d: a9 4f     
+@loop1:     lda #$4f           ; $9a2d: a9 4f     
             sta (PF_PTR),y        ; $9a2f: 91 b8     
             iny                ; $9a31: c8        
             inc B2           ; $9a32: e6 aa     
             lda B2           ; $9a34: a5 aa     
             cmp #$0a           ; $9a36: c9 0a     
-            bne __9a2d         ; $9a38: d0 f3     
-            lda $58            ; $9a3a: a5 58     
+            bne @loop1         ; $9a38: d0 f3     
+            lda GOV_ANI            ; $9a3a: a5 58     
             sta BGU_COUNT            ; $9a3c: 85 49     
-__9a3e:     inc $58            ; $9a3e: e6 58     
-            lda $58            ; $9a40: a5 58     
+@skip1:     inc GOV_ANI            ; $9a3e: e6 58     
+            lda GOV_ANI            ; $9a40: a5 58     
             cmp #$14           ; $9a42: c9 14     
-            bne __9a46         ; $9a44: d0 00     
-__9a46:     rts                ; $9a46: 60        
+            bne @ret         ; $9a44: d0 00     
+@ret:     rts                ; $9a46: 60        
 
-;-------------------------------------------------------------------------------
-__9a47:     lda N_PLR            ; $9a47: a5 be     
+@skip2:     lda N_PLR            ; $9a47: a5 be     
             cmp #$02           ; $9a49: c9 02     
-            beq __9a64         ; $9a4b: f0 17     
+            beq @skip4         ; $9a4b: f0 17     
             lda P1_SCORE+2            ; $9a4d: a5 75     
             cmp #$03           ; $9a4f: c9 03     
-            bcc __9a5e         ; $9a51: 90 0b     
+            bcc @skip3         ; $9a51: 90 0b     
             lda #$80           ; $9a53: a9 80     
             jsr Nframe_clear_sprite_ram         ; $9a55: 20 59 a4  
             jsr __9e3a         ; $9a58: 20 3a 9e  
-            jmp __9a64         ; $9a5b: 4c 64 9a  
+            jmp @skip4         ; $9a5b: 4c 64 9a  
 
-;-------------------------------------------------------------------------------
-__9a5e:     lda JOY1_RAW_NEW            ; $9a5e: a5 f5     
+@skip3:     lda JOY1_RAW_NEW            ; $9a5e: a5 f5     
             cmp #BUTTON_START
-            bne __9a6a         ; $9a62: d0 06     
-__9a64:     lda #$00           ; $9a64: a9 00     
+            bne @ret2         ; $9a62: d0 06     
+@skip4:     lda #$00           ; $9a64: a9 00     
             sta GAME_PHASE            ; $9a66: 85 48     
             sta JOY1_RAW_NEW            ; $9a68: 85 f5     
-__9a6a:     rts                ; $9a6a: 60        
+@ret2:     rts                ; $9a6a: 60        
 
 ;-------------------------------------------------------------------------------
 jump48_func3:
-__9a6b:     lda BGU_COUNT            ; $9a6b: a5 49     
-            cmp #$20           ; $9a6d: c9 20     
-            bpl @skip1         ; $9a6f: 10 03     
-            jmp @ret         ; $9a71: 4c 02 9b  
+            lda BGU_COUNT
+            cmp #32
+            bpl @skip1
+            jmp @ret         ; if (BGU_COUNT < 32) return //TODO use bmi @ret
 
-@skip1:     lda TETR_Y            ; $9a74: a5 41     
-            sec                ; $9a76: 38        
-            sbc #$02           ; $9a77: e9 02     
-            bpl @skip2         ; $9a79: 10 02     
-            lda #$00           ; $9a7b: a9 00     
-@skip2:     clc                ; $9a7d: 18        
-            adc $57            ; $9a7e: 65 57     
-            sta TEMP2+1            ; $9a80: 85 a9     
-            asl                ; $9a82: 0a        
-            sta TEMP2            ; $9a83: 85 a8     
-            asl                ; $9a85: 0a        
-            asl                ; $9a86: 0a        
-            clc                ; $9a87: 18        
-            adc TEMP2            ; $9a88: 65 a8     
-            sta TEMP2            ; $9a8a: 85 a8     
-            tay                ; $9a8c: a8        
-            ldx #$0a           ; $9a8d: a2 0a     
-@loop1:     lda (PF_PTR),y        ; $9a8f: b1 b8     
-            cmp #$ef           ; $9a91: c9 ef     
-            beq @skip3         ; $9a93: f0 37     
-            iny                ; $9a95: c8        
-            dex                ; $9a96: ca        
-            bne @loop1         ; $9a97: d0 f6     
+@skip1:     lda TETR_Y
+            sec
+            sbc #$02
+            bpl @skip2
+            lda #$00           ; A = max (0, tetr_y-2)
+@skip2:     clc
+            adc LCLEAR_CHECK	; +LCLEAR_CHECK
+            sta TEMP2+1		; checked line number
+            asl
+            sta TEMP2
+            asl
+            asl
+            clc
+            adc TEMP2            ; *10 //TODO check use of table
+            sta TEMP2
+            tay			; index to playfield
+            ldx #10
+@loop1:     lda (PF_PTR),y
+            cmp #$ef
+            beq @skip3         ; if (empty) skip3, break if 1 clear field found
+            iny
+            dex
+            bne @loop1         ; loop 1 line
+
             lda #$0a           ; $9a99: a9 0a     
             sta sndEFFECT          ; $9a9b: 8d f1 06  
-            inc $56            ; $9a9e: e6 56     
-            ldx $57            ; $9aa0: a6 57     
-            lda TEMP2+1            ; $9aa2: a5 a9     
-            sta $4a,x          ; $9aa4: 95 4a     
-            ldy TEMP2            ; $9aa6: a4 a8     
-            dey                ; $9aa8: 88        
-@loop2:     lda (PF_PTR),y        ; $9aa9: b1 b8     
-            ldx #$0a           ; $9aab: a2 0a     
-            stx PF_PTR            ; $9aad: 86 b8     
-            sta (PF_PTR),y        ; $9aaf: 91 b8     
-            lda #$00           ; $9ab1: a9 00     
-            sta PF_PTR            ; $9ab3: 85 b8     
-            dey                ; $9ab5: 88        
-            cpy #$ff           ; $9ab6: c0 ff     
-            bne @loop2         ; $9ab8: d0 ef     
-            lda #$ef           ; $9aba: a9 ef     
-            ldy #$00           ; $9abc: a0 00     
-@loop3:     sta (PF_PTR),y        ; $9abe: 91 b8     
-            iny                ; $9ac0: c8        
-            cpy #$0a           ; $9ac1: c0 0a     
-            bne @loop3         ; $9ac3: d0 f9     
-            lda #$13           ; $9ac5: a9 13     
-            sta TETR_OR            ; $9ac7: 85 42     
-            jmp @skip4         ; $9ac9: 4c d2 9a  
+            inc LCLEARED            ; 1 more full line found
+            ldx LCLEAR_CHECK
+            lda TEMP2+1            ; line number 
+            sta LNUM_CLEAR,x
+            ldy TEMP2
+            dey                ; pf index - last field of previous line
+@loop2:     lda (PF_PTR),y	; load tile
+            ldx #10
+            stx PF_PTR            ; pf_ptr to next line //todo check use of second pointer
+            sta (PF_PTR),y        ; write tile to next line
+            lda #$00
+            sta PF_PTR            ; pf_ptr to prev line
+            dey
+            cpy #$ff    
+            bne @loop2         ; loop to begin of playfield
+            lda #$ef
+            ldy #$00
+@loop3:     sta (PF_PTR),y
+            iny
+            cpy #$0a
+            bne @loop3         ; clear first line of playfield //TODO count down from 10 to remove cpy
+            lda #$13
+            sta TETR_OR            ; empty tetrimino
+            jmp @skip4
 
-@skip3:     ldx $57            ; $9acc: a6 57     
-            lda #$00           ; $9ace: a9 00     
-            sta $4a,x          ; $9ad0: 95 4a     
-@skip4:     inc $57            ; $9ad2: e6 57     
-            lda $57            ; $9ad4: a5 57     
-            cmp #$04           ; $9ad6: c9 04     
-            bmi @ret         ; $9ad8: 30 28     
-            ldy $56            ; $9ada: a4 56     
-            lda __9b53,y       ; $9adc: b9 53 9b  
-            clc                ; $9adf: 18        
-            adc $bc            ; $9ae0: 65 bc     
-            sta $bc            ; $9ae2: 85 bc     
-            lda #$00           ; $9ae4: a9 00     
-            sta BGU_COUNT            ; $9ae6: 85 49     
-            sta $52            ; $9ae8: 85 52     
-            lda $56            ; $9aea: a5 56     
-            cmp #$04           ; $9aec: c9 04     
-            bne @skip5         ; $9aee: d0 05     
-            lda #$04           ; $9af0: a9 04     
-            sta sndEFFECT          ; $9af2: 8d f1 06  
-@skip5:     inc GAME_PHASE            ; $9af5: e6 48     
-            lda $56            ; $9af7: a5 56     
-            bne @ret         ; $9af9: d0 07     
-            inc GAME_PHASE            ; $9afb: e6 48     
+@skip3:     ldx LCLEAR_CHECK
+            lda #$00
+            sta LNUM_CLEAR,x          ; no line to clear in check x
+     
+@skip4:     inc LCLEAR_CHECK            ; next check
+            lda LCLEAR_CHECK
+            cmp #$04
+            bmi @ret         ; if (check < 4) return
+				; checks complete
+            ldy LCLEARED            ; number of lines cleared
+            lda __9b53,y       ; table read
+            clc   
+            adc SPAWN_LINES_OPP
+            sta SPAWN_LINES_OPP            ; set lines to be spawned for opponent
+            lda #$00
+            sta BGU_COUNT
+            sta LCLEAR_ANI
+            lda LCLEARED
+            cmp #$04
+            bne @skip5
+            lda #$04
+            sta sndEFFECT          ; snd effect for 4line clear
+@skip5:     inc GAME_PHASE
+            lda LCLEARED
+            bne @ret
+            inc GAME_PHASE	; if lines cleared phase 4 else phase 5
             lda #$07           ; $9afd: a9 07     
             sta sndEFFECT          ; $9aff: 8d f1 06  
-@ret:     rts                ; $9b02: 60        
+@ret:     rts
 
 ;-------------------------------------------------------------------------------
 jump48_func7:
@@ -3310,7 +3338,7 @@ __9b53:     .hex 00 00 01 02   ; $9b53: 00 00 01 02   Data
 ;-------------------------------------------------------------------------------
 jump48_func5:
             jsr music_speed         ; $9b58: 20 17 9d  
-            lda $56            ; $9b5b: a5 56     
+            lda LCLEARED            ; $9b5b: a5 56     
             bne @skip1         ; $9b5d: d0 03     
             jmp @skip8         ; $9b5f: 4c fe 9b  
 
@@ -3332,7 +3360,7 @@ jump48_func5:
             sta $a3            ; $9b7c: 85 a3     
             lda SEL_TYPE            ; $9b7e: a5 c1     
             beq @skip4         ; $9b80: f0 24     
-            lda $56            ; $9b82: a5 56     
+            lda LCLEARED            ; $9b82: a5 56     
             sta TEMP2            ; $9b84: 85 a8     
             lda ST_LINES            ; $9b86: a5 50     
             sec                ; $9b88: 38        
@@ -3352,7 +3380,7 @@ jump48_func5:
             sta ST_LINES            ; $9ba1: 85 50     
             jmp @skip8         ; $9ba3: 4c fe 9b  
 
-@skip4:     ldx $56            ; $9ba6: a6 56     
+@skip4:     ldx LCLEARED            ; $9ba6: a6 56     
 @loop1:     inc ST_LINES            ; $9ba8: e6 50     
             lda ST_LINES            ; $9baa: a5 50     
             and #$0f           ; $9bac: 29 0f     
@@ -3427,7 +3455,7 @@ jump48_func5:
             lda LEVEL            ; $9c31: a5 44     
             sta TEMP2            ; $9c33: 85 a8     
             inc TEMP2            ; $9c35: e6 a8     
-@loop2:     lda $56            ; $9c37: a5 56     
+@loop2:     lda LCLEARED            ; $9c37: a5 56     
             asl                ; $9c39: 0a        
             tax                ; $9c3a: aa        
             lda __9ca5,x       ; $9c3b: bd a5 9c  
@@ -3483,7 +3511,7 @@ jump48_func5:
             ora #$04           ; $9c9a: 09 04     
             sta $a3            ; $9c9c: 85 a3     
             lda #$00           ; $9c9e: a9 00     
-            sta $56            ; $9ca0: 85 56     
+            sta LCLEARED            ; $9ca0: 85 56     
             inc GAME_PHASE            ; $9ca2: e6 48     
             rts                ; $9ca4: 60        
 
@@ -3742,10 +3770,12 @@ jump48_func0:
             rts                ; $9e36: 60        
 
 ;-------------------------------------------------------------------------------
+jump48_func11:
             inc GAME_PHASE            ; $9e37: e6 48     
 
 ;-------------------------------------------------------------------------------
 jump48_func4:
+jump48_func9:
             rts                ; $9e39: 60        
 
 ;-------------------------------------------------------------------------------
@@ -3777,7 +3807,7 @@ __9e49:     ldx P1_LVL            ; $9e49: a6 64
             asl                ; $9e65: 0a        
             asl                ; $9e66: 0a        
             asl                ; $9e67: 0a        
-            sta $ac            ; $9e68: 85 ac     
+            sta B6            ; $9e68: 85 ac     
             jsr frame_PPU_rendering_off         ; $9e6a: 20 52 aa  
             jsr PPU_disableNMI         ; $9e6d: 20 78 aa  
             lda LEVEL            ; $9e70: a5 44     
@@ -3853,24 +3883,24 @@ __9efa:     lda B3           ; $9efa: a5 ab
             bne __9ee8         ; $9f0b: d0 db     
             lda #$40           ; $9f0d: a9 40     
             jsr __a7fd         ; $9f0f: 20 fd a7  
-__9f12:     lda $ac            ; $9f12: a5 ac     
+__9f12:     lda B6            ; $9f12: a5 ac     
             beq __9f45         ; $9f14: f0 2f     
-__9f16:     dec $ac            ; $9f16: c6 ac     
-            lda $ac            ; $9f18: a5 ac     
+__9f16:     dec B6            ; $9f16: c6 ac     
+            lda B6            ; $9f18: a5 ac     
             and #$0f           ; $9f1a: 29 0f     
             cmp #$0f           ; $9f1c: c9 0f     
             bne __9f28         ; $9f1e: d0 08     
-            lda $ac            ; $9f20: a5 ac     
+            lda B6            ; $9f20: a5 ac     
             and #$f0           ; $9f22: 29 f0     
             ora #$09           ; $9f24: 09 09     
-            sta $ac            ; $9f26: 85 ac     
-__9f28:     lda $ac            ; $9f28: a5 ac     
+            sta B6            ; $9f26: 85 ac     
+__9f28:     lda B6            ; $9f28: a5 ac     
             jsr __9f62         ; $9f2a: 20 62 9f  
             lda #$01           ; $9f2d: a9 01     
             sta sndEFFECT          ; $9f2f: 8d f1 06  
             lda #$02           ; $9f32: a9 02     
             jsr __a7fd         ; $9f34: 20 fd a7  
-            lda $ac            ; $9f37: a5 ac     
+            lda B6            ; $9f37: a5 ac     
             bne __9f16         ; $9f39: d0 db     
             lda #$02           ; $9f3b: a9 02     
             sta sndEFFECT          ; $9f3d: 8d f1 06  
@@ -3946,7 +3976,7 @@ tjump_nmi04:
             sta PPUADDR        ; $9fc3: 8d 06 20  
             lda #$d0           ; $9fc6: a9 d0     
             sta PPUADDR        ; $9fc8: 8d 06 20  
-            lda $ac            ; $9fcb: a5 ac     
+            lda B6            ; $9fcb: a5 ac     
             jsr PPUwrite_packedBCD         ; $9fcd: 20 12 97  
             lda #$21           ; $9fd0: a9 21     
             sta PPUADDR        ; $9fd2: 8d 06 20  
@@ -4676,7 +4706,7 @@ __a53b:     lda P1_HEIGHT            ; $a53b: a5 79
             sbc ($a5),y        ; $a542: f1 a5     
             .hex d9 a5 c1 ;cmp __c1a5,y       ; $a544: d9 a5 c1  
             lda TEMP2+1            ; $a547: a5 a9     
-            lda $4c            ; $a549: a5 4c     
+            lda LNUM_CLEAR+2            ; $a549: a5 4c     
             lda TEMP2+1            ; $a54b: a5 a9     
             iny                ; $a54d: c8        
             sta SPR_X           ; $a54e: 85 a0     
