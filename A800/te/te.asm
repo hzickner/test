@@ -15,6 +15,7 @@ B2_N		.DS	1
 B3		.DS	1
 B4		.DS	1
 B5		.DS	1
+B6		.DS	1
 BGS_USED	.DS	1
 BUTTONS_ALL	.DS	1	; cur plr bits for buttons pressed A B Select Start Up Down Left Right
 BUTTONS_NEW	.DS	1	; cur plr bits for just pressed buttons
@@ -57,6 +58,8 @@ DAR_TIMER	.DS	1	; down autorepeat timer
 DAR_COUNT	.DS	1
 ST_LINES	.DS	2
 ST_SCORE	.DS	3
+LCLEAR_CHECK	.DS	1	; line clear check counter
+GOV_ANI		.DS	1	; negative - delay, 0 - top, 20 - finish
 SEL_HEIGHT	.DS	1
 
 G_VARS		equ	TETR_X
@@ -75,6 +78,8 @@ P1_DAR		.DS	1	; down autorepeat timer
 P1_DARC		.DS	1
 P1_LINES	.DS	2	; 2byte 3digit BCD P1_LINES counter
 P1_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
+P1_LCLEAR_CHECK	.DS	1	; line clear check counter
+P1_GOV_ANI	.DS	1	; negative - delay, 0 - top, 20 - finish
 P1_HEIGHT	.DS	1
 
 G_VARS1		equ	P1_X
@@ -93,6 +98,8 @@ P2_DAR		.DS	1	; down autorepeat timer
 P2_DARC		.DS	1
 P2_LINES	.DS	2	; 2byte 3digit BCD P1_LINES counter
 P2_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
+P2_LCLEAR_CHECK	.DS	1	; line clear check counter
+P2_GOV_ANI	.DS	1	; negative - delay, 0 - top, 20 - finish
 P2_HEIGHT	.DS	1
 
 G_VARS2		equ	P2_X
@@ -166,10 +173,10 @@ jt_l:
 	rts
 	
 jt_h: 
-	.DB >(phase_func0-1), >(phase_func1-1)
+	.DB >(phase_func0-1), >(phase_func1-1), >(phase_func2-1)
 
 jt_l:
-	.DB <(phase_func0-1), <(phase_func1-1)
+	.DB <(phase_func0-1), <(phase_func1-1), <(phase_func2-1)
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -418,13 +425,13 @@ s1:
 	jsr frame_clear_sprite_ram
 	jsr frame_GR_rendering_on
 	jsr frame_clear_sprite_ram  ; //TODO 3 frame_funtions?
-;            lda #$01           ; $869f: a9 01     
-;            sta P1_PHASE            ; $86a1: 85 68     
-;            sta P2_PHASE            ; $86a3: 85 88     
-;            lda P1_LEVEL            ; $86a5: a5 67     
-;            sta P1_LVL            ; $86a7: 85 64     
-;            lda P2_LEVEL            ; $86a9: a5 87     
-;            sta P2_LVL            ; $86ab: 85 84     
+	lda #$01
+	sta P1_PHASE
+	sta P2_PHASE
+	lda P1_LEVEL
+	sta P1_LVL
+	lda P2_LEVEL
+	sta P2_LVL
 	inc GAME_FUNC_INDEX	; game_func1
 
 	rts
@@ -592,8 +599,8 @@ skip4:	inc GAME_FUNC_INDEX	; continue with game_func4
 ; game_func1
 .proc game_func4
 	jsr plr1_init
-;            jsr __81b2         ; $8177: 20 b2 81  
-	jsr game_write_tetr         ; $817a: 20 0a 8a  
+	jsr call_gamephase_func
+	jsr game_write_tetr
 ;            jsr __87ae         ; $817d: 20 ae 87  
 	jsr game_tetr_preview
 	inc GAME_FUNC_INDEX	; continue with game_func5     
@@ -605,9 +612,9 @@ skip4:	inc GAME_FUNC_INDEX	; continue with game_func4
 ; game_func5
 ; some 2player specific calls
 .proc game_func5
-;            lda N_PLR
-;            cmp #$02
-;            bne @skip1         ; if (2 players) {
+	lda N_PLR
+	cmp #$02
+	bne skip1	; if (2 players) {
 ;            jsr __8792         ; $818c: 20 92 87  
 ;            jsr __81d9         ; $818f: 20 d9 81  
 ;            jsr game_write_tetr         ; $8192: 20 0a 8a  
@@ -1330,7 +1337,6 @@ s1:
 	sta DOSINI+1		; init reset vectors
 
 	cld
-	;sei
 	lda #0
 
 	sta SDMCTL		; rendering off
@@ -1931,6 +1937,75 @@ skip:
 	jsr tetr_down
 	rts
 .endp    
+
+;-------------------------------------------------------------------------------
+; write tetrimino to playfield
+.proc phase_func2
+	jsr tetr_check_valid
+	beq skip1		; if (!valid) {
+;	lda #$02           ; $99a7: a9 02     
+;            sta $06f0          ; $99a9: 8d f0 06  
+	lda #10
+	sta GAME_PHASE		; GAME_PHASE = 10 //TODO check!
+	lda #$f0
+	sta GOV_ANI		; set delay value for GOV_ANI
+;            jsr snd_reset_call
+	rts
+				; } endif
+skip1:	lda BGU_COUNT
+	cmp #32
+	bmi ret			; if (BGU_COUNT < 32) return
+	lda TETR_Y
+	asl
+	sta TEMP2
+	asl
+	asl
+	clc
+	adc TEMP2		; //TODO checkk use of table
+	adc TETR_X
+	sta TEMP2		; Y*10 + X
+	lda TETR_OR
+	asl
+	asl
+	sta TEMP2+1
+	asl
+	clc
+	adc TEMP2+1
+	tax			; OR*12
+	ldy #$00
+	lda #$04
+	sta B2			; loop counter
+loop1:	lda tetrimino_table,x	; Y offset
+	asl
+	sta B3
+	asl
+	asl
+	clc
+	adc B3			; *10 //TODO check use of table
+	clc
+	adc TEMP2
+	sta B4
+	inx
+	lda tetrimino_table,x	; tile id
+	sta B6
+	inx
+	lda tetrimino_table,x	; X offset
+	clc
+	adc B4
+	tay
+	lda B6
+	sta (PF_PTR),y		; write tile to  playfield
+	inx
+	dec B2
+	bne loop1		; loop 4 tiles
+
+	lda #$00
+	sta LCLEAR_CHECK
+	jsr set_BGU_COUNT
+;            jsr music_speed
+	inc GAME_PHASE
+ret:	rts
+.endp
             
 ;-------------------------------------------------------------------------------
 ; set playfield, controls and game variables to plr1
