@@ -75,6 +75,7 @@ P2_HEIGHT            = $99
 SPR_X                = $a0      ; sprite x coord
 SPR_Y                = $a1      ; sprite y coord
 SPR_PTR_INDEX        = $a2      ; index to spr pointer data
+NMI_FLAGS            = $a3	; controls which updates need to be executed during NMI
 GAME_FUNC_INDEX      = $a7      ; index of function called from mode_func_gamedemo2
 TEMP2                = $a8      ; 2 byte temporary
 B2                   = $aa	; byte variable
@@ -83,6 +84,7 @@ B6                   = $ac	; byte variable
 B4                   = $ad	; byte variable
 B1                   = $ae      ; byte variable
 B5                   = $af      ; byte variable
+B7                   = $b0	; byte variable
 FRAMECOUNT           = $b1      ; 16bit frame counter
 OAM_USED             = $b3      ; sprite memory used
 BUTTONS_NEW          = $b5      ; bits for just pressed buttons
@@ -1152,8 +1154,8 @@ game_func1:
             sta $95            ; $8711: 85 95     
             sta P1_LINES            ; $8713: 85 70     
             sta P1_LINES+1            ; $8715: 85 71     
-            sta $90            ; $8717: 85 90     
-            sta $91            ; $8719: 85 91     
+            sta P2_LINES            ; $8717: 85 90     
+            sta P2_LINES+1            ; $8719: 85 91     
             sta $a4            ; $871b: 85 a4     
             sta $d8            ; $871d: 85 d8     
             sta $d9            ; $871f: 85 d9     
@@ -1186,9 +1188,9 @@ game_func1:
             beq @s_typeA         ; $8759: f0 06     
             lda #$25           ; $875b: a9 25     
             sta P1_LINES            ; $875d: 85 70     
-            sta $90            ; $875f: 85 90     
+            sta P2_LINES            ; $875f: 85 90     
 @s_typeA:   lda #$47           ; $8761: a9 47     
-            sta $a3            ; $8763: 85 a3     
+            sta NMI_FLAGS            ; $8763: 85 a3     
             jsr frame_clear_sprite_ram
             jsr game_init_start_lines
             ldx SEL_MUSIC
@@ -2526,141 +2528,149 @@ tjump_nmi03:
             lda BGU_COUNT
             sta P2_BGUC
              
-@skip4:     lda $a3            ; $958c: a5 a3     
-            and #$01           ; $958e: 29 01     
-            beq @skip6         ; $9590: f0 51     
-            lda N_PLR            ; $9592: a5 be     
-            cmp #$02           ; $9594: c9 02     
-            beq @skip5         ; $9596: f0 1d     
-            lda #$20           ; $9598: a9 20     
-            sta PPUADDR        ; $959a: 8d 06 20  
-            lda #$73           ; $959d: a9 73     
-            sta PPUADDR        ; $959f: 8d 06 20  
-            lda P1_LINES+1            ; $95a2: a5 71     
-            sta PPUDATA        ; $95a4: 8d 07 20  
-            lda P1_LINES            ; $95a7: a5 70     
+@skip4:     lda NMI_FLAGS
+            and #$01
+            beq @skip6
+            lda N_PLR
+            cmp #$02           ; if (bit0 of NMI_FLAGS and !2plr) {
+            beq @skip5
+            lda #$20
+            sta PPUADDR
+            lda #$73
+            sta PPUADDR
+            lda P1_LINES+1
+            sta PPUDATA
+            lda P1_LINES
             jsr PPUwrite_packedBCD         ; write LINES Counter
-            lda $a3            ; $95ac: a5 a3     
-            and #$fe           ; $95ae: 29 fe     
-            sta $a3            ; $95b0: 85 a3     
-            jmp @skip6         ; $95b2: 4c e3 95  
+            lda NMI_FLAGS
+            and #%11111110
+            sta NMI_FLAGS            ; unset bit0
+            jmp @skip6         ; } endif
+			 	; (bit0 of NMI_FLAGS and 2plr)
+@skip5:     lda #$20
+            sta PPUADDR
+            lda #$68
+            sta PPUADDR
+            lda P1_LINES+1
+            sta PPUDATA
+            lda P1_LINES
+            jsr PPUwrite_packedBCD         ; write plr1 LINES counter
+            lda #$20
+            sta PPUADDR
+            lda #$7a
+            sta PPUADDR
+            lda P2_LINES+1
+            sta PPUDATA
+            lda P2_LINES
+            jsr PPUwrite_packedBCD         ; write plr2 LINES counter
+            lda NMI_FLAGS
+            and #%11111110
+            sta NMI_FLAGS            ; unset bit0
 
-@skip5:     lda #$20           ; $95b5: a9 20     
-            sta PPUADDR        ; $95b7: 8d 06 20  
-            lda #$68           ; $95ba: a9 68     
-            sta PPUADDR        ; $95bc: 8d 06 20  
-            lda P1_LINES+1            ; $95bf: a5 71     
-            sta PPUDATA        ; $95c1: 8d 07 20  
-            lda P1_LINES            ; $95c4: a5 70     
-            jsr PPUwrite_packedBCD         ; $95c6: 20 12 97  
-            lda #$20           ; $95c9: a9 20     
-            sta PPUADDR        ; $95cb: 8d 06 20  
-            lda #$7a           ; $95ce: a9 7a     
-            sta PPUADDR        ; $95d0: 8d 06 20  
-            lda $91            ; $95d3: a5 91     
-            sta PPUDATA        ; $95d5: 8d 07 20  
-            lda $90            ; $95d8: a5 90     
-            jsr PPUwrite_packedBCD         ; $95da: 20 12 97  
-            lda $a3            ; $95dd: a5 a3     
-            and #$fe           ; $95df: 29 fe     
-            sta $a3            ; $95e1: 85 a3     
-@skip6:     lda $a3            ; $95e3: a5 a3     
-            and #$02           ; $95e5: 29 02     
-            beq @skip7         ; $95e7: f0 25     
-            lda N_PLR            ; $95e9: a5 be     
-            cmp #$02           ; $95eb: c9 02     
-            beq @skip7         ; $95ed: f0 1f     
-            ldx P1_LVL            ; $95ef: a6 64     
-            lda __96b8,x       ; $95f1: bd b8 96  
-            sta TEMP2            ; $95f4: 85 a8     
-            lda #$22           ; $95f6: a9 22     
-            sta PPUADDR        ; $95f8: 8d 06 20  
-            lda #$ba           ; $95fb: a9 ba     
-            sta PPUADDR        ; $95fd: 8d 06 20  
-            lda TEMP2            ; $9600: a5 a8     
-            jsr PPUwrite_packedBCD         ; $9602: 20 12 97  
-            jsr __9808         ; $9605: 20 08 98  
-            lda $a3            ; $9608: a5 a3     
-            and #$fd           ; $960a: 29 fd     
-            sta $a3            ; $960c: 85 a3     
-@skip7:     lda N_PLR            ; $960e: a5 be     
-            cmp #$02           ; $9610: c9 02     
-            beq @skip8         ; $9612: f0 25     
-            lda $a3            ; $9614: a5 a3     
-            and #$04           ; $9616: 29 04     
-            beq @skip8         ; $9618: f0 1f     
-            lda #$21           ; $961a: a9 21     
-            sta PPUADDR        ; $961c: 8d 06 20  
-            lda #$18           ; $961f: a9 18     
-            sta PPUADDR        ; $9621: 8d 06 20  
-            lda P1_SCORE+2            ; $9624: a5 75     
-            jsr PPUwrite_packedBCD         ; $9626: 20 12 97  
-            lda P1_SCORE+1            ; $9629: a5 74     
-            jsr PPUwrite_packedBCD         ; $962b: 20 12 97  
-            lda P1_SCORE         ; $962e: a5 73     
-            jsr PPUwrite_packedBCD         ; $9630: 20 12 97  
-            lda $a3            ; $9633: a5 a3     
-            and #$fb           ; $9635: 29 fb     
-            sta $a3            ; $9637: 85 a3     
-@skip8:     lda N_PLR            ; $9639: a5 be     
-            cmp #$02           ; $963b: c9 02     
-            beq @skip9         ; $963d: f0 34     
-            lda $a3            ; $963f: a5 a3     
-            and #$40           ; $9641: 29 40     
-            beq @skip9         ; $9643: f0 2e     
-            lda #$00           ; $9645: a9 00     
-            sta $b0            ; $9647: 85 b0     
-@loop1:     lda $b0            ; $9649: a5 b0     
-            asl                ; $964b: 0a        
-            tax                ; $964c: aa        
-            lda __96aa,x       ; $964d: bd aa 96  
-            sta PPUADDR        ; $9650: 8d 06 20  
-            lda __96ab,x       ; $9653: bd ab 96  
-            sta PPUADDR        ; $9656: 8d 06 20  
-            lda TYPE_COUNTERS+1,x        ; $9659: bd f1 03  
-            sta PPUDATA        ; $965c: 8d 07 20  
-            lda TYPE_COUNTERS,x        ; $965f: bd f0 03  
-            jsr PPUwrite_packedBCD         ; $9662: 20 12 97  
-            inc $b0            ; $9665: e6 b0     
-            lda $b0            ; $9667: a5 b0     
-            cmp #$07           ; $9669: c9 07     
-            bne @loop1         ; $966b: d0 dc     
-            lda $a3            ; $966d: a5 a3     
-            and #$bf           ; $966f: 29 bf     
-            sta $a3            ; $9671: 85 a3     
-@skip9:     lda #$3f           ; $9673: a9 3f     
-            sta PPUADDR        ; $9675: 8d 06 20  
-            lda #$0e           ; $9678: a9 0e     
-            sta PPUADDR        ; $967a: 8d 06 20  
-            ldx #$00           ; $967d: a2 00     
-            lda LCLEARED            ; $967f: a5 56     
-            cmp #$04           ; $9681: c9 04     
-            bne @skip10         ; $9683: d0 13     
-            lda FRAMECOUNT            ; $9685: a5 b1     
-            and #$03           ; $9687: 29 03     
-            bne @skip10         ; $9689: d0 0d     
-            ldx #$30           ; $968b: a2 30     
-            lda FRAMECOUNT            ; $968d: a5 b1     
-            and #$07           ; $968f: 29 07     
-            bne @skip10         ; $9691: d0 05     
-            lda #$09           ; $9693: a9 09     
-            sta sndEFFECT          ; $9695: 8d f1 06  
-@skip10:     stx PPUDATA        ; $9698: 8e 07 20  
-            ldy #$00           ; $969b: a0 00     
-            sty HSCROLL            ; $969d: 84 fd     
-            sty PPUSCROLL      ; $969f: 8c 05 20  
-            ldy #$00           ; $96a2: a0 00     
-            sty VSCROLL            ; $96a4: 84 fc     
-            sty PPUSCROLL      ; $96a6: 8c 05 20  
-            rts                ; $96a9: 60        
+@skip6:     lda NMI_FLAGS
+            and #$02
+            beq @skip7
+            lda N_PLR
+            cmp #$02
+            beq @skip7         ; if (bit1 of NMI_FLAGS and !2plr) {
+            ldx P1_LVL
+            lda BCD_TABLE,x
+            sta TEMP2 
+            lda #$22
+            sta PPUADDR
+            lda #$ba
+            sta PPUADDR
+            lda TEMP2
+            jsr PPUwrite_packedBCD         ; write plr1 level
+            jsr GR_updateGamePalette
+            lda NMI_FLAGS
+            and #%11111101
+            sta NMI_FLAGS            ; unset bit1 of NMI_FLAGS
+     
+@skip7:     lda N_PLR    
+            cmp #$02
+            beq @skip8
+            lda NMI_FLAGS
+            and #$04
+            beq @skip8         ; if (bit2 of NMI_FLAGS and !2plr) {
+            lda #$21
+            sta PPUADDR
+            lda #$18
+            sta PPUADDR
+            lda P1_SCORE+2
+            jsr PPUwrite_packedBCD
+            lda P1_SCORE+1
+            jsr PPUwrite_packedBCD
+            lda P1_SCORE
+            jsr PPUwrite_packedBCD         ; write plr1 score
+            lda NMI_FLAGS            ; unset bit2 of NMI_FLAGS
+            and #%11111011
+            sta NMI_FLAGS
+            
+@skip8:     lda N_PLR
+            cmp #$02
+            beq @skip9
+            lda NMI_FLAGS
+            and #$40
+            beq @skip9         ; if (bit6 of NMI_FLAGS and !2plr) {
+            lda #$00
+            sta B7            ; loop variable
+@loop1:     lda B7
+            asl
+            tax
+            lda COUNTER_SCR_ADR_TABLE,x
+            sta PPUADDR
+            lda COUNTER_SCR_ADR_TABLE+1,x
+            sta PPUADDR
+            lda TYPE_COUNTERS+1,x
+            sta PPUDATA
+            lda TYPE_COUNTERS,x
+            jsr PPUwrite_packedBCD         ; write type counters
+            inc B7
+            lda B7
+            cmp #$07
+            bne @loop1
+            lda NMI_FLAGS
+            and #%10111111
+            sta NMI_FLAGS            ; unset bit6 of NMI_FLAGS
+
+@skip9:     lda #$3f
+            sta PPUADDR
+            lda #$0e           ; second entry of bg palette 3
+            sta PPUADDR
+            ldx #$00		; color 0
+            lda LCLEARED
+            cmp #$04
+            bne @skip10		; if (4 lines cleared)
+            lda FRAMECOUNT
+            and #$03
+            bne @skip10         ; every (4th frame)
+            ldx #$30           ; color 30
+            lda FRAMECOUNT
+            and #$07
+            bne @skip10         ; every (8th frame)
+            lda #$09
+            sta sndEFFECT
+ 
+@skip10:     stx PPUDATA        ; set color entry
+            ldy #$00
+            sty HSCROLL
+            sty PPUSCROLL
+            ldy #$00 
+            sty VSCROLL
+            sty PPUSCROLL
+            rts
 
 ;-------------------------------------------------------------------------------
-__96aa:     .hex 21            ; $96aa: 21            Data
-__96ab:     .hex 86 21 c6 22   ; $96ab: 86 21 c6 22   Data
-            .hex 06 22 46 22   ; $96af: 06 22 46 22   Data
-            .hex 86 22 c6 23   ; $96b3: 86 22 c6 23   Data
-            .hex 06            ; $96b7: 06            Data
-__96b8:     .hex 00 01 02 03   ; $96b8: 00 01 02 03   Data
+; screen addresses for type counters
+COUNTER_SCR_ADR_TABLE:
+     .hex 21 86 21 c6
+     .hex 22 06 22 46
+     .hex 22 86 22 c6
+     .hex 23 06           ; $96b7: 06            Data
+; 14bytes end of table
+
+BCD_TABLE:     .hex 00 01 02 03   ; $96b8: 00 01 02 03   Data
             .hex 04 05 06 07   ; $96bc: 04 05 06 07   Data
             .hex 08 09 10 11   ; $96c0: 08 09 10 11   Data
             .hex 12 13 14 15   ; $96c4: 12 13 14 15   Data
@@ -2838,55 +2848,56 @@ __9803:     .hex 05 06 07 08   ; $9803: 05 06 07 08   Data
             .hex 09            ; $9807: 09            Data
 
 ;-------------------------------------------------------------------------------
-__9808:     lda P1_LVL            ; $9808: a5 64     
-__980a:     cmp #$0a           ; $980a: c9 0a     
-            bmi __9814         ; $980c: 30 06     
-            sec                ; $980e: 38        
-            sbc #$0a           ; $980f: e9 0a     
-            jmp __980a         ; $9811: 4c 0a 98  
+; change colors on level change
+GR_updateGamePalette:
+     lda P1_LVL
+@loop1:     cmp #10
+            bmi @skip1
+            sec
+            sbc #10
+            jmp @loop1         ; P1_LVL mod 10
+
+@skip1:     asl  
+            asl
+            tax                ; X = 4*(P1_LVL mod 10)
+            lda #$00
+            sta TEMP2
+@loop2:     lda #$3f
+            sta PPUADDR
+            lda #$08
+            clc
+            adc TEMP2
+            sta PPUADDR        ; $3f08 address of bg palette 2
+            lda GamePalette_TABLE,x
+            sta PPUDATA
+            lda GamePalette_TABLE+1,x
+            sta PPUDATA
+            lda GamePalette_TABLE+2,x
+            sta PPUDATA
+            lda GamePalette_TABLE+3,x
+            sta PPUDATA        ; write new color values
+            lda TEMP2
+            clc
+            adc #$10		; add offset to sprite palette 2
+            sta TEMP2
+            cmp #$20
+            bne @loop2
+            rts
 
 ;-------------------------------------------------------------------------------
-__9814:     asl                ; $9814: 0a        
-            asl                ; $9815: 0a        
-            tax                ; $9816: aa        
-            lda #$00           ; $9817: a9 00     
-            sta TEMP2            ; $9819: 85 a8     
-__981b:     lda #$3f           ; $981b: a9 3f     
-            sta PPUADDR        ; $981d: 8d 06 20  
-            lda #$08           ; $9820: a9 08     
-            clc                ; $9822: 18        
-            adc TEMP2            ; $9823: 65 a8     
-            sta PPUADDR        ; $9825: 8d 06 20  
-            lda __984c,x       ; $9828: bd 4c 98  
-            sta PPUDATA        ; $982b: 8d 07 20  
-            lda __984d,x       ; $982e: bd 4d 98  
-            sta PPUDATA        ; $9831: 8d 07 20  
-            lda __984e,x       ; $9834: bd 4e 98  
-            sta PPUDATA        ; $9837: 8d 07 20  
-            lda __984f,x       ; $983a: bd 4f 98  
-            sta PPUDATA        ; $983d: 8d 07 20  
-            lda TEMP2            ; $9840: a5 a8     
-            clc                ; $9842: 18        
-            adc #$10           ; $9843: 69 10     
-            sta TEMP2            ; $9845: 85 a8     
-            cmp #$20           ; $9847: c9 20     
-            bne __981b         ; $9849: d0 d0     
-            rts                ; $984b: 60        
-
-;-------------------------------------------------------------------------------
-__984c:     .hex 0f            ; $984c: 0f            Data
-__984d:     .hex 30            ; $984d: 30            Data
-__984e:     .hex 21            ; $984e: 21            Data
-__984f:     .hex 12 0f 30 29   ; $984f: 12 0f 30 29   Data
-            .hex 1a 0f 30 24   ; $9853: 1a 0f 30 24   Data
-            .hex 14 0f 30 2a   ; $9857: 14 0f 30 2a   Data
-            .hex 12 0f 30 2b   ; $985b: 12 0f 30 2b   Data
-            .hex 15 0f 30 22   ; $985f: 15 0f 30 22   Data
-            .hex 2b 0f 30 00   ; $9863: 2b 0f 30 00   Data
-            .hex 16 0f 30 05   ; $9867: 16 0f 30 05   Data
-            .hex 13 0f 30 16   ; $986b: 13 0f 30 16   Data
-            .hex 12 0f 30 27   ; $986f: 12 0f 30 27   Data
-            .hex 16            ; $9873: 16            Data
+; 10 palettes of 4bytes
+GamePalette_TABLE:
+     .hex 0f 30 21 12
+     .hex 0f 30 29 1a
+     .hex 0f 30 24 14
+     .hex 0f 30 2a 12
+     .hex 0f 30 2b 15
+     .hex 0f 30 22 2b
+     .hex 0f 30 00 16
+     .hex 0f 30 05 13
+     .hex 0f 30 16 12
+     .hex 0f 30 27 16
+; 40bytes end of table
 
 ;-------------------------------------------------------------------------------
 empty_func:     rts                ; $9874: 60        
@@ -3075,9 +3086,9 @@ incr_tetr_type_counter:
             sta TYPE_COUNTERS+1,x        ;     store high byte (3rd digit)
 @skip1:     lda TEMP2
             sta TYPE_COUNTERS,x        ; store low byte (1st and 2nd digit)
-            lda $a3
+            lda NMI_FLAGS
             ora #$40
-            sta $a3            ; set bit6 in $a3
+            sta NMI_FLAGS            ; set bit6 in NMI_FLAGS
             rts
 
 ;-------------------------------------------------------------------------------
@@ -3355,9 +3366,9 @@ jump48_func5:
             clc                ; $9b73: 18        
             adc #$06           ; $9b74: 69 06     
             sta $d8,x          ; $9b76: 95 d8     
-@skip2:     lda $a3            ; $9b78: a5 a3     
+@skip2:     lda NMI_FLAGS            ; $9b78: a5 a3     
             ora #$01           ; $9b7a: 09 01     
-            sta $a3            ; $9b7c: 85 a3     
+            sta NMI_FLAGS            ; $9b7c: 85 a3     
             lda SEL_TYPE            ; $9b7e: a5 c1     
             beq @skip4         ; $9b80: f0 24     
             lda LCLEARED            ; $9b82: a5 56     
@@ -3420,9 +3431,9 @@ jump48_func5:
             inc LEVEL            ; $9bee: e6 44     
             lda #$06           ; $9bf0: a9 06     
             sta sndEFFECT          ; $9bf2: 8d f1 06  
-            lda $a3            ; $9bf5: a5 a3     
+            lda NMI_FLAGS            ; $9bf5: a5 a3     
             ora #$02           ; $9bf7: 09 02     
-            sta $a3            ; $9bf9: 85 a3     
+            sta NMI_FLAGS            ; $9bf9: 85 a3     
 @skip7:     dex                ; $9bfb: ca        
             bne @loop1         ; $9bfc: d0 aa     
 @skip8:     lda DAR_COUNT            ; $9bfe: a5 4f     
@@ -3447,9 +3458,9 @@ jump48_func5:
             adc #$60           ; $9c21: 69 60     
             sta ST_SCORE            ; $9c23: 85 53     
             inc ST_SCORE+1            ; $9c25: e6 54     
-@skip10:     lda $a3            ; $9c27: a5 a3     
+@skip10:     lda NMI_FLAGS            ; $9c27: a5 a3     
             ora #$04           ; $9c29: 09 04     
-            sta $a3            ; $9c2b: 85 a3     
+            sta NMI_FLAGS            ; $9c2b: 85 a3     
 @skip11:     lda #$00           ; $9c2d: a9 00     
             sta DAR_COUNT            ; $9c2f: 85 4f     
             lda LEVEL            ; $9c31: a5 44     
@@ -3507,9 +3518,9 @@ jump48_func5:
             sta ST_SCORE+2            ; $9c92: 85 55     
 @skip16:     dec TEMP2            ; $9c94: c6 a8     
             bne @loop2         ; $9c96: d0 9f     
-            lda $a3            ; $9c98: a5 a3     
+            lda NMI_FLAGS            ; $9c98: a5 a3     
             ora #$04           ; $9c9a: 09 04     
-            sta $a3            ; $9c9c: 85 a3     
+            sta NMI_FLAGS            ; $9c9c: 85 a3     
             lda #$00           ; $9c9e: a9 00     
             sta LCLEARED            ; $9ca0: 85 56     
             inc GAME_PHASE            ; $9ca2: e6 48     
@@ -3789,7 +3800,7 @@ __9e3a:     lda #$02           ; $9e3a: a9 02
 
 ;-------------------------------------------------------------------------------
 __9e49:     ldx P1_LVL            ; $9e49: a6 64     
-            lda __96b8,x       ; $9e4b: bd b8 96  
+            lda BCD_TABLE,x       ; $9e4b: bd b8 96  
             and #$0f           ; $9e4e: 29 0f     
             sta LEVEL            ; $9e50: 85 44     
             lda #$00           ; $9e52: a9 00     
@@ -4415,7 +4426,7 @@ __a322:     lda $d6            ; $a322: a5 d6
             lda HS_NAMES,x        ; $a328: bd 00 07  
             sta $d7            ; $a32b: 85 d7     
             lda #$80           ; $a32d: a9 80     
-            sta $a3            ; $a32f: 85 a3     
+            sta NMI_FLAGS            ; $a32f: 85 a3     
             jsr frame_clear_sprite_ram         ; $a331: 20 2f aa  
             jmp __a26d         ; $a334: 4c 6d a2  
 
@@ -4431,7 +4442,7 @@ __a33e:     .hex 48 50 58 60   ; $a33e: 48 50 58 60   Data
 ;-------------------------------------------------------------------------------
 ; function 02 called by table_jump_nmi
 tjump_nmi02:
-            lda $a3            ; $a344: a5 a3     
+            lda NMI_FLAGS            ; $a344: a5 a3     
             and #$80           ; $a346: 29 80     
             beq __a37e         ; $a348: f0 34     
             lda $d5            ; $a34a: a5 d5     
@@ -4458,7 +4469,7 @@ tjump_nmi02:
             sta PPUSCROLL      ; $a374: 8d 05 20  
             sta VSCROLL            ; $a377: 85 fc     
             sta PPUSCROLL      ; $a379: 8d 05 20  
-            sta $a3            ; $a37c: 85 a3     
+            sta NMI_FLAGS            ; $a37c: 85 a3     
 __a37e:     rts                ; $a37e: 60        
 
 ;-------------------------------------------------------------------------------
