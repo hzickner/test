@@ -30,6 +30,7 @@ JOY2_RAW_NEW	.DS	1
 JOY2_RAW_ALL	.DS	1
 N_PLR		.DS	1
 vNMIEN		.DS	1
+NMI_FLAGS	.DS	1	; controls which updates need to be executed during NMI
 NMI_FUNC_INDEX	.DS	1
 OAM_USED	.DS	1
 PF_PTR		.DS	2	; pointer to playfield data
@@ -54,9 +55,11 @@ DAS_TIMER	.DS	1	; timer for delayed auto shift when holding left/right
 SEL_LEVEL	.DS	1
 GAME_PHASE	.DS	1	; jump table index
 BGU_COUNT	.DS	1
+LNUM_CLEAR	.DS	4	; 4bytes cleared line numbers
 DAR_TIMER	.DS	1	; down autorepeat timer
 DAR_COUNT	.DS	1
 ST_LINES	.DS	2
+LCLEAR_ANI	.DS	1	; animation counter 0..4
 ST_SCORE	.DS	3
 LCLEAR_CHECK	.DS	1	; line clear check counter
 GOV_ANI		.DS	1	; negative - delay, 0 - top, 20 - finish
@@ -74,9 +77,11 @@ P1_DAS		.DS	1
 P1_LEVEL	.DS	1
 P1_PHASE	.DS	1
 P1_BGUC		.DS	1
+P1_LNUM_CLEAR	.DS	4	; 4bytes cleared line numbers
 P1_DAR		.DS	1	; down autorepeat timer
 P1_DARC		.DS	1
 P1_LINES	.DS	2	; 2byte 3digit BCD P1_LINES counter
+P1_LCLEAR_ANI	.DS	1	; animation counter 0..4
 P1_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
 P1_LCLEAR_CHECK	.DS	1	; line clear check counter
 P1_GOV_ANI	.DS	1	; negative - delay, 0 - top, 20 - finish
@@ -94,9 +99,11 @@ P2_DAS		.DS	1
 P2_LEVEL	.DS	1
 P2_PHASE	.DS	1
 P2_BGUC		.DS	1
+P2_LNUM_CLEAR	.DS	4	; 4bytes cleared line numbers
 P2_DAR		.DS	1	; down autorepeat timer
 P2_DARC		.DS	1
 P2_LINES	.DS	2	; 2byte 3digit BCD P1_LINES counter
+P2_LCLEAR_ANI	.DS	1	; animation counter 0..4
 P2_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
 P2_LCLEAR_CHECK	.DS	1	; line clear check counter
 P2_GOV_ANI	.DS	1	; negative - delay, 0 - top, 20 - finish
@@ -209,10 +216,10 @@ jt_l:
 	rts
 	
 jt_h: 
-	.DB >(nmi_func0-1), >(nmi_func1-1)
+	.DB >(nmi_func0-1), >(nmi_func1-1), >(nmi_func2-1), >(nmi_func3-1)
 
 jt_l:
-	.DB <(nmi_func0-1), <(nmi_func1-1)	
+	.DB <(nmi_func0-1), <(nmi_func1-1), <(nmi_func2-1), <(nmi_func3-1)	
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -487,8 +494,8 @@ loop1:	sta TYPE_COUNTERS,x
 	sta SPAWN_ID
 ;            lda #$dd           ; $8731: a9 dd     
 ;            sta $d2            ; $8733: 85 d2     
-;            lda #$03           ; $8735: a9 03     
-;            sta NMI_FUNC_INDEX   ; use nmi_func3
+	lda #$03
+	sta NMI_FUNC_INDEX	; use nmi_func3
 	lda #$a0           ; $8739: a9 a0     
 	sta P1_DAR            ; $873b: 85 6e     
 	sta P2_DAR            ; $873d: 85 8e     
@@ -508,7 +515,7 @@ loop1:	sta TYPE_COUNTERS,x
 ;            sta P1_LINES            ; $875d: 85 70     
 ;            sta P2_LINES            ; $875f: 85 90     
 ;@s_typeA:   lda #$47           ; $8761: a9 47     
-;            sta $a3            ; $8763: 85 a3     
+;            sta NMI_FLAGS            ; $8763: 85 a3     
 	jsr frame_clear_sprite_ram
 	jsr game_init_start_lines
 ;            ldx SEL_MUSIC
@@ -569,7 +576,7 @@ skip1:	lda N_PLR
 ;            rts                ; $9ce3: 60        
 ;
 skip2:	lda #$03
-;            sta NMI_FUNC_INDEX            ; $9ce6: 85 bd     
+	sta NMI_FUNC_INDEX	; use NMI func 3
 ;            lda N_PLR            ; $9ce8: a5 be     
 ;            cmp #$01           ; $9cea: c9 01     
 ;            bne @skip3         ; $9cec: d0 03     
@@ -655,24 +662,26 @@ skip1:	;jsr snd_reset_call ; else {
 ;            jmp @skip5         ;    ret with next game_func
 				; } else {
 skip1:
-;	lda NMI_FUNC_INDEX
-;	cmp #$03
-;	bne @skip5         ; if (!nmi_func3) ret with next game_func
+	lda NMI_FUNC_INDEX
+	cmp #$03
+	bne skip5		; if (!nmi_func3) ret with next game_func
 	lda JOY1_RAW_NEW
 	and #BUTTON_START
 	beq skip5
 ;            bne @skip2         ; //TODO replace with beq @skip5
 ;            jmp @skip5         ; if (start pressed) ret with next game_func
 ;
-;@skip2:     lda P1_PHASE
-;            cmp #$0a
+skip2:	lda P1_PHASE
+	cmp #10
+	beq skip5
+	
 ;            bne @skip3         ; //TODO replace with beq @skip5
 ;            jmp @skip5         ; if ( P1_PHASE == 10 ) ret with next game_func
 ;
-;@skip3:     lda #$05           ; $a3aa: a9 05     
+skip3:	;lda #$05           ; $a3aa: a9 05     
 ;            sta $068d          ; sound related
-;            lda #$00
-;            sta NMI_FUNC_INDEX ; use nmi_func0
+	lda #$00
+	sta NMI_FUNC_INDEX	; use nmi_func0
 	jsr frame_func		; to clear JOY1_RAW_NEW
 ;            lda #%00010110     ; BKG_left, SPR_left, SPR //TODO why toggle BKG off?
 ;            sta PPUMASK
@@ -700,8 +709,8 @@ skip4:
 ;            lda #$00           ; $a3e4: a9 00     
 ;            sta $068d          ; sound related
 ;            sta P1_BGUC            ; $a3e9: 85 69     
-;            lda #$03
-;            sta NMI_FUNC_INDEX ; use nmi_func3
+	lda #$03
+	sta NMI_FUNC_INDEX	; use nmi_func3
 skip5:	inc GAME_FUNC_INDEX	; continue with game_func8
 	rts
 .endp
@@ -1091,6 +1100,79 @@ process_data:
 .endp
 
 ;-------------------------------------------------------------------------------
+; line clear animation
+; thread nmi
+.proc GR_clearLines
+;     lda FRAMECOUNT
+;            and #$03
+;            bne @ret         ; only every 4th frame do
+;            lda #$00    
+;            sta B2		; loop variable 0..3
+;@loop1:     ldx B2
+;            lda LNUM_CLEAR,x          ; get line number
+;            beq @skip4         ; if (0) skip4
+;            asl
+;            tay
+;            lda __96ea,y       ; low byte of screen address
+;            sta TEMP2
+;            lda N_PLR
+;            cmp #$01
+;            bne @skip1         ; if (1PLR) {
+;            lda TEMP2
+;            clc   
+;            adc #$06
+;            sta TEMP2            ; low byte +=6
+;            jmp @skip3
+;				; } else {
+;@skip1:     lda PF_PTR+1            ; $97a6: a5 b9     
+;            cmp #>PLAYFIELD           ; $97a8: c9 04     
+;            bne @skip2         ; if (PF_PTR == PF1) { , (2PLR PLR1)
+;            lda TEMP2
+;            sec    
+;            sbc #$02           ; low byte -=2
+;            sta TEMP2
+;            jmp @skip3
+;				; } endif
+;@skip2:     lda TEMP2            ; (2PLR PLR2)
+;            clc
+;            adc #12		; low byte +=12
+;            sta TEMP2
+;				; } else
+;     
+;@skip3:     iny
+;            lda __96ea,y       ; high byte of screen address
+;            sta TEMP2+1
+;            sta PPUADDR
+;            ldx LCLEAR_ANI            ; $97c6: a6 52     
+;            lda __97fe,x       ; read offset from table
+;            clc
+;            adc TEMP2            ; add low byte of screen address
+;            sta PPUADDR
+;            lda #$ff
+;            sta PPUDATA        ; write SPACE
+;            lda TEMP2+1
+;            sta PPUADDR
+;            ldx LCLEAR_ANI
+;            lda __9803,x       ; read offset from table
+;            clc
+;            adc TEMP2            ; add low byte of screen address
+;            sta PPUADDR
+;            lda #$ff
+;            sta PPUDATA        ; write space
+;@skip4:     inc B2
+;            lda B2
+;            cmp #$04
+;            bne @loop1         ; loop 4 times
+;     
+;            inc LCLEAR_ANI
+;            lda LCLEAR_ANI
+;            cmp #$05
+;            bmi @ret
+;            inc GAME_PHASE            ; if (counter==5) next game phase
+ret:	rts
+.endp
+
+;-------------------------------------------------------------------------------
 ; load color palette
 ; arg X number of palette	
 .proc GR_load_palette
@@ -1129,6 +1211,100 @@ loop:	cpx BGS_USED
 	
 	bpl loop	
 ret:	sty BGS_USED
+	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; thread nmi
+; updates the PFLine BGU_COUNT
+.proc GR_updatePFLine
+;	ldx BGU_COUNT
+;            cpx #21
+;            bpl @ret         ; if (BGU_COUNT > 20) return
+;            lda mul10_table,x       ; //TODO replace lda tay with ldy
+;            tay
+;            txa
+;            asl
+;            tax
+;            inx                ; X=BGU_COUNT*2+1
+;            lda __96ea,x       ; high byte of screen address  
+;            sta PPUADDR
+;            dex
+;            lda N_PLR
+;            cmp #$01
+;            beq @skip2
+;            lda PF_PTR+1
+;            cmp #>PLAYFIELD2
+;            beq @skip1
+;; 2PLR PLR1
+;            lda __96ea,x
+;            sec
+;            sbc #$02
+;            sta PPUADDR        ; write low byte
+;            jmp @skip3
+;; 2PLR PLR2
+;@skip1:     lda __96ea,x
+;            clc
+;            adc #$0c
+;            sta PPUADDR        ; write low byte
+;            jmp @skip3
+;; 1PLR
+;@skip2:     lda __96ea,x
+;            clc 
+;            adc #$06
+;            sta PPUADDR        ; write low byte
+;
+;@skip3:     ldx #10
+;@loop1:     lda (PF_PTR),y
+;            sta PPUDATA
+;            iny   
+;            dex
+;            bne @loop1         ; write PF line to screen
+;
+;            inc BGU_COUNT            ; ++count
+;            lda BGU_COUNT
+;            cmp #20
+;            bmi @ret         ; if (count < 20) return
+;            lda #32
+;            sta BGU_COUNT            ; count = 32
+ret:	rts
+.endp
+
+;-------------------------------------------------------------------------------
+; change colors on level change
+.proc GR_updateGamePalette
+;     lda P1_LVL
+;@loop1:     cmp #10
+;            bmi @skip1
+;            sec
+;            sbc #10
+;            jmp @loop1         ; P1_LVL mod 10
+;
+;@skip1:     asl  
+;            asl
+;            tax                ; X = 4*(P1_LVL mod 10)
+;            lda #$00
+;            sta TEMP2
+;@loop2:     lda #$3f
+;            sta PPUADDR
+;            lda #$08
+;            clc
+;            adc TEMP2
+;            sta PPUADDR        ; $3f08 address of bg palette 2
+;            lda GamePalette_TABLE,x
+;            sta PPUDATA
+;            lda GamePalette_TABLE+1,x
+;            sta PPUDATA
+;            lda GamePalette_TABLE+2,x
+;            sta PPUDATA
+;            lda GamePalette_TABLE+3,x
+;            sta PPUDATA        ; write new color values
+;            lda TEMP2
+;            clc
+;            adc #$10		; add offset to sprite palette 2
+;            sta TEMP2
+;            cmp #$20
+;            bne @loop2
 	rts
 .endp
 
@@ -1905,6 +2081,254 @@ skip:
 .endp	
 
 ;-------------------------------------------------------------------------------
+; function 02 called by table_jump_nmi
+.proc nmi_func2
+.endp
+
+;-------------------------------------------------------------------------------
+; function 03 called by table_jump_nmi
+.proc nmi_func3
+	lda P1_PHASE
+	cmp #$04
+	bne skip1			; if (P1_PHASE==4) {
+	lda #>PLAYFIELD
+	sta PF_PTR+1
+	lda P1_LCLEAR_ANI
+	sta LCLEAR_ANI
+	lda P1_LNUM_CLEAR
+	sta LNUM_CLEAR
+	lda P1_LNUM_CLEAR+1
+	sta LNUM_CLEAR+1
+	lda P1_LNUM_CLEAR+2
+	sta LNUM_CLEAR+2
+	lda P1_LNUM_CLEAR+3
+	sta LNUM_CLEAR+3
+	lda P1_PHASE
+	sta GAME_PHASE
+	jsr GR_clearLines		; line clear animation for player1
+	lda LCLEAR_ANI
+	sta P1_LCLEAR_ANI
+	lda GAME_PHASE
+	sta P1_PHASE
+	lda #$00
+	sta P1_BGUC
+	jmp skip2         
+
+; P1_PHASE != 4				; } endif
+skip1:	lda P1_BGUC
+	sta BGU_COUNT
+	lda #>PLAYFIELD
+	sta PF_PTR+1
+	jsr GR_updatePFLine
+	jsr GR_updatePFLine
+	jsr GR_updatePFLine		; //TODO loop4 times inside GR_updatePFLine
+	jsr GR_updatePFLine		; update next 4 PFLines on screen for PLR1
+	lda BGU_COUNT
+	sta P1_BGUC
+    
+skip2:	lda N_PLR
+	cmp #$02
+	bne skip4
+	lda P2_PHASE
+	cmp #$04
+	bne skip3
+	lda #>PLAYFIELD2
+	sta PF_PTR+1
+	lda P2_LCLEAR_ANI
+	sta LCLEAR_ANI
+	lda P2_LNUM_CLEAR
+	sta LNUM_CLEAR
+	lda P2_LNUM_CLEAR+1
+	sta LNUM_CLEAR+1
+	lda P2_LNUM_CLEAR+2
+	sta LNUM_CLEAR+2
+	lda P2_LNUM_CLEAR+3
+	sta LNUM_CLEAR+3
+	lda P2_PHASE
+	sta GAME_PHASE
+	jsr gr_clearLines		; line clear animation for player2
+	lda LCLEAR_ANI
+	sta P2_LCLEAR_ANI
+	lda GAME_PHASE
+	sta P2_PHASE 
+	lda #$00  
+	sta P2_BGUC   
+	jmp skip4
+
+skip3:	lda P2_BGUC
+	sta BGU_COUNT
+	lda #>PLAYFIELD2
+	sta PF_PTR+1
+	jsr GR_updatePFLine
+	jsr GR_updatePFLine
+	jsr GR_updatePFLine
+	jsr GR_updatePFLine		; update next 4 PFLines on screen for PLR2
+	lda BGU_COUNT
+	sta P2_BGUC
+             
+skip4:	lda NMI_FLAGS
+	and #$01
+	beq skip6
+	lda N_PLR
+	cmp #$02			; if (bit0 of NMI_FLAGS and !2plr) {
+	beq skip5
+;	lda #$20
+	lda #<(scr_mem+2*32+19)
+	sta TEMP1
+;            sta PPUADDR
+;            lda #$73
+	lda #>(scr_mem+2*32+19)
+;            sta PPUADDR
+	sta TEMP1+1
+	ldy #0
+	lda P1_LINES+1
+;            sta PPUDATA
+	sta (TEMP1),y
+	inc TEMP1
+	lda P1_LINES
+	jsr GRwrite_packedBCD		; write LINES Counter
+	lda NMI_FLAGS
+	and #%11111110
+	sta NMI_FLAGS			; unset bit0
+	jmp skip6			; } endif
+					; (bit0 of NMI_FLAGS and 2plr)
+skip5:;     lda #$20
+	lda #<(scr_mem+2*32+8)
+;            sta PPUADDR
+	sta TEMP1
+;            lda #$68
+	lda #>(scr_mem+2*32+8)
+;            sta PPUADDR
+	sta TEMP1+1
+	ldy #0
+	lda P1_LINES+1
+;            sta PPUDATA
+	sta (TEMP1),Y
+	lda P1_LINES
+	jsr GRwrite_packedBCD		; write plr1 LINES counter
+;            lda #$20
+	lda #<(scr_mem+2*32+26)
+;            sta PPUADDR
+	sta TEMP1
+;            lda #$7a
+	lda #>(scr_mem+2*32+26)
+;            sta PPUADDR
+	sta TEMP1+1
+	lda P2_LINES+1
+;            sta PPUDATA
+	sta (TEMP1),Y
+	lda P2_LINES
+	jsr GRwrite_packedBCD		; write plr2 LINES counter
+	lda NMI_FLAGS
+	and #%11111110
+	sta NMI_FLAGS			; unset bit0
+
+skip6:	lda NMI_FLAGS
+	and #$02
+	beq skip7
+	lda N_PLR
+	cmp #$02
+	beq skip7			; if (bit1 of NMI_FLAGS and !2plr) {
+	ldx P1_LVL
+	lda BCD_TABLE,x
+	sta TEMP2 
+;            lda #$22
+	lda #<(scr_mem+20*32+26)
+;            sta PPUADDR
+	sta TEMP1
+;            lda #$ba
+	lda #>(scr_mem+20*32+26)
+;            sta PPUADDR
+	sta TEMP1+1
+	ldy #0
+	lda TEMP2
+	jsr GRwrite_packedBCD		; write plr1 level
+	jsr GR_updateGamePalette
+	lda NMI_FLAGS
+	and #%11111101
+	sta NMI_FLAGS			; unset bit1 of NMI_FLAGS
+
+skip7:	lda N_PLR    
+	cmp #$02
+	beq skip8
+	lda NMI_FLAGS
+	and #$04
+	beq skip8			; if (bit2 of NMI_FLAGS and !2plr) {
+;            lda #$21
+	lda #<(scr_mem+7*32+24)
+;            sta PPUADDR
+	sta TEMP1
+;            lda #$18
+	lda #>(scr_mem+7*32+24)
+;            sta PPUADDR
+	sta TEMP1+1
+	ldy #0
+	lda P1_SCORE+2
+	jsr GRwrite_packedBCD
+	lda P1_SCORE+1
+	jsr GRwrite_packedBCD
+	lda P1_SCORE
+	jsr GRwrite_packedBCD		; write plr1 score
+	lda NMI_FLAGS			; unset bit2 of NMI_FLAGS
+	and #%11111011
+	sta NMI_FLAGS
+           
+skip8:	lda N_PLR
+	cmp #$02
+	beq skip9
+	lda NMI_FLAGS
+	and #$40
+	beq skip9			; if (bit6 of NMI_FLAGS and !2plr) {
+	lda #$00
+;            sta B7            ; loop variable
+;@loop1:     lda B7
+;            asl
+;            tax
+;            lda COUNTER_SCR_ADR_TABLE,x
+;            sta PPUADDR
+;            lda COUNTER_SCR_ADR_TABLE+1,x
+;            sta PPUADDR
+;            lda TYPE_COUNTERS+1,x
+;            sta PPUDATA
+;            lda TYPE_COUNTERS,x
+;            jsr PPUwrite_packedBCD         ; write type counters
+;            inc B7
+;            lda B7
+;            cmp #$07
+;            bne @loop1
+;            lda NMI_FLAGS
+;            and #%10111111
+;            sta NMI_FLAGS            ; unset bit6 of NMI_FLAGS
+;
+skip9:;     lda #$3f
+;            sta PPUADDR
+;            lda #$0e           ; second entry of bg palette 3
+;            sta PPUADDR
+;            ldx #$00		; color 0
+;            lda LCLEARED
+;            cmp #$04
+;            bne @skip10		; if (4 lines cleared)
+;            lda FRAMECOUNT
+;            and #$03
+;            bne @skip10         ; every (4th frame)
+;            ldx #$30           ; color 30
+;            lda FRAMECOUNT
+;            and #$07
+;            bne @skip10         ; every (8th frame)
+;            lda #$09
+;            sta sndEFFECT
+; 
+;@skip10:     stx PPUDATA        ; set color entry
+;            ldy #$00
+;            sty HSCROLL
+;            sty PPUSCROLL
+;            ldy #$00 
+;            sty VSCROLL
+;            sty PPUSCROLL
+	rts
+.endp
+
+;-------------------------------------------------------------------------------
 ; helper function to set vbi vector
 .proc nmi_init
 	ldy #<nmi
@@ -2544,6 +2968,19 @@ ret:	rts
 	ICL "screens/level_screen2.asm"		;//TODO minimize data
 	ICL "screens/score_screen.asm"
 	ICL "screens/gamef0_screen.asm"
+
+;-------------------------------------------------------------------------------
+; BCD values used to display levels
+BCD_TABLE:
+            .DB $00, $01, $02, $03   ; $96b8: 00 01 02 03   Data
+            .DB $04, $05, $06, $07   ; $96bc: 04 05 06 07   Data
+            .DB $08, $09, $10, $11   ; $96c0: 08 09 10 11   Data
+            .DB $12, $13, $14, $15   ; $96c4: 12 13 14 15   Data
+            .DB $16, $17, $18, $19   ; $96c8: 16 17 18 19   Data
+            .DB $20, $21, $22, $23   ; $96cc: 20 21 22 23   Data
+            .DB $24, $25, $26, $27   ; $96d0: 24 25 26 27   Data
+            .DB $28, $29         ; $96d4: 28 29         Data
+; 30bytes end of table
 
 ;-------------------------------------------------------------------------------
 ; frames per drop for every level from 0..29
