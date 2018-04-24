@@ -91,6 +91,7 @@ BUTTONS_NEW          = $b5      ; bits for just pressed buttons
 BUTTONS_ALL          = $b6      ; bits for buttons pressed A B Select Start Up Down Left Right
 CUR_PLR              = $b7	; 0 / 1 for PLR1 / PLR2
 PF_PTR               = $b8	; pointer to playfield data
+SPAWN_LINES_CUR      = $bb      ; number of extra lines to spawn on cur plr pf
 SPAWN_LINES_OPP      = $bc      ; number of extra lines to spawn on opponents pf
 NMI_FUNC_INDEX       = $bd      ; index of function called from NMI
 N_PLR                = $be      ; number of players 1 or 2, only 1 supported
@@ -100,6 +101,10 @@ SEL_TYPE             = $c1      ; selected game type A or B
 SEL_MUSIC            = $c2      ; selected music (1-3,off)
 COUNTDOWN            = $c3      ; ticks down to 0 every frame
 DEMO_COUNTER         = $d3      ; counter for demo mode
+COUNT_1LCLEAR        = $d8	; counter for 1line clears //TODO not used
+COUNT_2LCLEAR        = $d9	; counter for 2line clears //TODO not used
+COUNT_3LCLEAR        = $da	; counter for 3line clears //TODO not used
+COUNT_4LCLEAR        = $db	; counter for 4line clears //TODO not used
 PREVIEW_FLAG         = $df	; if true hide preview for next terimino
 PTR                  = $e6      ; 2 byte pointer
 P6INDEX              = $ed      ; values 0..4 used to access mem in page 6
@@ -378,7 +383,7 @@ game_func4:
             jsr plr1_init         ; $8174: 20 76 87  
             jsr table_jump_game_phase         ; $8177: 20 b2 81  
             jsr game_write_tetr         ; $817a: 20 0a 8a  
-            jsr __87ae         ; $817d: 20 ae 87  
+            jsr plr_save1         ; $817d: 20 ae 87  
             jsr game_tetr_preview
             inc GAME_FUNC_INDEX ; continue with game_func5     
             rts
@@ -392,7 +397,7 @@ game_func5:
             jsr __8792         ; $818c: 20 92 87  
             jsr table_jump_game_phase2         ; $818f: 20 d9 81  
             jsr game_write_tetr         ; $8192: 20 0a 8a  
-            jsr __87c8         ; $8195: 20 c8 87 } endif 
+            jsr plr_save2         ; $8195: 20 c8 87 } endif 
 @skip1:     inc GAME_FUNC_INDEX ; continue with game_abort_test     
             rts
 
@@ -1144,7 +1149,7 @@ game_func1:
             sta P2_BGUC            ; $86fd: 85 89     
             sta P1_FALLT            ; $86ff: 85 65     
             sta P2_FALLT            ; $8701: 85 85     
-            sta $bb            ; $8703: 85 bb     
+            sta SPAWN_LINES_CUR            ; $8703: 85 bb     
             sta SPAWN_LINES_OPP            ; $8705: 85 bc     
             sta P1_SCORE            ; $8707: 85 73     
             sta P1_SCORE+1            ; $8709: 85 74     
@@ -1157,10 +1162,10 @@ game_func1:
             sta P2_LINES            ; $8717: 85 90     
             sta P2_LINES+1            ; $8719: 85 91     
             sta $a4            ; $871b: 85 a4     
-            sta $d8            ; $871d: 85 d8     
-            sta $d9            ; $871f: 85 d9     
-            sta $da            ; $8721: 85 da     
-            sta $db            ; $8723: 85 db     
+            sta COUNT_1LCLEAR            ; $871d: 85 d8     
+            sta COUNT_2LCLEAR            ; $871f: 85 d9     
+            sta COUNT_3LCLEAR            ; $8721: 85 da     
+            sta COUNT_4LCLEAR            ; $8723: 85 db     
             sta $ba            ; $8725: 85 ba     
             sta $ce            ; $8727: 85 ce     
             sta $cf            ; $8729: 85 cf     
@@ -1177,7 +1182,7 @@ game_func1:
             jsr gamedemo_spawn
             sta P1_OR            ; $8742: 85 62     
             sta P2_OR            ; $8744: 85 82     
-            jsr incr_tetr_type_counter
+            jsr tetr_inc_type_counter
             ldx #RANDOM           ; $8749: a2 17     
             ldy #$02           ; $874b: a0 02     
             jsr nextRandom         ; $874d: 20 47 ab  
@@ -1189,7 +1194,7 @@ game_func1:
             lda #$25           ; $875b: a9 25     
             sta P1_LINES            ; $875d: 85 70     
             sta P2_LINES            ; $875f: 85 90     
-@s_typeA:   lda #$47           ; $8761: a9 47     
+@s_typeA:   lda #NMI_LINE_COUNT|NMI_LEVEL|NMI_SCORE|NMI_TYPE_COUNT
             sta NMI_FLAGS            ; $8763: 85 a3     
             jsr frame_clear_sprite_ram
             jsr game_init_start_lines
@@ -1237,32 +1242,34 @@ __87a4:     lda $80,x          ; $87a4: b5 80
             rts                ; $87ad: 60        
 
 ;-------------------------------------------------------------------------------
-__87ae:     ldx #$1f           ; $87ae: a2 1f     
-__87b0:     lda $40,x          ; $87b0: b5 40     
-            sta $60,x          ; $87b2: 95 60     
-            dex                ; $87b4: ca        
-            cpx #$ff           ; $87b5: e0 ff     
-            bne __87b0         ; $87b7: d0 f7     
-            lda N_PLR            ; $87b9: a5 be     
-            cmp #$01           ; $87bb: c9 01     
-            beq __87c7         ; $87bd: f0 08     
-            ldx $bb            ; $87bf: a6 bb     
-            lda SPAWN_LINES_OPP            ; $87c1: a5 bc     
-            sta $bb            ; $87c3: 85 bb     
-            stx SPAWN_LINES_OPP            ; $87c5: 86 bc     
-__87c7:     rts                ; $87c7: 60        
+plr_save1:     ldx #$1f
+@loop1:     lda $40,x
+            sta $60,x
+            dex
+            cpx #$ff
+            bne @loop1         ; copy cur plr data to plr1 data
+    
+            lda N_PLR     
+            cmp #$01    
+            beq @ret     
+            ldx SPAWN_LINES_CUR
+            lda SPAWN_LINES_OPP
+            sta SPAWN_LINES_CUR    
+            stx SPAWN_LINES_OPP            ; swap spawn lines cur and opp
+@ret:     rts        
 
 ;-------------------------------------------------------------------------------
-__87c8:     ldx #$1f           ; $87c8: a2 1f     
-__87ca:     lda $40,x          ; $87ca: b5 40     
-            sta $80,x          ; $87cc: 95 80     
-            dex                ; $87ce: ca        
-            cpx #$ff           ; $87cf: e0 ff     
-            bne __87ca         ; $87d1: d0 f7     
-            ldx $bb            ; $87d3: a6 bb     
-            lda SPAWN_LINES_OPP            ; $87d5: a5 bc     
-            sta $bb            ; $87d7: 85 bb     
-            stx SPAWN_LINES_OPP            ; $87d9: 86 bc     
+plr_save2:     ldx #$1f
+@loop1:     lda $40,x
+            sta $80,x
+            dex
+            cpx #$ff
+            bne @loop1         ; copy cur plr data to plr2 data
+
+            ldx SPAWN_LINES_CUR
+            lda SPAWN_LINES_OPP
+            sta SPAWN_LINES_CUR
+            stx SPAWN_LINES_OPP            ; swap spawn lines cur and opp
             rts                ; $87db: 60        
 
 ;-------------------------------------------------------------------------------
@@ -2529,7 +2536,7 @@ tjump_nmi03:
             sta P2_BGUC
              
 @skip4:     lda NMI_FLAGS
-            and #$01
+            and #NMI_LINE_COUNT
             beq @skip6
             lda N_PLR
             cmp #$02           ; if (bit0 of NMI_FLAGS and !2plr) {
@@ -2543,7 +2550,7 @@ tjump_nmi03:
             lda P1_LINES
             jsr PPUwrite_packedBCD         ; write LINES Counter
             lda NMI_FLAGS
-            and #%11111110
+            and #~NMI_LINE_COUNT
             sta NMI_FLAGS            ; unset bit0
             jmp @skip6         ; } endif
 			 	; (bit0 of NMI_FLAGS and 2plr)
@@ -2564,11 +2571,11 @@ tjump_nmi03:
             lda P2_LINES
             jsr PPUwrite_packedBCD         ; write plr2 LINES counter
             lda NMI_FLAGS
-            and #%11111110
+            and #~NMI_LINE_COUNT
             sta NMI_FLAGS            ; unset bit0
 
 @skip6:     lda NMI_FLAGS
-            and #$02
+            and #NMI_LEVEL
             beq @skip7
             lda N_PLR
             cmp #$02
@@ -2584,14 +2591,14 @@ tjump_nmi03:
             jsr PPUwrite_packedBCD         ; write plr1 level
             jsr GR_updateGamePalette
             lda NMI_FLAGS
-            and #%11111101
+            and #~NMI_LEVEL
             sta NMI_FLAGS            ; unset bit1 of NMI_FLAGS
      
 @skip7:     lda N_PLR    
             cmp #$02
             beq @skip8
             lda NMI_FLAGS
-            and #$04
+            and #NMI_SCORE
             beq @skip8         ; if (bit2 of NMI_FLAGS and !2plr) {
             lda #$21
             sta PPUADDR
@@ -2604,14 +2611,14 @@ tjump_nmi03:
             lda P1_SCORE
             jsr PPUwrite_packedBCD         ; write plr1 score
             lda NMI_FLAGS            ; unset bit2 of NMI_FLAGS
-            and #%11111011
+            and #~NMI_SCORE
             sta NMI_FLAGS
             
 @skip8:     lda N_PLR
             cmp #$02
             beq @skip9
             lda NMI_FLAGS
-            and #$40
+            and #NMI_TYPE_COUNT
             beq @skip9         ; if (bit6 of NMI_FLAGS and !2plr) {
             lda #$00
             sta B7            ; loop variable
@@ -2631,14 +2638,14 @@ tjump_nmi03:
             cmp #$07
             bne @loop1
             lda NMI_FLAGS
-            and #%10111111
+            and #~NMI_TYPE_COUNT
             sta NMI_FLAGS            ; unset bit6 of NMI_FLAGS
 
 @skip9:     lda #$3f
             sta PPUADDR
             lda #$0e           ; second entry of bg palette 3
             sta PPUADDR
-            ldx #$00		; color 0
+            ldx #$00		; color grey
             lda LCLEARED
             cmp #$04
             bne @skip10		; if (4 lines cleared)
@@ -2689,7 +2696,8 @@ mul10_table:
 ; 20bytes end of data
 
 ; table of 20 screen addresses
-__96ea:     .hex c6 20 e6 20   ; $96ea: c6 20 e6 20   Data
+PFLINE_ADR_TABLE:
+            .hex c6 20 e6 20   ; $96ea: c6 20 e6 20   Data
             .hex 06 21 26 21   ; $96ee: 06 21 26 21   Data
             .hex 46 21 66 21   ; $96f2: 46 21 66 21   Data
             .hex 86 21 a6 21   ; $96f6: 86 21 a6 21   Data
@@ -2699,6 +2707,7 @@ __96ea:     .hex c6 20 e6 20   ; $96ea: c6 20 e6 20   Data
             .hex 86 22 a6 22   ; $9706: 86 22 a6 22   Data
             .hex c6 22 e6 22   ; $970a: c6 22 e6 22   Data
             .hex 06 23 26 23   ; $970e: 06 23 26 23   Data
+; 40bytes end of table
 
 ;-------------------------------------------------------------------------------
 ; write packed BCD
@@ -2728,7 +2737,7 @@ GR_updatePFLine:
             asl
             tax
             inx                ; X=BGU_COUNT*2+1
-            lda __96ea,x       ; high byte of screen address  
+            lda PFLINE_ADR_TABLE,x       ; high byte of screen address  
             sta PPUADDR
             dex
             lda N_PLR
@@ -2738,19 +2747,19 @@ GR_updatePFLine:
             cmp #>PLAYFIELD2
             beq @skip1
 ; 2PLR PLR1
-            lda __96ea,x
+            lda PFLINE_ADR_TABLE,x
             sec
             sbc #$02
             sta PPUADDR        ; write low byte
             jmp @skip3
 ; 2PLR PLR2
-@skip1:     lda __96ea,x
+@skip1:     lda PFLINE_ADR_TABLE,x
             clc
             adc #$0c
             sta PPUADDR        ; write low byte
             jmp @skip3
 ; 1PLR
-@skip2:     lda __96ea,x
+@skip2:     lda PFLINE_ADR_TABLE,x
             clc 
             adc #$06
             sta PPUADDR        ; write low byte
@@ -2783,7 +2792,7 @@ gr_clearLines:     lda FRAMECOUNT
             beq @skip4         ; if (0) skip4
             asl
             tay
-            lda __96ea,y       ; low byte of screen address
+            lda PFLINE_ADR_TABLE,y       ; low byte of screen address
             sta TEMP2
             lda N_PLR
             cmp #$01
@@ -2810,11 +2819,11 @@ gr_clearLines:     lda FRAMECOUNT
 				; } else
      
 @skip3:     iny
-            lda __96ea,y       ; high byte of screen address
+            lda PFLINE_ADR_TABLE,y       ; high byte of screen address
             sta TEMP2+1
             sta PPUADDR
             ldx LCLEAR_ANI            ; $97c6: a6 52     
-            lda __97fe,x       ; read offset from table
+            lda ANI_OFFSET_TABLE,x       ; read offset from table
             clc
             adc TEMP2            ; add low byte of screen address
             sta PPUADDR
@@ -2823,7 +2832,7 @@ gr_clearLines:     lda FRAMECOUNT
             lda TEMP2+1
             sta PPUADDR
             ldx LCLEAR_ANI
-            lda __9803,x       ; read offset from table
+            lda ANI_OFFSET_TABLE+5,x       ; read offset from table
             clc
             adc TEMP2            ; add low byte of screen address
             sta PPUADDR
@@ -2842,9 +2851,9 @@ gr_clearLines:     lda FRAMECOUNT
 @ret:     rts
 
 ;-------------------------------------------------------------------------------
-__97fe:     .hex 04 03 02 01   ; $97fe: 04 03 02 01   Data
+ANI_OFFSET_TABLE:     .hex 04 03 02 01   ; $97fe: 04 03 02 01   Data
             .hex 00            ; $9802: 00            Data
-__9803:     .hex 05 06 07 08   ; $9803: 05 06 07 08   Data
+            .hex 05 06 07 08   ; $9803: 05 06 07 08   Data
             .hex 09            ; $9807: 09            Data
 
 ;-------------------------------------------------------------------------------
@@ -2952,7 +2961,7 @@ jump48_func8:
             ldx TETR_NEXT            ; $98ca: a6 bf     
             lda tetr_spawn_table,x       ; $98cc: bd 56 99  
             sta TETR_OR            ; $98cf: 85 42     
-            jsr incr_tetr_type_counter         ; $98d1: 20 69 99  
+            jsr tetr_inc_type_counter         ; $98d1: 20 69 99  
             lda N_PLR            ; $98d4: a5 be     
             cmp #$01           ; $98d6: c9 01     
             beq @skip3         ; $98d8: f0 07     
@@ -3059,7 +3068,7 @@ tetr_spawn_table:
 ; called from game_func1
 ; increment tetr type counter for statistics (3 digit BCD number in 2bytes)  
 ; arg A - spawntable entry
-incr_tetr_type_counter:
+tetr_inc_type_counter:
             tax
             lda tetr_type_table,x	; get tetr_type (0..6)
             asl
@@ -3087,7 +3096,7 @@ incr_tetr_type_counter:
 @skip1:     lda TEMP2
             sta TYPE_COUNTERS,x        ; store low byte (1st and 2nd digit)
             lda NMI_FLAGS
-            ora #$40
+            ora #NMI_TYPE_COUNT
             sta NMI_FLAGS            ; set bit6 in NMI_FLAGS
             rts
 
@@ -3277,7 +3286,7 @@ jump48_func3:
             bmi @ret         ; if (check < 4) return
 				; checks complete
             ldy LCLEARED            ; number of lines cleared
-            lda __9b53,y       ; table read
+            lda OPP_SPAWN_TABLE,y       ; table read
             clc   
             adc SPAWN_LINES_OPP
             sta SPAWN_LINES_OPP            ; set lines to be spawned for opponent
@@ -3302,7 +3311,7 @@ jump48_func7:
             lda N_PLR            ; $9b03: a5 be     
             cmp #$01           ; $9b05: c9 01     
             beq @skip4         ; $9b07: f0 47     
-            ldy $bb            ; $9b09: a4 bb     
+            ldy SPAWN_LINES_CUR            ; $9b09: a4 bb     
             beq @skip4         ; $9b0b: f0 43     
             lda BGU_COUNT            ; $9b0d: a5 49     
             cmp #$20           ; $9b0f: c9 20     
@@ -3337,199 +3346,209 @@ jump48_func7:
             cpy #$c8           ; $9b46: c0 c8     
             bne @loop2         ; $9b48: d0 e7     
             lda #$00           ; $9b4a: a9 00     
-            sta $bb            ; $9b4c: 85 bb     
+            sta SPAWN_LINES_CUR            ; $9b4c: 85 bb     
             sta BGU_COUNT            ; $9b4e: 85 49     
 @skip4:     inc GAME_PHASE            ; $9b50: e6 48     
 @ret:     rts                ; $9b52: 60        
 
 ;-------------------------------------------------------------------------------
-__9b53:     .hex 00 00 01 02   ; $9b53: 00 00 01 02   Data
+OPP_SPAWN_TABLE:     .hex 00 00 01 02   ; $9b53: 00 00 01 02   Data
             .hex 04            ; $9b57: 04            Data
 
 ;-------------------------------------------------------------------------------
 jump48_func5:
             jsr music_speed         ; $9b58: 20 17 9d  
-            lda LCLEARED            ; $9b5b: a5 56     
-            bne @skip1         ; $9b5d: d0 03     
-            jmp @skip8         ; $9b5f: 4c fe 9b  
+            lda LCLEARED
+            bne @skip1
+            jmp @skip8
+; lines cleared
+@skip1:     tax
+            dex
+            lda COUNT_1LCLEAR,x
+            clc
+            adc #$01
+            sta COUNT_1LCLEAR,x
+            and #$0f
+            cmp #$0a
+            bmi @skip2
+            lda COUNT_1LCLEAR,x
+            clc
+            adc #$06
+            sta COUNT_1LCLEAR,x          ; increment line clear counter (packed bcd)
 
-@skip1:     tax                ; $9b62: aa        
-            dex                ; $9b63: ca        
-            lda $d8,x          ; $9b64: b5 d8     
-            clc                ; $9b66: 18        
-            adc #$01           ; $9b67: 69 01     
-            sta $d8,x          ; $9b69: 95 d8     
-            and #$0f           ; $9b6b: 29 0f     
-            cmp #$0a           ; $9b6d: c9 0a     
-            bmi @skip2         ; $9b6f: 30 07     
-            lda $d8,x          ; $9b71: b5 d8     
-            clc                ; $9b73: 18        
-            adc #$06           ; $9b74: 69 06     
-            sta $d8,x          ; $9b76: 95 d8     
-@skip2:     lda NMI_FLAGS            ; $9b78: a5 a3     
-            ora #$01           ; $9b7a: 09 01     
-            sta NMI_FLAGS            ; $9b7c: 85 a3     
-            lda SEL_TYPE            ; $9b7e: a5 c1     
-            beq @skip4         ; $9b80: f0 24     
-            lda LCLEARED            ; $9b82: a5 56     
-            sta TEMP2            ; $9b84: 85 a8     
-            lda ST_LINES            ; $9b86: a5 50     
-            sec                ; $9b88: 38        
-            sbc TEMP2            ; $9b89: e5 a8     
-            sta ST_LINES            ; $9b8b: 85 50     
-            bpl @skip3         ; $9b8d: 10 07     
-            lda #$00           ; $9b8f: a9 00     
-            sta ST_LINES            ; $9b91: 85 50     
-            jmp @skip8         ; $9b93: 4c fe 9b  
+@skip2:     lda NMI_FLAGS
+            ora #NMI_LINE_COUNT
+            sta NMI_FLAGS
+            lda SEL_TYPE
+            beq @skip4
+; lines cleared and type B     
+            lda LCLEARED
+            sta TEMP2
+            lda ST_LINES
+            sec
+            sbc TEMP2
+            sta ST_LINES	; ST_LINES-=LCLEARED
+            bpl @skip3
+            lda #$00
+            sta ST_LINES            ; if (ST_LINES<0) ST_LINES=0
+            jmp @skip8
 
-@skip3:     and #$0f           ; $9b96: 29 0f     
-            cmp #$0a           ; $9b98: c9 0a     
-            bmi @skip8         ; $9b9a: 30 62     
-            lda ST_LINES            ; $9b9c: a5 50     
-            sec                ; $9b9e: 38        
-            sbc #$06           ; $9b9f: e9 06     
-            sta ST_LINES            ; $9ba1: 85 50     
-            jmp @skip8         ; $9ba3: 4c fe 9b  
-
-@skip4:     ldx LCLEARED            ; $9ba6: a6 56     
-@loop1:     inc ST_LINES            ; $9ba8: e6 50     
-            lda ST_LINES            ; $9baa: a5 50     
-            and #$0f           ; $9bac: 29 0f     
-            cmp #$0a           ; $9bae: c9 0a     
-            bmi @skip5         ; $9bb0: 30 15     
-            lda ST_LINES            ; $9bb2: a5 50     
-            clc                ; $9bb4: 18        
-            adc #$06           ; $9bb5: 69 06     
-            sta ST_LINES            ; $9bb7: 85 50     
-            and #$f0           ; $9bb9: 29 f0     
-            cmp #$a0           ; $9bbb: c9 a0     
-            bcc @skip5         ; $9bbd: 90 08     
-            lda ST_LINES            ; $9bbf: a5 50     
-            and #$0f           ; $9bc1: 29 0f     
-            sta ST_LINES            ; $9bc3: 85 50     
-            inc ST_LINES+1            ; $9bc5: e6 51     
-@skip5:     lda ST_LINES            ; $9bc7: a5 50     
-            and #$0f           ; $9bc9: 29 0f     
-            bne @skip7         ; $9bcb: d0 2e     
-            jmp @skip6         ; $9bcd: 4c d0 9b  
-
-@skip6:     lda ST_LINES+1            ; $9bd0: a5 51     
-            sta TEMP2+1            ; $9bd2: 85 a9     
-            lda ST_LINES            ; $9bd4: a5 50     
-            sta TEMP2            ; $9bd6: 85 a8     
-            lsr TEMP2+1            ; $9bd8: 46 a9     
-            ror TEMP2            ; $9bda: 66 a8     
-            lsr TEMP2+1            ; $9bdc: 46 a9     
-            ror TEMP2            ; $9bde: 66 a8     
-            lsr TEMP2+1            ; $9be0: 46 a9     
-            ror TEMP2            ; $9be2: 66 a8     
-            lsr TEMP2+1            ; $9be4: 46 a9     
-            ror TEMP2            ; $9be6: 66 a8     
-            lda LEVEL            ; $9be8: a5 44     
-            cmp TEMP2            ; $9bea: c5 a8     
-            bpl @skip7         ; $9bec: 10 0d     
-            inc LEVEL            ; $9bee: e6 44     
+@skip3:     and #$0f
+            cmp #$0a
+            bmi @skip8
+            lda ST_LINES            ; lower nibble > 10
+            sec
+            sbc #$06
+            sta ST_LINES            ; BCD correction
+            jmp @skip8
+; lines cleared and type A
+@skip4:     ldx LCLEARED            ; loop counter
+@loop1:     inc ST_LINES
+            lda ST_LINES
+            and #$0f
+            cmp #$0a           ; test first digit overflow
+            bmi @skip5         ; no overflow skip 5
+            lda ST_LINES    
+            clc      
+            adc #$06     
+            sta ST_LINES            ; add BCD correction
+            and #$f0
+            cmp #$a0           ; test second digit overflow
+            bcc @skip5         ; no overflow skip5
+            lda ST_LINES
+            and #$0f  
+            sta ST_LINES            ; second digit 0
+            inc ST_LINES+1            ; inc 3rd digit
+@skip5:     lda ST_LINES
+            and #$0f
+            bne @skip7
+            jmp @skip6         ; //TODO remove
+; lines cleared and type A and multiple of 10 lines cleared
+@skip6:     lda ST_LINES+1
+            sta TEMP2+1
+            lda ST_LINES
+            sta TEMP2            ; TEMP2 = ST_LINES
+            lsr TEMP2+1
+            ror TEMP2
+            lsr TEMP2+1
+            ror TEMP2
+            lsr TEMP2+1
+            ror TEMP2
+            lsr TEMP2+1
+            ror TEMP2            ; TEMP2 >>= 4     /=10
+            lda LEVEL
+            cmp TEMP2
+            bpl @skip7
+            inc LEVEL            ; if (cleared_lines /10 > level) level++
             lda #$06           ; $9bf0: a9 06     
             sta sndEFFECT          ; $9bf2: 8d f1 06  
-            lda NMI_FLAGS            ; $9bf5: a5 a3     
-            ora #$02           ; $9bf7: 09 02     
-            sta NMI_FLAGS            ; $9bf9: 85 a3     
-@skip7:     dex                ; $9bfb: ca        
-            bne @loop1         ; $9bfc: d0 aa     
-@skip8:     lda DAR_COUNT            ; $9bfe: a5 4f     
-            cmp #$02           ; $9c00: c9 02     
-            bmi @skip11         ; $9c02: 30 29     
-            clc                ; $9c04: 18        
-            dec ST_SCORE            ; $9c05: c6 53     
-            adc ST_SCORE            ; $9c07: 65 53     
-            sta ST_SCORE            ; $9c09: 85 53     
-            and #$0f           ; $9c0b: 29 0f     
-            cmp #$0a           ; $9c0d: c9 0a     
-            bcc @skip9         ; $9c0f: 90 07     
-            lda ST_SCORE            ; $9c11: a5 53     
-            clc                ; $9c13: 18        
-            adc #$06           ; $9c14: 69 06     
-            sta ST_SCORE            ; $9c16: 85 53     
-@skip9:     lda ST_SCORE            ; $9c18: a5 53     
-            and #$f0           ; $9c1a: 29 f0     
-            cmp #$a0           ; $9c1c: c9 a0     
-            bcc @skip10         ; $9c1e: 90 07     
-            clc                ; $9c20: 18        
-            adc #$60           ; $9c21: 69 60     
-            sta ST_SCORE            ; $9c23: 85 53     
-            inc ST_SCORE+1            ; $9c25: e6 54     
-@skip10:     lda NMI_FLAGS            ; $9c27: a5 a3     
-            ora #$04           ; $9c29: 09 04     
-            sta NMI_FLAGS            ; $9c2b: 85 a3     
-@skip11:     lda #$00           ; $9c2d: a9 00     
-            sta DAR_COUNT            ; $9c2f: 85 4f     
-            lda LEVEL            ; $9c31: a5 44     
-            sta TEMP2            ; $9c33: 85 a8     
-            inc TEMP2            ; $9c35: e6 a8     
-@loop2:     lda LCLEARED            ; $9c37: a5 56     
-            asl                ; $9c39: 0a        
-            tax                ; $9c3a: aa        
-            lda __9ca5,x       ; $9c3b: bd a5 9c  
-            clc                ; $9c3e: 18        
-            adc ST_SCORE            ; $9c3f: 65 53     
-            sta ST_SCORE            ; $9c41: 85 53     
-            cmp #$a0           ; $9c43: c9 a0     
-            bcc @skip12         ; $9c45: 90 07     
-            clc                ; $9c47: 18        
-            adc #$60           ; $9c48: 69 60     
-            sta ST_SCORE            ; $9c4a: 85 53     
-            inc ST_SCORE+1            ; $9c4c: e6 54     
-@skip12:     inx                ; $9c4e: e8        
-            lda __9ca5,x       ; $9c4f: bd a5 9c  
-            clc                ; $9c52: 18        
-            adc ST_SCORE+1            ; $9c53: 65 54     
-            sta ST_SCORE+1            ; $9c55: 85 54     
-            and #$0f           ; $9c57: 29 0f     
-            cmp #$0a           ; $9c59: c9 0a     
-            bcc @skip13         ; $9c5b: 90 07     
-            lda ST_SCORE+1            ; $9c5d: a5 54     
-            clc                ; $9c5f: 18        
-            adc #$06           ; $9c60: 69 06     
-            sta ST_SCORE+1            ; $9c62: 85 54     
-@skip13:     lda ST_SCORE+1            ; $9c64: a5 54     
-            and #$f0           ; $9c66: 29 f0     
-            cmp #$a0           ; $9c68: c9 a0     
-            bcc @skip14         ; $9c6a: 90 09     
-            lda ST_SCORE+1            ; $9c6c: a5 54     
-            clc                ; $9c6e: 18        
-            adc #$60           ; $9c6f: 69 60     
-            sta ST_SCORE+1            ; $9c71: 85 54     
-            inc ST_SCORE+2            ; $9c73: e6 55     
-@skip14:     lda ST_SCORE+2            ; $9c75: a5 55     
-            and #$0f           ; $9c77: 29 0f     
-            cmp #$0a           ; $9c79: c9 0a     
-            bcc @skip15         ; $9c7b: 90 07     
-            lda ST_SCORE+2            ; $9c7d: a5 55     
-            clc                ; $9c7f: 18        
-            adc #$06           ; $9c80: 69 06     
-            sta ST_SCORE+2            ; $9c82: 85 55     
-@skip15:     lda ST_SCORE+2            ; $9c84: a5 55     
-            and #$f0           ; $9c86: 29 f0     
-            cmp #$a0           ; $9c88: c9 a0     
-            bcc @skip16         ; $9c8a: 90 08     
-            lda #$99           ; $9c8c: a9 99     
-            sta ST_SCORE            ; $9c8e: 85 53     
-            sta ST_SCORE+1            ; $9c90: 85 54     
-            sta ST_SCORE+2            ; $9c92: 85 55     
-@skip16:     dec TEMP2            ; $9c94: c6 a8     
-            bne @loop2         ; $9c96: d0 9f     
-            lda NMI_FLAGS            ; $9c98: a5 a3     
-            ora #$04           ; $9c9a: 09 04     
-            sta NMI_FLAGS            ; $9c9c: 85 a3     
-            lda #$00           ; $9c9e: a9 00     
-            sta LCLEARED            ; $9ca0: 85 56     
-            inc GAME_PHASE            ; $9ca2: e6 48     
-            rts                ; $9ca4: 60        
+            lda NMI_FLAGS
+            ora #NMI_LEVEL
+            sta NMI_FLAGS
+@skip7:     dex        
+            bne @loop1         ; loop for every cleared line
+; LCLEARED 0..4
+; add DAR_COUNT-1 to score     
+@skip8:     lda DAR_COUNT
+            cmp #$02
+            bmi @skip11
+            clc
+            dec ST_SCORE
+            adc ST_SCORE
+            sta ST_SCORE
+            and #$0f
+            cmp #$0a           ; test digit0 overflow
+            bcc @skip9
+            lda ST_SCORE
+            clc
+            adc #$06
+            sta ST_SCORE
+@skip9:     lda ST_SCORE
+            and #$f0
+            cmp #$a0
+            bcc @skip10
+            clc        
+            adc #$60     
+            sta ST_SCORE            ; //TODO check if further BCD correction necessary   
+            inc ST_SCORE+1            ; add some points depending on DAR_COUNT
+@skip10:     lda NMI_FLAGS
+            ora #NMI_SCORE
+            sta NMI_FLAGS	; //TODO remove
+            
+@skip11:     lda #$00
+            sta DAR_COUNT
+; add table(LCLEARED)*(lvl+1) points to score    
+            lda LEVE
+            sta TEMP2
+            inc TEMP2            ; loop counter = level+1
+@loop2:     lda LCLEARED 
+            asl
+            tax
+            lda POINTS_TABLE,x       ; lower 2 digits
+            clc
+            adc ST_SCORE
+            sta ST_SCORE
+            cmp #$a0
+            bcc @skip12
+            clc
+            adc #$60
+            sta ST_SCORE
+            inc ST_SCORE+1            ; BCD correction
+@skip12:     inx
+            lda POINTS_TABLE,x       ; higher 2 digits
+            clc
+            adc ST_SCORE+1
+            sta ST_SCORE+1
+            and #$0f
+            cmp #$0a           ; test digit3
+            bcc @skip13
+            lda ST_SCORE+1
+            clc
+            adc #$06
+            sta ST_SCORE+1            ; BCD correction
+@skip13:     lda ST_SCORE+1
+            and #$f0
+            cmp #$a0           ; test digit4
+            bcc @skip14
+            lda ST_SCORE+1
+            clc
+            adc #$60
+            sta ST_SCORE+1
+            inc ST_SCORE+2            ; BCD correction
+@skip14:     lda ST_SCORE+2
+            and #$0f
+            cmp #$0a           ; test digit5
+            bcc @skip15
+            lda ST_SCORE+2
+            clc
+            adc #$06
+            sta ST_SCORE+2            ; BCD correction
+@skip15:     lda ST_SCORE+2
+            and #$f0
+            cmp #$a0           ; test digit6
+            bcc @skip16
+            lda #$99           ; $999999 in case of digit6 overflow
+            sta ST_SCORE
+            sta ST_SCORE+1
+            sta ST_SCORE+2            ; add points read from table
+@skip16:     dec TEMP2
+            bne @loop2         ; loop level+1 times
+
+            lda NMI_FLAGS
+            ora #NMI_SCORE
+            sta NMI_FLAGS
+            lda #$00
+            sta LCLEARED
+            inc GAME_PHASE
+            rts
 
 ;-------------------------------------------------------------------------------
-__9ca5:     .hex 00 00 40 00   ; $9ca5: 00 00 40 00   Data
-            .hex 00 01 00 03   ; $9ca9: 00 01 00 03   Data
-            .hex 00 12         ; $9cad: 00 12         Data
+; points per cleared line, 5 2byte packed BCD
+POINTS_TABLE:;     .hex 00 00 40 00   ; $9ca5: 00 00 40 00   Data
+            ;.hex 00 01 00 03   ; $9ca9: 00 01 00 03   Data
+            ;.hex 00 12         ; $9cad: 00 12         Data
+	.DW $0000, $0040, $0100, $0300, $01200
+; 10bytes end of table
 
 ;-------------------------------------------------------------------------------
 set_BGU_COUNT:
