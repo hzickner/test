@@ -19,7 +19,10 @@ ICPTH  		equ	$0347
 TRIG0		equ	$D010
 TRIG1		equ	$D011
 PAL		equ	$D014	; NTSC if bits 1-3 set
+COLPF0		equ	$D016
 COLPF1		equ	$D017
+COLPF2		equ	$D018
+COLPF3		equ	$D019
 COLBK		equ	$D01A
 CONSOL		equ	$D01F
 RANDOM		equ	$D20A

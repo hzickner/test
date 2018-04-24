@@ -16,6 +16,7 @@ B3		.DS	1
 B4		.DS	1
 B5		.DS	1
 B6		.DS	1
+B7		.DS	1
 BGS_USED	.DS	1
 BUTTONS_ALL	.DS	1	; cur plr bits for buttons pressed A B Select Start Up Down Left Right
 BUTTONS_NEW	.DS	1	; cur plr bits for just pressed buttons
@@ -38,6 +39,8 @@ PREVIEW_FLAG	.DS	1
 SEL_TYPE	.DS	1
 SEL_MUSIC	.DS	1
 SPAWN_ID	.DS	1	; id of last spawned tetrimino
+SPAWN_LINES_CUR	.DS	1	; number of extra lines to spawn on cur plr pf
+SPAWN_LINES_OPP	.DS	1	; number of extra lines to spawn on opponents pf
 SPR_PTR_INDEX	.DS	1
 SPR_X		.DS	1
 SPR_Y		.DS	1
@@ -61,11 +64,14 @@ DAR_COUNT	.DS	1
 ST_LINES	.DS	2
 LCLEAR_ANI	.DS	1	; animation counter 0..4
 ST_SCORE	.DS	3
+LCLEARED	.DS	1	; number of lines being cleared 
 LCLEAR_CHECK	.DS	1	; line clear check counter
 GOV_ANI		.DS	1	; negative - delay, 0 - top, 20 - finish
 SEL_HEIGHT	.DS	1
 
 G_VARS		equ	TETR_X
+GVARSIZE	= *-G_VARS
+
 ; saved game vars for plr 1
 	.align $10
 P1_X		.DS	1
@@ -83,6 +89,7 @@ P1_DARC		.DS	1
 P1_LINES	.DS	2	; 2byte 3digit BCD P1_LINES counter
 P1_LCLEAR_ANI	.DS	1	; animation counter 0..4
 P1_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
+P1_LCLEARED	.DS	1	; number of lines being cleared 
 P1_LCLEAR_CHECK	.DS	1	; line clear check counter
 P1_GOV_ANI	.DS	1	; negative - delay, 0 - top, 20 - finish
 P1_HEIGHT	.DS	1
@@ -105,6 +112,7 @@ P2_DARC		.DS	1
 P2_LINES	.DS	2	; 2byte 3digit BCD P1_LINES counter
 P2_LCLEAR_ANI	.DS	1	; animation counter 0..4
 P2_SCORE	.DS	3	; 3byte packed BCD score counter low byte first
+P2_LCLEARED	.DS	1	; number of lines being cleared 
 P2_LCLEAR_CHECK	.DS	1	; line clear check counter
 P2_GOV_ANI	.DS	1	; negative - delay, 0 - top, 20 - finish
 P2_HEIGHT	.DS	1
@@ -180,10 +188,14 @@ jt_l:
 	rts
 	
 jt_h: 
-	.DB >(phase_func0-1), >(phase_func1-1), >(phase_func2-1)
+	.DB >(phase_func0-1), >(phase_func1-1), >(phase_func2-1), >(phase_func3-1)
+	.DB >(phase_func4-1), >(phase_func5-1), >(phase_func6-1), >(phase_func7-1)
+	.DB >(phase_func8-1), >(phase_func9-1), >(phase_func10-1)		
 
 jt_l:
-	.DB <(phase_func0-1), <(phase_func1-1), <(phase_func2-1)
+	.DB <(phase_func0-1), <(phase_func1-1), <(phase_func2-1), <(phase_func3-1)
+	.DB <(phase_func4-1), <(phase_func5-1), <(phase_func6-1), <(phase_func7-1)
+	.DB <(phase_func8-1), <(phase_func9-1), <(phase_func10-1)
 .endp
 
 ;-------------------------------------------------------------------------------
@@ -469,14 +481,14 @@ loop1:	sta TYPE_COUNTERS,x
 	sta P2_BGUC
 	sta P1_FALLT
 	sta P2_FALLT
-;            sta $bb            ; $8703: 85 bb     
-;            sta $bc            ; $8705: 85 bc     
-	sta P1_SCORE            ; $8707: 85 73     
-	sta P1_SCORE+1            ; $8709: 85 74     
-	sta P1_SCORE+2            ; $870b: 85 75     
-;            sta $93            ; $870d: 85 93     
-;            sta $94            ; $870f: 85 94     
-;            sta $95            ; $8711: 85 95     
+	sta SPAWN_LINES_CUR     
+	sta SPAWN_LINES_OPP     
+	sta P1_SCORE
+	sta P1_SCORE+1
+	sta P1_SCORE+2
+	sta P2_SCORE
+	sta P2_SCORE+1
+	sta P2_SCORE+2
 	sta P1_LINES
 	sta P1_LINES+1
 	sta P2_LINES
@@ -500,22 +512,23 @@ loop1:	sta TYPE_COUNTERS,x
 	sta P1_DAR            ; $873b: 85 6e     
 	sta P2_DAR            ; $873d: 85 8e     
 	jsr gamedemo_spawn
-;            sta $62            ; $8742: 85 62     
-;            sta $82            ; $8744: 85 82     
-;            jsr incr_tetr_type_counter
+	sta P1_OR
+	sta P2_OR
+	jsr tetr_inc_type_counter
 ;            ldx #RANDOM           ; $8749: a2 17     
 ;            ldy #$02           ; $874b: a0 02     
 ;            jsr nextRandom         ; $874d: 20 47 ab  
 	jsr gamedemo_spawn
 	sta TETR_NEXT
 ;            sta $a6            ; $8755: 85 a6     
-;            lda SEL_TYPE            ; $8757: a5 c1     
-;            beq @s_typeA         ; $8759: f0 06     
-;            lda #$25           ; $875b: a9 25     
-;            sta P1_LINES            ; $875d: 85 70     
-;            sta P2_LINES            ; $875f: 85 90     
-;@s_typeA:   lda #$47           ; $8761: a9 47     
-;            sta NMI_FLAGS            ; $8763: 85 a3     
+	lda SEL_TYPE
+	beq s_typeA
+	lda #$25
+	sta P1_LINES
+	sta P2_LINES
+s_typeA:
+	lda #NMI_LINE_COUNT|NMI_LEVEL|NMI_SCORE|NMI_TYPE_COUNT
+	sta NMI_FLAGS
 	jsr frame_clear_sprite_ram
 	jsr game_init_start_lines
 ;            ldx SEL_MUSIC
@@ -535,8 +548,8 @@ loop1:	sta TYPE_COUNTERS,x
 ;            jsr MMCsetreg2     ; CHR page 3 for bkg and sprites
 ;            lda #$00
 ;            sta OAM_USED       ; no sprites allocated
-;            inc P1_FALLT            ; $8892: e6 65     
-;            inc P2_FALLT            ; $8894: e6 85     
+	inc P1_FALLT
+	inc P2_FALLT
 ;            lda $a4            ; $8896: a5 a4     
 ;            beq @skip1         ; $8898: f0 02     
 ;            inc $a4            ; $889a: e6 a4     
@@ -588,9 +601,9 @@ skip3:	lda #$01
 ;            ldx #$04           ; $9cf9: a2 04     
 ;            ldy #$05           ; $9cfb: a0 05     
 ;            jsr memset         ; fill page 4-5 with $ef
-;            lda #$00           ; $9d00: a9 00     
-;            sta P1_BGUC            ; $9d02: 85 69     
-;            sta P2_BGUC            ; $9d04: 85 89     
+	lda #$00
+	sta P1_BGUC
+	sta P2_BGUC
 
 	jsr frame_clear_sprite_ram
 	lda #MODE_LEVEL
@@ -605,10 +618,10 @@ skip4:	inc GAME_FUNC_INDEX	; continue with game_func4
 ; called via jumptable
 ; game_func1
 .proc game_func4
-	jsr plr1_init
+	jsr plr_init1
 	jsr call_gamephase_func
 	jsr game_write_tetr
-;            jsr __87ae         ; $817d: 20 ae 87  
+	jsr plr_save1
 	jsr game_tetr_preview
 	inc GAME_FUNC_INDEX	; continue with game_func5     
 	rts
@@ -1103,72 +1116,77 @@ process_data:
 ; line clear animation
 ; thread nmi
 .proc GR_clearLines
-;     lda FRAMECOUNT
-;            and #$03
-;            bne @ret         ; only every 4th frame do
-;            lda #$00    
-;            sta B2		; loop variable 0..3
-;@loop1:     ldx B2
-;            lda LNUM_CLEAR,x          ; get line number
-;            beq @skip4         ; if (0) skip4
-;            asl
-;            tay
-;            lda __96ea,y       ; low byte of screen address
-;            sta TEMP2
-;            lda N_PLR
-;            cmp #$01
-;            bne @skip1         ; if (1PLR) {
-;            lda TEMP2
-;            clc   
-;            adc #$06
-;            sta TEMP2            ; low byte +=6
-;            jmp @skip3
-;				; } else {
-;@skip1:     lda PF_PTR+1            ; $97a6: a5 b9     
-;            cmp #>PLAYFIELD           ; $97a8: c9 04     
-;            bne @skip2         ; if (PF_PTR == PF1) { , (2PLR PLR1)
-;            lda TEMP2
-;            sec    
-;            sbc #$02           ; low byte -=2
-;            sta TEMP2
-;            jmp @skip3
-;				; } endif
-;@skip2:     lda TEMP2            ; (2PLR PLR2)
-;            clc
-;            adc #12		; low byte +=12
-;            sta TEMP2
-;				; } else
-;     
-;@skip3:     iny
-;            lda __96ea,y       ; high byte of screen address
-;            sta TEMP2+1
+	lda RTCLOK+2
+	and #$03
+	bne ret			; only every 4th frame do
+	lda #$00    
+	sta B2			; loop variable 0..3
+loop1:	ldx B2
+	lda LNUM_CLEAR,x	; get line number
+	beq skip4		; if (0) skip4
+	asl
+	tay
+	lda PFLINE_ADR_TABLE,y	; low byte of screen address
+	sta TEMP2
+	lda N_PLR
+	cmp #$01
+	bne skip1		; if (1PLR) {
+	lda TEMP2
+	clc   
+	adc #$06
+	sta TEMP2		; low byte +=6
+	jmp skip3
+				; } else {
+skip1:	lda PF_PTR+1
+	cmp #>PLAYFIELD
+	bne skip2		; if (PF_PTR == PF1) { , (2PLR PLR1)
+	lda TEMP2
+	sec    
+	sbc #$02		; low byte -=2
+	sta TEMP2
+	jmp skip3
+				; } endif
+skip2:	lda TEMP2		; (2PLR PLR2)
+	clc
+	adc #12			; low byte +=12
+	sta TEMP2
+				; } else     
+skip3:	iny
+	lda PFLINE_ADR_TABLE,y	; high byte of screen address
+	sta TEMP1+1
 ;            sta PPUADDR
-;            ldx LCLEAR_ANI            ; $97c6: a6 52     
-;            lda __97fe,x       ; read offset from table
-;            clc
-;            adc TEMP2            ; add low byte of screen address
+	ldx LCLEAR_ANI   
+	lda ANI_OFFSET_TABLE,x	; read offset from table
+	clc
+	adc TEMP2		; add low byte of screen address
 ;            sta PPUADDR
-;            lda #$ff
+	sta TEMP1
+	lda #$7f
 ;            sta PPUDATA        ; write SPACE
+	ldy #0
+	sta (TEMP1),y
 ;            lda TEMP2+1
 ;            sta PPUADDR
-;            ldx LCLEAR_ANI
-;            lda __9803,x       ; read offset from table
-;            clc
-;            adc TEMP2            ; add low byte of screen address
+	ldx LCLEAR_ANI
+	lda ANI_OFFSET_TABLE+5,x	; read offset from table
+	clc
+	adc TEMP2		; add low byte of screen address
 ;            sta PPUADDR
-;            lda #$ff
+	sta TEMP1
+	lda #$7f
 ;            sta PPUDATA        ; write space
-;@skip4:     inc B2
-;            lda B2
-;            cmp #$04
-;            bne @loop1         ; loop 4 times
-;     
-;            inc LCLEAR_ANI
-;            lda LCLEAR_ANI
-;            cmp #$05
-;            bmi @ret
-;            inc GAME_PHASE            ; if (counter==5) next game phase
+	sta (TEMP1),y
+
+skip4:	inc B2
+	lda B2
+	cmp #$04
+	bne loop1		; loop 4 times
+
+	inc LCLEAR_ANI
+	lda LCLEAR_ANI
+	cmp #$05
+	bmi ret
+	inc GAME_PHASE		; if (counter==5) next game phase
 ret:	rts
 .endp
 
@@ -1218,55 +1236,62 @@ ret:	sty BGS_USED
 ; thread nmi
 ; updates the PFLine BGU_COUNT
 .proc GR_updatePFLine
-;	ldx BGU_COUNT
-;            cpx #21
-;            bpl @ret         ; if (BGU_COUNT > 20) return
-;            lda mul10_table,x       ; //TODO replace lda tay with ldy
-;            tay
-;            txa
-;            asl
-;            tax
-;            inx                ; X=BGU_COUNT*2+1
-;            lda __96ea,x       ; high byte of screen address  
+	ldx BGU_COUNT
+	cpx #21
+	bpl ret			; if (BGU_COUNT > 20) return
+	ldy mul10_table,x
+	txa
+	asl
+	tax			; ; X=BGU_COUNT*2
+
+	lda N_PLR
+	cmp #$01
+	beq skip2
+	lda PF_PTR+1
+	cmp #>PLAYFIELD2
+	beq skip1
+; 2PLR PLR1
+	lda PFLINE_ADR_TABLE,x
+	sec
+	sbc #$02
+;            sta PPUADDR        ; write low byte
+	jmp skip3
+; 2PLR PLR2
+skip1:	lda PFLINE_ADR_TABLE,x
+	clc
+	adc #$0c
+;            sta PPUADDR        ; write low byte
+	jmp skip3
+; 1PLR
+skip2:	lda PFLINE_ADR_TABLE,x
+	clc 
+	adc #$06
+;            sta PPUADDR        ; write low byte
+
+skip3:
+	sta TEMP1
+	inx			
+	lda PFLINE_ADR_TABLE,x	; high byte of screen address  
 ;            sta PPUADDR
-;            dex
-;            lda N_PLR
-;            cmp #$01
-;            beq @skip2
-;            lda PF_PTR+1
-;            cmp #>PLAYFIELD2
-;            beq @skip1
-;; 2PLR PLR1
-;            lda __96ea,x
-;            sec
-;            sbc #$02
-;            sta PPUADDR        ; write low byte
-;            jmp @skip3
-;; 2PLR PLR2
-;@skip1:     lda __96ea,x
-;            clc
-;            adc #$0c
-;            sta PPUADDR        ; write low byte
-;            jmp @skip3
-;; 1PLR
-;@skip2:     lda __96ea,x
-;            clc 
-;            adc #$06
-;            sta PPUADDR        ; write low byte
-;
-;@skip3:     ldx #10
-;@loop1:     lda (PF_PTR),y
+	sta TEMP1+1
+	
+	ldx #10
+loop1:	lda (PF_PTR),y
+	sty B1
+	ldy #0
 ;            sta PPUDATA
-;            iny   
-;            dex
-;            bne @loop1         ; write PF line to screen
-;
-;            inc BGU_COUNT            ; ++count
-;            lda BGU_COUNT
-;            cmp #20
-;            bmi @ret         ; if (count < 20) return
-;            lda #32
-;            sta BGU_COUNT            ; count = 32
+	sta (TEMP1),y
+	ldy B1
+	iny   
+	dex
+	bne loop1		; write PF line to screen
+
+	inc BGU_COUNT		; ++count
+	lda BGU_COUNT
+	cmp #20
+	bmi ret			; if (count < 20) return
+	lda #32
+	sta BGU_COUNT            ; count = 32 //TODO check
 ret:	rts
 .endp
 
@@ -2004,6 +2029,15 @@ not_B:
 	rts
 .endp  
 
+; table for x * 10, x = 0..19
+mul10_table:
+            .DB 0, 10, 20, 30
+            .DB 40, 50, 60, 70
+            .DB 80, 90, 100, 110
+            .DB 120, 130, 140, 150
+            .DB 160, 170, 180, 190
+; 20bytes end of data
+
 ;-------------------------------------------------------------------------------
 ; nmi function, called every vblank
 .proc nmi
@@ -2167,7 +2201,7 @@ skip3:	lda P2_BGUC
 	sta P2_BGUC
              
 skip4:	lda NMI_FLAGS
-	and #$01
+	and #NMI_LINE_COUNT
 	beq skip6
 	lda N_PLR
 	cmp #$02			; if (bit0 of NMI_FLAGS and !2plr) {
@@ -2188,7 +2222,7 @@ skip4:	lda NMI_FLAGS
 	lda P1_LINES
 	jsr GRwrite_packedBCD		; write LINES Counter
 	lda NMI_FLAGS
-	and #%11111110
+	and #!NMI_LINE_COUNT
 	sta NMI_FLAGS			; unset bit0
 	jmp skip6			; } endif
 					; (bit0 of NMI_FLAGS and 2plr)
@@ -2220,11 +2254,11 @@ skip5:;     lda #$20
 	lda P2_LINES
 	jsr GRwrite_packedBCD		; write plr2 LINES counter
 	lda NMI_FLAGS
-	and #%11111110
+	and #!NMI_LINE_COUNT
 	sta NMI_FLAGS			; unset bit0
 
 skip6:	lda NMI_FLAGS
-	and #$02
+	and #NMI_LEVEL
 	beq skip7
 	lda N_PLR
 	cmp #$02
@@ -2245,14 +2279,14 @@ skip6:	lda NMI_FLAGS
 	jsr GRwrite_packedBCD		; write plr1 level
 	jsr GR_updateGamePalette
 	lda NMI_FLAGS
-	and #%11111101
+	and #!NMI_LEVEL
 	sta NMI_FLAGS			; unset bit1 of NMI_FLAGS
 
 skip7:	lda N_PLR    
 	cmp #$02
 	beq skip8
 	lda NMI_FLAGS
-	and #$04
+	and #NMI_SCORE
 	beq skip8			; if (bit2 of NMI_FLAGS and !2plr) {
 ;            lda #$21
 	lda #<(scr_mem+7*32+24)
@@ -2270,55 +2304,62 @@ skip7:	lda N_PLR
 	lda P1_SCORE
 	jsr GRwrite_packedBCD		; write plr1 score
 	lda NMI_FLAGS			; unset bit2 of NMI_FLAGS
-	and #%11111011
+	and #!NMI_SCORE
 	sta NMI_FLAGS
            
 skip8:	lda N_PLR
 	cmp #$02
 	beq skip9
 	lda NMI_FLAGS
-	and #$40
+	and #NMI_TYPE_COUNT
 	beq skip9			; if (bit6 of NMI_FLAGS and !2plr) {
 	lda #$00
-;            sta B7            ; loop variable
-;@loop1:     lda B7
-;            asl
-;            tax
-;            lda COUNTER_SCR_ADR_TABLE,x
+	sta B7				; loop variable
+loop1:	lda B7
+	asl
+	tax
+	lda COUNTER_SCR_ADR_TABLE,x
 ;            sta PPUADDR
-;            lda COUNTER_SCR_ADR_TABLE+1,x
+	sta TEMP1
+	lda COUNTER_SCR_ADR_TABLE+1,x
 ;            sta PPUADDR
-;            lda TYPE_COUNTERS+1,x
+	sta TEMP1+1
+	lda TYPE_COUNTERS+1,x
 ;            sta PPUDATA
-;            lda TYPE_COUNTERS,x
-;            jsr PPUwrite_packedBCD         ; write type counters
-;            inc B7
-;            lda B7
-;            cmp #$07
-;            bne @loop1
-;            lda NMI_FLAGS
-;            and #%10111111
-;            sta NMI_FLAGS            ; unset bit6 of NMI_FLAGS
-;
+	sta (TEMP1),y
+	inc TEMP1
+	lda TYPE_COUNTERS,x
+	jsr GRwrite_packedBCD		; write type counters
+	inc B7
+	lda B7
+	cmp #$07
+	bne loop1
+	lda NMI_FLAGS
+	and #!NMI_TYPE_COUNT
+	sta NMI_FLAGS            ; unset bit6 of NMI_FLAGS
+
 skip9:;     lda #$3f
 ;            sta PPUADDR
 ;            lda #$0e           ; second entry of bg palette 3
 ;            sta PPUADDR
-;            ldx #$00		; color 0
-;            lda LCLEARED
-;            cmp #$04
-;            bne @skip10		; if (4 lines cleared)
-;            lda FRAMECOUNT
-;            and #$03
-;            bne @skip10         ; every (4th frame)
-;            ldx #$30           ; color 30
-;            lda FRAMECOUNT
-;            and #$07
-;            bne @skip10         ; every (8th frame)
+;            ldx #$00		; color 0 grey
+	ldx COLOR0
+	lda LCLEARED
+	cmp #$04
+	bne skip10		; if (4 lines cleared)
+	lda RTCLOK+2
+	and #$03
+	bne skip10		; every (4th frame)
+;            ldx #$30           ; color 30 white
+	ldx #$0F		; white
+	lda RTCLOK+2
+	and #$07
+	bne skip10		; every (8th frame)
 ;            lda #$09
 ;            sta sndEFFECT
 ; 
-;@skip10:     stx PPUDATA        ; set color entry
+skip10:     ;stx PPUDATA        ; set color entry
+	stx COLPF0		; set color HW Register
 ;            ldy #$00
 ;            sty HSCROLL
 ;            sty PPUSCROLL
@@ -2430,11 +2471,122 @@ loop1:	lda tetrimino_table,x	; Y offset
 	inc GAME_PHASE
 ret:	rts
 .endp
-            
+
+.proc phase_func3
+	lda BGU_COUNT
+	cmp #32
+	bmi ret			; if (BGU_COUNT < 32) return
+
+	lda TETR_Y
+	sec
+	sbc #$02
+	bpl skip2
+	lda #$00		; A = max (0, tetr_y-2)
+skip2:	clc
+	adc LCLEAR_CHECK	; +LCLEAR_CHECK
+	sta TEMP2+1		; checked line number
+	asl
+	sta TEMP2
+	asl
+	asl
+	clc
+	adc TEMP2		; *10 //TODO check use of table
+	sta TEMP2
+	tay			; index to playfield
+	ldx #10
+loop1:	lda (PF_PTR),y
+	cmp #$7f
+	beq skip3		; if (empty) skip3, break if 1 clear field found
+	iny
+	dex
+	bne loop1		; loop 1 line
+
+;            lda #$0a           ; $9a99: a9 0a     
+;            sta sndEFFECT          ; $9a9b: 8d f1 06  
+	inc LCLEARED		; 1 more full line found
+	ldx LCLEAR_CHECK
+	lda TEMP2+1		; line number 
+	sta LNUM_CLEAR,x
+	ldy TEMP2
+	dey			; pf index - last field of previous line
+loop2:	lda (PF_PTR),y		; load tile
+	ldx #10
+	stx PF_PTR		; pf_ptr to next line //todo check use of second pointer
+	sta (PF_PTR),y		; write tile to next line
+	lda #$00
+	sta PF_PTR		; pf_ptr to prev line
+	dey
+	cpy #$ff    
+	bne loop2		; loop to begin of playfield //TODO use bpl
+	lda #$7f
+	ldy #$00
+loop3:	sta (PF_PTR),y
+	iny
+	cpy #$0a
+	bne loop3		; clear first line of playfield //TODO count down from 10 to remove cpy
+	lda #$13
+	sta TETR_OR		; empty tetrimino
+	jmp skip4
+
+skip3:	ldx LCLEAR_CHECK
+	lda #$00
+	sta LNUM_CLEAR,x 	; no line to clear in check x
+     
+skip4:	inc LCLEAR_CHECK	; next check
+	lda LCLEAR_CHECK
+	cmp #$04
+	bmi ret			; if (check < 4) return
+				; checks complete
+	ldy LCLEARED		; number of lines cleared
+	lda OPP_SPAWN_TABLE,y	; table read
+	clc   
+	adc SPAWN_LINES_OPP
+	sta SPAWN_LINES_OPP	; set lines to be spawned for opponent
+	lda #$00
+	sta BGU_COUNT
+	sta LCLEAR_ANI
+	lda LCLEARED
+	cmp #$04
+	bne skip5
+;            lda #$04
+;            sta sndEFFECT          ; snd effect for 4line clear
+skip5:	inc GAME_PHASE
+	lda LCLEARED
+	bne ret
+	inc GAME_PHASE		; if lines cleared phase 4 else phase 5
+;            lda #$07           ; $9afd: a9 07     
+;            sta sndEFFECT          ; $9aff: 8d f1 06  
+ret:	rts
+.endp
+
+phase_func4:
+phase_func9:
+	rts
+
+.proc phase_func5
+	rts
+.endp
+
+.proc phase_func6
+	rts
+.endp
+
+.proc phase_func7
+	rts
+.endp
+
+.proc phase_func8
+	rts
+.endp
+
+.proc phase_func10
+	rts
+.endp
+  
 ;-------------------------------------------------------------------------------
 ; set playfield, controls and game variables to plr1
 ; copy some variables
-.proc plr1_init
+.proc plr_init1
 	lda #$01
 	sta CUR_PLR
 	lda #>PLAYFIELD
@@ -2444,13 +2596,31 @@ ret:	rts
 	lda JOY1_RAW_ALL
 	sta BUTTONS_ALL
 
-	ldx #$f
+	ldx #GVARSIZE-1
 loop1:	lda G_VARS1,x   
 	sta G_VARS,x    
 	dex
 	bpl loop1
 
 	rts
+.endp
+
+;-------------------------------------------------------------------------------
+.proc plr_save1
+	ldx #GVARSIZE-1
+loop1:	lda G_VARS,x
+	sta G_VARS1,x
+	dex
+	bpl loop1		; copy cur plr data to plr1 data
+    
+	lda N_PLR     
+	cmp #$01    
+	beq ret     
+	ldx SPAWN_LINES_CUR
+	lda SPAWN_LINES_OPP
+	sta SPAWN_LINES_CUR    
+	stx SPAWN_LINES_OPP	; swap spawn lines cur and opp
+ret:	rts        
 .endp            
 
 ;-------------------------------------------------------------------------------
@@ -2723,6 +2893,44 @@ skip6:	inc DAR_TIMER
 .endp
 
 ;-------------------------------------------------------------------------------
+; called from game_func1
+; increment tetr type counter for statistics (3 digit BCD number in 2bytes)  
+; arg A - spawntable entry
+; //TODO use BCD mode
+.proc tetr_inc_type_counter
+	tax
+	lda tetr_type_table,x	; get tetr_type (0..6)
+	asl
+	tax			; index = 2*type
+	lda TYPE_COUNTERS,x	; load value from ram
+	clc
+	adc #$01		; add 1
+	sta TEMP2
+	and #$0f		; get lower nibble
+	cmp #10
+	bmi skip1		; if (>=10)
+	lda TEMP2
+	clc
+	adc #$06
+	sta TEMP2		;   value += 6
+	cmp #$a0
+	bcc skip1		;   if (>=$a0)   10 in high nibble
+	clc
+	adc #$60
+	sta TEMP2		;     value += $60
+	lda TYPE_COUNTERS+1,x	;     read next byte  
+	clc
+	adc #$01		;     add 1
+	sta TYPE_COUNTERS+1,x	;     store high byte (3rd digit)
+skip1:	lda TEMP2
+	sta TYPE_COUNTERS,x	; store low byte (1st and 2nd digit)
+	lda NMI_FLAGS
+	ora #NMI_TYPE_COUNT
+	sta NMI_FLAGS            ; set bit6 in NMI_FLAGS
+	rts
+.endp            
+
+;-------------------------------------------------------------------------------
 ; rotate tetrimino
 .proc tetr_rotate
 	lda TETR_OR
@@ -2970,6 +3178,13 @@ ret:	rts
 	ICL "screens/gamef0_screen.asm"
 
 ;-------------------------------------------------------------------------------
+; offests for line clear animation
+ANI_OFFSET_TABLE:
+	.DW $04, $03, $02, $01, $00
+	.DW $05, $06, $07, $08, $09
+; 10bytes end of table	
+
+;-------------------------------------------------------------------------------
 ; BCD values used to display levels
 BCD_TABLE:
             .DB $00, $01, $02, $03   ; $96b8: 00 01 02 03   Data
@@ -2981,6 +3196,19 @@ BCD_TABLE:
             .DB $24, $25, $26, $27   ; $96d0: 24 25 26 27   Data
             .DB $28, $29         ; $96d4: 28 29         Data
 ; 30bytes end of table
+
+;-------------------------------------------------------------------------------
+; screen addresses for type counters
+COUNTER_SCR_ADR_TABLE:
+;     .hex 21 86 21 c6
+;     .hex 22 06 22 46
+;     .hex 22 86 22 c6
+;     .hex 23 06           ; $96b7: 06            Data
+	.DW (scr_mem+11*32+6), (scr_mem+13*32+6)
+	.DW (scr_mem+15*32+6), (scr_mem+17*32+6)
+	.DW (scr_mem+19*32+6), (scr_mem+21*32+6)
+	.DW (scr_mem+23*32+6)
+; 14bytes end of table
 
 ;-------------------------------------------------------------------------------
 ; frames per drop for every level from 0..29
@@ -3102,6 +3330,10 @@ HS_SCRadr_table:
 	.DW scr_mem+19*32+9, scr_mem+21*32+9, scr_mem+23*32+9
 ; 6bytes end of table	
 
+;-------------------------------------------------------------------------------
+OPP_SPAWN_TABLE:
+	.DB 00, 00, 01, 02, 04
+; 5bytes end of table	
 
 PAL_PTR_HIGH:
 	.DB >PALETTE0_DATA, >PALETTE1_DATA, >PALETTE2_DATA, >PALETTE3_DATA
@@ -3126,6 +3358,20 @@ PF_CLEAR_BYTES:
             ;.hex c8 aa 96 78   ; $8876: c8 aa 96 78   Data
             ;.hex 64 50         ; $887a: 64 50         Data
 ; 6bytes end of data
+
+; table of 20 screen addresses
+PFLINE_ADR_TABLE:
+	.DW scr_mem+5*32+6, scr_mem+6*32+6
+	.DW scr_mem+7*32+6, scr_mem+8*32+6
+	.DW scr_mem+9*32+6, scr_mem+10*32+6
+	.DW scr_mem+11*32+6, scr_mem+12*32+6
+	.DW scr_mem+13*32+6, scr_mem+14*32+6
+	.DW scr_mem+15*32+6, scr_mem+16*32+6
+	.DW scr_mem+17*32+6, scr_mem+18*32+6
+	.DW scr_mem+19*32+6, scr_mem+20*32+6
+	.DW scr_mem+21*32+6, scr_mem+22*32+6
+	.DW scr_mem+23*32+6, scr_mem+24*32+6
+; 40bytes end of table
 
 ;-------------------------------------------------------------------------------
 ; sprite numbers for tetr ids (not all ids are valid spawn ids)
@@ -3346,6 +3592,18 @@ tetrimino_table:
 ;-------------------------------------------------------------------------------
 ; end of tetriminos
 ; 20x12 bytes 240bytes
+
+;-------------------------------------------------------------------------------
+; maps tetr id to tetr type
+tetr_type_table:
+            .DB 00, 00, 00, 00   ; T
+            .DB 01, 01, 01, 01   ; J
+            .DB 02, 02         ; Z
+            .DB 03            ; O
+            .DB 04, 04         ; S
+            .DB 05, 05, 05, 05   ; L
+            .DB 06, 06         ; I
+; end of tetr_type_table 19bytes
 
 ;-------------------------------------------------------------------------------
 ; static data with alignment
