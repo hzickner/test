@@ -2564,6 +2564,190 @@ phase_func9:
 	rts
 
 .proc phase_func5
+;            jsr music_speed         ; $9b58: 20 17 9d  
+	lda LCLEARED
+;            bne @skip1
+;            jmp @skip8
+	beq skip8
+; lines cleared
+skip1:
+;     tax
+;            dex
+;            lda COUNT_1LCLEAR,x
+;            clc
+;            adc #$01
+;            sta COUNT_1LCLEAR,x
+;            and #$0f
+;            cmp #$0a
+;            bmi @skip2
+;            lda COUNT_1LCLEAR,x
+;            clc
+;            adc #$06
+;            sta COUNT_1LCLEAR,x          ; increment line clear counter (packed bcd)
+
+skip2:	lda NMI_FLAGS
+	ora #NMI_LINE_COUNT
+	sta NMI_FLAGS
+	lda SEL_TYPE
+	beq skip4
+; lines cleared and type B     
+	lda LCLEARED
+	sta TEMP2
+	lda ST_LINES
+	sec
+	sbc TEMP2
+	sta ST_LINES			; ST_LINES-=LCLEARED
+	bpl skip3
+	lda #$00
+	sta ST_LINES			; if (ST_LINES<0) ST_LINES=0
+	beq skip8			; always jump
+
+skip3:	and #$0f
+	cmp #$0a
+	bmi skip8
+	lda ST_LINES			; lower nibble > 10
+	sec
+	sbc #$06
+	sta ST_LINES			; BCD correction
+	jmp skip8			; //TODO replace with bcc
+; lines cleared and type A
+skip4:	ldx LCLEARED			; loop counter
+loop1:	inc ST_LINES
+	lda ST_LINES
+	and #$0f
+	cmp #$0a			; test first digit overflow
+	bmi skip5			; no overflow skip 5
+	lda ST_LINES    
+	clc      
+	adc #$06     
+	sta ST_LINES			; add BCD correction
+	and #$f0
+	cmp #$a0			; test second digit overflow
+	bcc skip5			; no overflow skip5
+	lda ST_LINES
+	and #$0f  
+	sta ST_LINES			; second digit 0
+	inc ST_LINES+1			; inc 3rd digit
+skip5:	lda ST_LINES
+	and #$0f
+	bne skip7
+; lines cleared and type A and multiple of 10 lines cleared
+skip6:	lda ST_LINES+1
+	sta TEMP2+1
+	lda ST_LINES
+	sta TEMP2			; TEMP2 = ST_LINES
+	lsr TEMP2+1
+	ror TEMP2
+	lsr TEMP2+1
+	ror TEMP2
+	lsr TEMP2+1
+	ror TEMP2
+	lsr TEMP2+1
+	ror TEMP2			; TEMP2 >>= 4     /=10
+	lda LEVEL
+	cmp TEMP2
+	bpl skip7
+	inc LEVEL			; if (cleared_lines /10 > level) level++
+;	lda #$06			; $9bf0: a9 06     
+;            sta sndEFFECT          ; $9bf2: 8d f1 06  
+	lda NMI_FLAGS
+	ora #NMI_LEVEL
+	sta NMI_FLAGS
+skip7:	dex        
+	bne loop1			; loop for every cleared line
+; LCLEARED 0..4
+; add DAR_COUNT-1 to score     
+skip8:	lda DAR_COUNT
+	cmp #$02
+	bmi skip11
+	clc
+	dec ST_SCORE
+	adc ST_SCORE
+	sta ST_SCORE
+	and #$0f
+	cmp #$0a			; test digit0 overflow
+	bcc skip9
+	lda ST_SCORE
+	clc
+	adc #$06
+	sta ST_SCORE
+skip9:	lda ST_SCORE
+	and #$f0
+	cmp #$a0
+	bcc skip10
+	clc        
+	adc #$60     
+	sta ST_SCORE			; //TODO check if further BCD correction necessary   
+	inc ST_SCORE+1			; add some points depending on DAR_COUNT
+skip10:	;lda NMI_FLAGS
+	;ora #NMI_SCORE
+	;sta NMI_FLAGS			; //TODO remove
+;            
+skip11:	lda #$00
+	sta DAR_COUNT
+; add table(LCLEARED)*(lvl+1) points to score    
+	lda LEVEL
+	sta TEMP2
+	inc TEMP2			; loop counter = level+1
+loop2:	lda LCLEARED 
+	asl
+	tax
+	lda POINTS_TABLE,x		; lower 2 digits
+	clc
+	adc ST_SCORE
+	sta ST_SCORE
+	cmp #$a0
+	bcc skip12
+	clc
+	adc #$60
+	sta ST_SCORE
+	inc ST_SCORE+1			; BCD correction
+skip12:	inx
+	lda POINTS_TABLE,x		; higher 2 digits
+	clc
+	adc ST_SCORE+1
+	sta ST_SCORE+1
+	and #$0f
+	cmp #$0a			; test digit3
+	bcc skip13
+	lda ST_SCORE+1
+	clc
+	adc #$06
+	sta ST_SCORE+1			; BCD correction
+skip13:	lda ST_SCORE+1
+	and #$f0
+	cmp #$a0			; test digit4
+	bcc skip14
+	lda ST_SCORE+1
+	clc
+	adc #$60
+	sta ST_SCORE+1
+	inc ST_SCORE+2			; BCD correction
+skip14:	lda ST_SCORE+2
+	and #$0f
+	cmp #$0a			; test digit5
+	bcc skip15
+	lda ST_SCORE+2
+	clc
+	adc #$06
+	sta ST_SCORE+2			; BCD correction
+skip15:	lda ST_SCORE+2
+	and #$f0
+	cmp #$a0			; test digit6
+	bcc skip16
+	lda #$99			; $999999 in case of digit6 overflow
+	sta ST_SCORE
+	sta ST_SCORE+1
+	sta ST_SCORE+2			; add points read from table
+skip16:	dec TEMP2
+	bne loop2			; loop level+1 times
+
+	lda NMI_FLAGS
+	ora #NMI_SCORE
+	sta NMI_FLAGS
+	lda #$00
+	sta LCLEARED
+	inc GAME_PHASE
 	rts
 .endp
 
@@ -3372,6 +3556,12 @@ PFLINE_ADR_TABLE:
 	.DW scr_mem+21*32+6, scr_mem+22*32+6
 	.DW scr_mem+23*32+6, scr_mem+24*32+6
 ; 40bytes end of table
+
+;-------------------------------------------------------------------------------
+; points per cleared line, 5 2byte packed BCD
+POINTS_TABLE:
+	.DW $0000, $0040, $0100, $0300, $01200
+; 10bytes end of table
 
 ;-------------------------------------------------------------------------------
 ; sprite numbers for tetr ids (not all ids are valid spawn ids)
