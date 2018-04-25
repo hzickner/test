@@ -462,8 +462,10 @@ mode_func_legal:
             jsr frame_PPU_rendering_off
             jsr PPU_disableNMI
             lda #$00
+	;lda #01
             jsr MMCsetreg1
             lda #$00
+	;lda #02
             jsr MMCsetreg2
             
             jsr PPU_copy_data
@@ -471,6 +473,7 @@ mode_func_legal:
 
             jsr PPU_copy_data
             DW LEGAL_SCREEN_DATA
+	;.DW Bending_screen
 
             jsr PPU_enableNMI
             jsr frame_clear_sprite_ram
@@ -3478,7 +3481,7 @@ jump48_func5:
 @skip11:     lda #$00
             sta DAR_COUNT
 ; add table(LCLEARED)*(lvl+1) points to score    
-            lda LEVE
+            lda LEVEL
             sta TEMP2
             inc TEMP2            ; loop counter = level+1
 @loop2:     lda LCLEARED 
@@ -3809,64 +3812,65 @@ jump48_func9:
             rts                ; $9e39: 60        
 
 ;-------------------------------------------------------------------------------
-__9e3a:     lda #$02           ; $9e3a: a9 02     
-            sta SPR_PTR_INDEX            ; $9e3c: 85 a2     
-            lda #$04           ; $9e3e: a9 04     
-            sta NMI_FUNC_INDEX            ; $9e40: 85 bd     
-            lda SEL_TYPE            ; $9e42: a5 c1     
-            bne __9e49         ; $9e44: d0 03     
-            jmp __a926         ; $9e46: 4c 26 a9  
-
-;-------------------------------------------------------------------------------
-__9e49:     ldx P1_LVL            ; $9e49: a6 64     
-            lda BCD_TABLE,x       ; $9e4b: bd b8 96  
-            and #$0f           ; $9e4e: 29 0f     
-            sta LEVEL            ; $9e50: 85 44     
+;
+__9e3a:     lda #$02     
+            sta SPR_PTR_INDEX            ; empty space sprite
+            lda #$04
+            sta NMI_FUNC_INDEX            ;set NMI function
+            lda SEL_TYPE
+            bne @skip1
+            jmp __a926
+; type B
+@skip1:     ldx P1_LVL
+            lda BCD_TABLE,x
+            and #$0f
+            sta LEVEL            ; LEVEL = P1_LVL mod 10
             lda #$00           ; $9e52: a9 00     
             sta $de            ; $9e54: 85 de     
             sta $dd            ; $9e56: 85 dd     
             sta $dc            ; $9e58: 85 dc     
-            lda LEVEL            ; $9e5a: a5 44     
-            asl                ; $9e5c: 0a        
-            asl                ; $9e5d: 0a        
-            asl                ; $9e5e: 0a        
-            asl                ; $9e5f: 0a        
-            sta B3           ; $9e60: 85 ab     
-            lda P1_HEIGHT            ; $9e62: a5 79     
-            asl                ; $9e64: 0a        
-            asl                ; $9e65: 0a        
-            asl                ; $9e66: 0a        
-            asl                ; $9e67: 0a        
-            sta B6            ; $9e68: 85 ac     
-            jsr frame_PPU_rendering_off         ; $9e6a: 20 52 aa  
-            jsr PPU_disableNMI         ; $9e6d: 20 78 aa  
-            lda LEVEL            ; $9e70: a5 44     
-            cmp #$09           ; $9e72: c9 09     
-            bne __9e88         ; $9e74: d0 12     
-            lda #$01           ; $9e76: a9 01     
-            jsr MMCsetreg1         ; $9e78: 20 b7 ac  
-            lda #$01           ; $9e7b: a9 01     
-            jsr MMCsetreg2         ; $9e7d: 20 cb ac  
-            jsr PPU_copy_data         ; $9e80: 20 98 aa  
-            ldx $c9            ; $9e83: a6 c9     
-            jmp __9ea4         ; $9e85: 4c a4 9e  
+            lda LEVEL
+            asl
+            asl
+            asl
+            asl
+            sta B3           ; B3 = LEVEL*8 (0, 8, ..72)
+            lda P1_HEIGHT
+            asl
+            asl
+            asl
+            asl
+            sta B6            ; B6 = P1_HEIGHT * 8
+            jsr frame_PPU_rendering_off
+            jsr PPU_disableNMI
+            lda LEVEL
+            cmp #$09
+            bne @skip2
+; LEVEL == 9            
+            lda #$01
+            jsr MMCsetreg1
+            lda #$01
+            jsr MMCsetreg2         ; CHR bank 1 for nametable and sprites
+            jsr PPU_copy_data         ; load screen data
+            .DW Blvl9ending ;
+            jmp @skip4
+; LEVEL != 9
+@skip2:     ldx #$03
+            lda LEVEL
+            cmp #$02
+            beq @skip3
+            cmp #$06
+            beq @skip3
+            ldx #$02
+@skip3:     txa
+            jsr MMCsetreg1         ; lvl 2,6 CHR table 03 else CHR table 02 for sprites
+            lda #$02
+            jsr MMCsetreg2         ; CHR table 2 for background
+            jsr PPU_copy_data         ; load screen data
+            .DW Bending_screen  ;.hex 07 ce         ; $9ea2: 07 ce     Invalid Opcode - SLO $ce
 
-;-------------------------------------------------------------------------------
-__9e88:     ldx #$03           ; $9e88: a2 03     
-            lda LEVEL            ; $9e8a: a5 44     
-            cmp #$02           ; $9e8c: c9 02     
-            beq __9e96         ; $9e8e: f0 06     
-            cmp #$06           ; $9e90: c9 06     
-            beq __9e96         ; $9e92: f0 02     
-            ldx #$02           ; $9e94: a2 02     
-__9e96:     txa                ; $9e96: 8a        
-            jsr MMCsetreg1         ; $9e97: 20 b7 ac  
-            lda #$02           ; $9e9a: a9 02     
-            jsr MMCsetreg2         ; $9e9c: 20 cb ac  
-            jsr PPU_copy_data         ; $9e9f: 20 98 aa  
-            .hex 07 ce         ; $9ea2: 07 ce     Invalid Opcode - SLO $ce
-__9ea4:     jsr PPU_copy_data         ; $9ea4: 20 98 aa  
-            .hex 43 ad         ; $9ea7: 43 ad     Invalid Opcode - SRE ($ad,x)
+@skip4:     jsr PPU_copy_data         ; $9ea4: 20 98 aa  
+            .DW PALETTE_DATA_BENDING ;.hex 43 ad         ; $9ea7: 43 ad     Invalid Opcode - SRE ($ad,x)
             jsr __a463         ; $9ea9: 20 63 a4  
             jsr PPU_enableNMI         ; $9eac: 20 6b aa  
             jsr frame_clear_sprite_ram         ; $9eaf: 20 2f aa  
@@ -3893,54 +3897,56 @@ __9ea4:     jsr PPU_copy_data         ; $9ea4: 20 98 aa
             lda #$40           ; $9edf: a9 40     
             jsr __a7fd         ; $9ee1: 20 fd a7  
             lda B3           ; $9ee4: a5 ab     
-            beq __9f12         ; $9ee6: f0 2a     
-__9ee8:     dec B3           ; $9ee8: c6 ab     
+            beq @skip6         ; $9ee6: f0 2a     
+@loop1:     dec B3           ; $9ee8: c6 ab     
             lda B3           ; $9eea: a5 ab     
             and #$0f           ; $9eec: 29 0f     
             cmp #$0f           ; $9eee: c9 0f     
-            bne __9efa         ; $9ef0: d0 08     
+            bne @skip5         ; $9ef0: d0 08     
             lda B3           ; $9ef2: a5 ab     
             and #$f0           ; $9ef4: 29 f0     
             ora #$09           ; $9ef6: 09 09     
             sta B3           ; $9ef8: 85 ab     
-__9efa:     lda B3           ; $9efa: a5 ab     
+@skip5:     lda B3           ; $9efa: a5 ab     
             jsr __9f62         ; $9efc: 20 62 9f  
             lda #$01           ; $9eff: a9 01     
             sta sndEFFECT          ; $9f01: 8d f1 06  
             lda #$02           ; $9f04: a9 02     
             jsr __a7fd         ; $9f06: 20 fd a7  
             lda B3           ; $9f09: a5 ab     
-            bne __9ee8         ; $9f0b: d0 db     
+            bne @loop1         ; $9f0b: d0 db     
             lda #$40           ; $9f0d: a9 40     
             jsr __a7fd         ; $9f0f: 20 fd a7  
-__9f12:     lda B6            ; $9f12: a5 ac     
-            beq __9f45         ; $9f14: f0 2f     
-__9f16:     dec B6            ; $9f16: c6 ac     
+@skip6:     lda B6            ; $9f12: a5 ac     
+            beq @skip8         ; $9f14: f0 2f     
+@loop2:     dec B6            ; $9f16: c6 ac     
             lda B6            ; $9f18: a5 ac     
             and #$0f           ; $9f1a: 29 0f     
             cmp #$0f           ; $9f1c: c9 0f     
-            bne __9f28         ; $9f1e: d0 08     
+            bne @skip7         ; $9f1e: d0 08     
             lda B6            ; $9f20: a5 ac     
             and #$f0           ; $9f22: 29 f0     
             ora #$09           ; $9f24: 09 09     
             sta B6            ; $9f26: 85 ac     
-__9f28:     lda B6            ; $9f28: a5 ac     
+@skip7:     lda B6            ; $9f28: a5 ac     
             jsr __9f62         ; $9f2a: 20 62 9f  
             lda #$01           ; $9f2d: a9 01     
             sta sndEFFECT          ; $9f2f: 8d f1 06  
             lda #$02           ; $9f32: a9 02     
             jsr __a7fd         ; $9f34: 20 fd a7  
             lda B6            ; $9f37: a5 ac     
-            bne __9f16         ; $9f39: d0 db     
+            bne @loop2         ; $9f39: d0 db     
             lda #$02           ; $9f3b: a9 02     
             sta sndEFFECT          ; $9f3d: 8d f1 06  
             lda #$40           ; $9f40: a9 40     
             jsr __a7fd         ; $9f42: 20 fd a7  
-__9f45:     jsr __a527         ; $9f45: 20 27 a5  
+
+@skip8:
+@loop3:     jsr __a527         ; $9f45: 20 27 a5  
             jsr frame_clear_sprite_ram         ; $9f48: 20 2f aa  
             lda JOY1_RAW_NEW            ; $9f4b: a5 f5     
             cmp #BUTTON_START
-            bne __9f45         ; $9f4f: d0 f4     
+            bne @loop3         ; $9f4f: d0 f4     
             lda P1_LVL            ; $9f51: a5 64     
             sta LEVEL            ; $9f53: 85 44     
             lda $dc            ; $9f55: a5 dc     
@@ -4461,35 +4467,35 @@ __a33e:     .hex 48 50 58 60   ; $a33e: 48 50 58 60   Data
 ;-------------------------------------------------------------------------------
 ; function 02 called by table_jump_nmi
 tjump_nmi02:
-            lda NMI_FLAGS            ; $a344: a5 a3     
-            and #$80           ; $a346: 29 80     
-            beq __a37e         ; $a348: f0 34     
-            lda $d5            ; $a34a: a5 d5     
-            and #$03           ; $a34c: 29 03     
-            asl                ; $a34e: 0a        
-            tax                ; $a34f: aa        
-            lda HS_PPUadr_table,x       ; $a350: bd 86 a0  
-            sta PPUADDR        ; $a353: 8d 06 20  
-            lda $d5            ; $a356: a5 d5     
-            and #$03           ; $a358: 29 03     
-            asl                ; $a35a: 0a        
-            tax                ; $a35b: aa        
-            inx                ; $a35c: e8        
-            lda HS_PPUadr_table,x       ; $a35d: bd 86 a0  
-            sta TEMP2            ; $a360: 85 a8     
-            clc                ; $a362: 18        
-            adc $d4            ; $a363: 65 d4     
-            sta PPUADDR        ; $a365: 8d 06 20  
-            ldx $d7            ; $a368: a6 d7     
-            lda HS_CHAR_TABLE,x       ; $a36a: bd 8c a0  
-            sta PPUDATA        ; $a36d: 8d 07 20  
-            lda #$00           ; $a370: a9 00     
-            sta HSCROLL            ; $a372: 85 fd     
-            sta PPUSCROLL      ; $a374: 8d 05 20  
-            sta VSCROLL            ; $a377: 85 fc     
-            sta PPUSCROLL      ; $a379: 8d 05 20  
-            sta NMI_FLAGS            ; $a37c: 85 a3     
-__a37e:     rts                ; $a37e: 60        
+            lda NMI_FLAGS
+            and #$80           ; if (bit7 of NMI_FLAGS)
+            beq @ret
+            lda $d5
+            and #$03
+            asl                ; $d5 mod 4 * 2
+            tax
+            lda HS_PPUadr_table,x       ; read high byte
+            sta PPUADDR
+            lda $d5
+            and #$03
+            asl
+            tax                ; $d5 mod 4 * 2
+            inx
+            lda HS_PPUadr_table,x       ; read low byte
+            sta TEMP2
+            clc
+            adc $d4            ; add offset
+            sta PPUADDR        ; set scr_adr
+            ldx $d7
+            lda HS_CHAR_TABLE,x
+            sta PPUDATA		; write char
+            lda #$00
+            sta HSCROLL
+            sta PPUSCROLL
+            sta VSCROLL
+            sta PPUSCROLL
+            sta NMI_FLAGS
+@ret:     rts
 
 ;-------------------------------------------------------------------------------
 ; handle PAUSE mode
@@ -4554,40 +4560,44 @@ game_pause_mode:
 
 ;-------------------------------------------------------------------------------
 jump48_func6:
-            lda SEL_TYPE            ; $a3f2: a5 c1     
-            beq @skip2         ; $a3f4: f0 35     
-            lda ST_LINES            ; $a3f6: a5 50     
-            bne @skip2         ; $a3f8: d0 31     
-            lda #$02           ; $a3fa: a9 02     
-            jsr snd_setMUSIC         ; $a3fc: 20 07 9e  
-            ldy #$46           ; $a3ff: a0 46     
-            ldx #$00           ; $a401: a2 00     
-@loop1:     lda __a42e,x       ; $a403: bd 2e a4  
-            cmp #$80           ; $a406: c9 80     
-            beq @skip1         ; $a408: f0 07     
-            sta (PF_PTR),y        ; $a40a: 91 b8     
-            inx                ; $a40c: e8        
-            iny                ; $a40d: c8        
-            jmp @loop1         ; $a40e: 4c 03 a4  
+            lda SEL_TYPE
+            beq @skip2
+; type B game            
+            lda ST_LINES
+            bne @skip2
+; ST_LINES==0            
+            lda #$02
+            jsr snd_setMUSIC
+            ldy #70           ; line 7 on playfield
+            ldx #$00
+@loop1:     lda TYPEB_SUCCESS_DATA,x       ; read table value
+            cmp #$80           ; test for end marker
+            beq @skip1
+            sta (PF_PTR),y        ; write to playfield
+            inx
+            iny
+            jmp @loop1         ; loop
 
-@skip1:     lda #$00           ; $a411: a9 00     
-            sta P1_BGUC            ; $a413: 85 69     
-            jsr __a44d         ; $a415: 20 4d a4  
-            lda #$00           ; $a418: a9 00     
-            sta NMI_FUNC_INDEX            ; $a41a: 85 bd     
-            lda #$80           ; $a41c: a9 80     
-            jsr Nframe_clear_sprite_ram         ; $a41e: 20 59 a4  
+@skip1:     lda #$00
+            sta P1_BGUC
+            jsr N20frame_clear_sprite_ram         ; wait for 20 frames
+            lda #$00
+            sta NMI_FUNC_INDEX            ; set NMI function
+            lda #128
+            jsr Nframe_clear_sprite_ram         ; wait for 128 frames (ca. 2 s)
             jsr __9e3a         ; $a421: 20 3a 9e  
-            lda #$00           ; $a424: a9 00     
-            sta GAME_PHASE            ; $a426: 85 48     
-            inc GAME_FUNC_INDEX            ; $a428: e6 a7     
-            rts                ; $a42a: 60        
+            lda #$00
+            sta GAME_PHASE
+            inc GAME_FUNC_INDEX
+            rts 		; return with next game_func, reset phase
 
-@skip2:     inc GAME_PHASE            ; $a42b: e6 48     
-            rts                ; $a42d: 60        
+@skip2:     inc GAME_PHASE
+            rts                ; return with next game phase
 
 ;-------------------------------------------------------------------------------
-__a42e:     .hex 38 39 39 39   ; $a42e: 38 39 39 39   Data
+; pf data, frame with text "success!"
+TYPEB_SUCCESS_DATA:
+            .hex 38 39 39 39   ; $a42e: 38 39 39 39   Data
             .hex 39 39 39 39   ; $a432: 39 39 39 39   Data
             .hex 39 3a 3b 1c   ; $a436: 39 3a 3b 1c   Data
             .hex 1e 0c 0c 0e   ; $a43a: 1e 0c 0c 0e   Data
@@ -4595,12 +4605,17 @@ __a42e:     .hex 38 39 39 39   ; $a42e: 38 39 39 39   Data
             .hex 3d 3e 3e 3e   ; $a442: 3d 3e 3e 3e   Data
             .hex 3e 3e 3e 3e   ; $a446: 3e 3e 3e 3e   Data
             .hex 3e 3f 80      ; $a44a: 3e 3f 80      Data
-__a44d:     lda #$14           ; $a44d: a9 14     
-            sta COUNTDOWN            ; $a44f: 85 c3     
-__a451:     jsr frame_clear_sprite_ram         ; $a451: 20 2f aa  
-            lda COUNTDOWN            ; $a454: a5 c3     
-            bne __a451         ; $a456: d0 f9     
-            rts                ; $a458: 60        
+; 31bytes end of data
+
+;-------------------------------------------------------------------------------
+; wait for 20 frames
+N20frame_clear_sprite_ram:
+	lda #20
+	sta COUNTDOWN
+@loop1:	jsr frame_clear_sprite_ram
+	lda COUNTDOWN
+	bne @loop1
+	rts
 
 ;-------------------------------------------------------------------------------
 ; arg A - number of frames
@@ -4617,10 +4632,10 @@ __a463:     lda #$00           ; $a463: a9 00
             sta $c5            ; $a467: 85 c5     
             sta $cd            ; $a469: 85 cd     
             lda #$02           ; $a46b: a9 02     
-            sta SPR_PTR_INDEX           ; $a46d: 85 a2     
+            sta SPR_PTR_INDEX           ; empty space sprite
             lda LEVEL            ; $a46f: a5 44     
             cmp #$09           ; $a471: c9 09     
-            bne __a49a         ; $a473: d0 25     
+            bne @skip1         ; $a473: d0 25     
             lda P1_HEIGHT            ; $a475: a5 79     
             clc                ; $a477: 18        
             adc #$01           ; $a478: 69 01     
@@ -4640,7 +4655,7 @@ __a463:     lda #$00           ; $a463: a9 00
             rts                ; $a499: 60        
 
 ;-------------------------------------------------------------------------------
-__a49a:     ldx LEVEL            ; $a49a: a6 44     
+@skip1:     ldx LEVEL            ; $a49a: a6 44     
             lda __a767,x       ; $a49c: bd 67 a7  
             sta $c7            ; $a49f: 85 c7     
             sta $c8            ; $a4a1: 85 c8     
@@ -5143,6 +5158,8 @@ __a821:     .hex 29 21 a5 ff   ; $a821: 29 21 a5 ff   Data
             .hex 46 47 fe 22   ; $a91d: 46 47 fe 22   Data
             .hex ea 56 57 fd   ; $a921: ea 56 57 fd   Data
             .hex fc            ; $a925: fc            Data
+
+; type A
 __a926:     jsr frame_PPU_rendering_off         ; $a926: 20 52 aa  
             jsr PPU_disableNMI         ; $a929: 20 78 aa  
             lda #$02           ; $a92c: a9 02     
@@ -5165,13 +5182,13 @@ __a926:     jsr frame_PPU_rendering_off         ; $a926: 20 52 aa
             jsr snd_setMUSIC         ; $a955: 20 07 9e  
             lda #$80           ; $a958: a9 80     
             jsr __a7fd         ; $a95a: 20 fd a7  
-__a95d:     jsr __a527         ; $a95d: 20 27 a5  
+@loop1:     jsr __a527         ; $a95d: 20 27 a5  
             jsr frame_clear_sprite_ram         ; $a960: 20 2f aa  
             lda $c5            ; $a963: a5 c5     
-            bne __a95d         ; $a965: d0 f6     
+            bne @loop1         ; $a965: d0 f6     
             lda JOY1_RAW_NEW            ; $a967: a5 f5     
             cmp #BUTTON_START
-            bne __a95d         ; $a96b: d0 f0     
+            bne @loop1         ; $a96b: d0 f0     
             rts                ; $a96d: 60        
 
 ;-------------------------------------------------------------------------------
@@ -5796,7 +5813,10 @@ PALETTE_DATA_MODE1_2_3:
             .hex 30 29 27
             .hex ff            ; end of data processing
 
-            .hex 3f 00 20 12   ; $ad43: 3f 00 20 12   Data
+PALETTE_DATA_BENDING:
+            .hex 3f 00
+            .hex 20
+            .hex 12   ; $ad43: 3f 00 20 12   Data
             .hex 0f 29 37 12   ; $ad47: 0f 29 37 12   Data
             .hex 0f 30 27 12   ; $ad4b: 0f 30 27 12   Data
             .hex 0f 17 27 12   ; $ad4f: 0f 17 27 12   Data
@@ -5804,7 +5824,8 @@ PALETTE_DATA_MODE1_2_3:
             .hex 0f 29 37 12   ; $ad57: 0f 29 37 12   Data
             .hex 0f 30 27 12   ; $ad5b: 0f 30 27 12   Data
             .hex 0f 17 27 12   ; $ad5f: 0f 17 27 12   Data
-            .hex 0f 15 37 ff   ; $ad63: 0f 15 37 ff   Data
+            .hex 0f 15 37
+            .hex ff   ; end of data processing
 
 ; 80 bytes of data copied to page 7 $700-$749
 HS_INIT_DATA:
@@ -6120,568 +6141,10 @@ INCLUDE gamef0_screen.as6
 
 INCLUDE score_screen.as6
 INCLUDE level_screen2.as6
-            
-            .hex 20 00 20   ; $c9a5: ff 20 00 20   Data
-            .hex ff ff ff ff   ; $c9a9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9ad: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9b1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9b5: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9b9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9bd: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9c1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9c5: ff ff ff ff   Data
-            .hex 20 20 20 ff   ; $c9c9: 20 20 20 ff   Data
-            .hex ff ff ff ff   ; $c9cd: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9d1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9d5: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9d9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9dd: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9e1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9e5: ff ff ff ff   Data
-            .hex ff ff ff 20   ; $c9e9: ff ff ff 20   Data
-            .hex 40 20 ff ff   ; $c9ed: 40 20 ff ff   Data
-            .hex ff ff ff ff   ; $c9f1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9f5: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9f9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $c9fd: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ca01: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ca05: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ca09: ff ff ff ff   Data
-            .hex ff ff 20 60   ; $ca0d: ff ff 20 60   Data
-            .hex 20 ff ff ff   ; $ca11: 20 ff ff ff   Data
-            .hex ff ff 18 19   ; $ca15: ff ff 18 19   Data
-            .hex 19 19 19 19   ; $ca19: 19 19 19 19   Data
-            .hex 19 19 19 19   ; $ca1d: 19 19 19 19   Data
-            .hex 19 19 19 19   ; $ca21: 19 19 19 19   Data
-            .hex 19 19 1a ff   ; $ca25: 19 19 1a ff   Data
-            .hex ff ff ff ff   ; $ca29: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ca2d: ff ff ff ff   Data
-            .hex ff 20 80 20   ; $ca31: ff 20 80 20   Data
-            .hex ff ff ff ff   ; $ca35: ff ff ff ff   Data
-            .hex ff 1b ff 0a   ; $ca39: ff 1b ff 0a   Data
-            .hex 0b 0c 0d 0e   ; $ca3d: 0b 0c 0d 0e   Data
-            .hex ff ff 00 00   ; $ca41: ff ff 00 00   Data
-            .hex 00 00 00 00   ; $ca45: 00 00 00 00   Data
-            .hex ff 1c ff ff   ; $ca49: ff 1c ff ff   Data
-            .hex ff ff ff ff   ; $ca4d: ff ff ff ff   Data
-            .hex be bf be bf   ; $ca51: be bf be bf   Data
-            .hex 20 a0 20 ff   ; $ca55: 20 a0 20 ff   Data
-            .hex ff ff ff ff   ; $ca59: ff ff ff ff   Data
-            .hex 1b ff 0f 0e   ; $ca5d: 1b ff 0f 0e   Data
-            .hex 10 0e 0f ff   ; $ca61: 10 0e 0f ff   Data
-            .hex ff ff 00 00   ; $ca65: ff ff 00 00   Data
-            .hex 00 00 00 ff   ; $ca69: 00 00 00 ff   Data
-            .hex 1c ff ff ff   ; $ca6d: 1c ff ff ff   Data
-            .hex ff ff ff ae   ; $ca71: ff ff ff ae   Data
-            .hex af ae af 20   ; $ca75: af ae af 20   Data
-            .hex c0 20 ff ff   ; $ca79: c0 20 ff ff   Data
-            .hex ff ff ff 1b   ; $ca7d: ff ff ff 1b   Data
-            .hex ff 11 0e 12   ; $ca81: ff 11 0e 12   Data
-            .hex 13 11 14 ff   ; $ca85: 13 11 14 ff   Data
-            .hex ff 00 00 00   ; $ca89: ff 00 00 00   Data
-            .hex 00 00 ff 1c   ; $ca8d: 00 00 ff 1c   Data
-            .hex ff ff ff ff   ; $ca91: ff ff ff ff   Data
-            .hex ff ff ae af   ; $ca95: ff ff ae af   Data
-            .hex ae af 20 e0   ; $ca99: ae af 20 e0   Data
-            .hex 20 ff ff ff   ; $ca9d: 20 ff ff ff   Data
-            .hex ff ff 1b ff   ; $caa1: ff ff 1b ff   Data
-            .hex ff ff ff ff   ; $caa5: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $caa9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $caad: ff ff ff ff   Data
-            .hex ff ff 1c ff   ; $cab1: ff ff 1c ff   Data
-            .hex ff ff 43 44   ; $cab5: ff ff 43 44   Data
-            .hex 45 ce cf ae   ; $cab9: 45 ce cf ae   Data
-            .hex af 21 00 20   ; $cabd: af 21 00 20   Data
-            .hex be bf be bf   ; $cac1: be bf be bf   Data
-            .hex ff 1b ff 16   ; $cac5: ff 1b ff 16   Data
-            .hex 16 16 16 16   ; $cac9: 16 16 16 16   Data
-            .hex 16 16 16 16   ; $cacd: 16 16 16 16   Data
-            .hex 16 16 16 16   ; $cad1: 16 16 16 16   Data
-            .hex ff 1c ff ff   ; $cad5: ff 1c ff ff   Data
-            .hex ff 53 54 55   ; $cad9: ff 53 54 55   Data
-            .hex de df ae af   ; $cadd: de df ae af   Data
-            .hex 21 20 20 ae   ; $cae1: 21 20 20 ae   Data
-            .hex af ae af ff   ; $cae5: af ae af ff   Data
-            .hex 1b ff 14 0c   ; $cae9: 1b ff 14 0c   Data
-            .hex 14 15 0f ff   ; $caed: 14 15 0f ff   Data
-            .hex ff 00 00 00   ; $caf1: ff 00 00 00   Data
-            .hex 00 00 00 ff   ; $caf5: 00 00 00 ff   Data
-            .hex 1c ff ff ff   ; $caf9: 1c ff ff ff   Data
-            .hex ff ff 65 ee   ; $cafd: ff ff 65 ee   Data
-            .hex ef ae af 21   ; $cb01: ef ae af 21   Data
-            .hex 40 20 ae af   ; $cb05: 40 20 ae af   Data
-            .hex ae af ff 1d   ; $cb09: ae af ff 1d   Data
-            .hex 1e 1e 1e 1e   ; $cb0d: 1e 1e 1e 1e   Data
-            .hex 1e 1e 1e 1e   ; $cb11: 1e 1e 1e 1e   Data
-            .hex 1e 1e 1e 1e   ; $cb15: 1e 1e 1e 1e   Data
-            .hex 1e 1e 1e 1f   ; $cb19: 1e 1e 1e 1f   Data
-            .hex ff ff be bf   ; $cb1d: ff ff be bf   Data
-            .hex be bf be af   ; $cb21: be bf be af   Data
-            .hex ae af 21 60   ; $cb25: ae af 21 60   Data
-            .hex 20 ae af ae   ; $cb29: 20 ae af ae   Data
-            .hex af ff ff ff   ; $cb2d: af ff ff ff   Data
-            .hex ff ff ff ff   ; $cb31: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cb35: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cb39: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cb3d: ff ff ff ff   Data
-            .hex ff ae af ae   ; $cb41: ff ae af ae   Data
-            .hex af ae af ae   ; $cb45: af ae af ae   Data
-            .hex af 21 80 20   ; $cb49: af 21 80 20   Data
-            .hex ae af cc cd   ; $cb4d: ae af cc cd   Data
-            .hex ff ff ff ff   ; $cb51: ff ff ff ff   Data
-            .hex ff ca ff ff   ; $cb55: ff ca ff ff   Data
-            .hex ff ff ff ff   ; $cb59: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cb5d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cb61: ff ff ff ff   Data
-            .hex ae af ae af   ; $cb65: ae af ae af   Data
-            .hex ae af ae af   ; $cb69: ae af ae af   Data
-            .hex 21 a0 20 ae   ; $cb6d: 21 a0 20 ae   Data
-            .hex af dc dd ff   ; $cb71: af dc dd ff   Data
-            .hex 93 94 ff ff   ; $cb75: 93 94 ff ff   Data
-            .hex da ff ff ff   ; $cb79: da ff ff ff   Data
-            .hex ff ff ff ff   ; $cb7d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cb81: ff ff ff ff   Data
-            .hex ff ff ff ae   ; $cb85: ff ff ff ae   Data
-            .hex af ae af ae   ; $cb89: af ae af ae   Data
-            .hex af ae af 21   ; $cb8d: af ae af 21   Data
-            .hex c0 20 ae af   ; $cb91: c0 20 ae af   Data
-            .hex ec ed ff ff   ; $cb95: ec ed ff ff   Data
-            .hex ff ff ff ea   ; $cb99: ff ff ff ea   Data
-            .hex ff ff ff ff   ; $cb9d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cba1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cba5: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cba9: ff ff ff ff   Data
-            .hex ff ff ae af   ; $cbad: ff ff ae af   Data
-            .hex ae af 21 e0   ; $cbb1: ae af 21 e0   Data
-            .hex 20 ae af ec   ; $cbb5: 20 ae af ec   Data
-            .hex ed ff b3 b4   ; $cbb9: ed ff b3 b4   Data
-            .hex b5 f9 fa fb   ; $cbbd: b5 f9 fa fb   Data
-            .hex ff ff ff ff   ; $cbc1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cbc5: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cbc9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cbcd: ff ff ff ff   Data
-            .hex ff ae af ae   ; $cbd1: ff ae af ae   Data
-            .hex af 22 00 20   ; $cbd5: af 22 00 20   Data
-            .hex ae af ae bf   ; $cbd9: ae af ae bf   Data
-            .hex be bf be bf   ; $cbdd: be bf be bf   Data
-            .hex be bf be bf   ; $cbe1: be bf be bf   Data
-            .hex ff ff ff ff   ; $cbe5: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cbe9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cbed: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cbf1: ff ff ff ff   Data
-            .hex ce cf ae af   ; $cbf5: ce cf ae af   Data
-            .hex 22 20 20 ae   ; $cbf9: 22 20 20 ae   Data
-            .hex af ae af ae   ; $cbfd: af ae af ae   Data
-            .hex af ae af ae   ; $cc01: af ae af ae   Data
-            .hex af ae af ff   ; $cc05: af ae af ff   Data
-            .hex ff ff ff ff   ; $cc09: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cc0d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cc11: ff ff ff ff   Data
-            .hex ff ff ff de   ; $cc15: ff ff ff de   Data
-            .hex df ae af 22   ; $cc19: df ae af 22   Data
-            .hex 40 20 ae af   ; $cc1d: 40 20 ae af   Data
-            .hex dc cd ff ff   ; $cc21: dc cd ff ff   Data
-            .hex c0 c1 c2 c3   ; $cc25: c0 c1 c2 c3   Data
-            .hex ff ff ff ff   ; $cc29: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cc2d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cc31: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cc35: ff ff ff ff   Data
-            .hex ff ff ee ef   ; $cc39: ff ff ee ef   Data
-            .hex ae af 22 60   ; $cc3d: ae af 22 60   Data
-            .hex 20 ae af ec   ; $cc41: 20 ae af ec   Data
-            .hex dd ff ff d0   ; $cc45: dd ff ff d0   Data
-            .hex d1 d2 d3 ff   ; $cc49: d1 d2 d3 ff   Data
-            .hex ff ff ff ff   ; $cc4d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cc51: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cc55: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cc59: ff ff ff ff   Data
-            .hex ff ee ef ae   ; $cc5d: ff ee ef ae   Data
-            .hex af 22 80 20   ; $cc61: af 22 80 20   Data
-            .hex ae af ec ed   ; $cc65: ae af ec ed   Data
-            .hex ff ff e0 ff   ; $cc69: ff ff e0 ff   Data
-            .hex ff e3 ff ff   ; $cc6d: ff e3 ff ff   Data
-            .hex ff ff ff ff   ; $cc71: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cc75: ff ff ff ff   Data
-            .hex be bf be bf   ; $cc79: be bf be bf   Data
-            .hex be bf be bf   ; $cc7d: be bf be bf   Data
-            .hex be af ae af   ; $cc81: be af ae af   Data
-            .hex 22 a0 20 ae   ; $cc85: 22 a0 20 ae   Data
-            .hex af ec ed ff   ; $cc89: af ec ed ff   Data
-            .hex ff f0 ff ff   ; $cc8d: ff f0 ff ff   Data
-            .hex ff ff ff ff   ; $cc91: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cc95: ff ff ff ff   Data
-            .hex ff ff ff ae   ; $cc99: ff ff ff ae   Data
-            .hex af ae af ae   ; $cc9d: af ae af ae   Data
-            .hex af ae af ae   ; $cca1: af ae af ae   Data
-            .hex af ae af 22   ; $cca5: af ae af 22   Data
-            .hex c0 20 ae af   ; $cca9: c0 20 ae af   Data
-            .hex ae bf be bf   ; $ccad: ae bf be bf   Data
-            .hex be bf be bf   ; $ccb1: be bf be bf   Data
-            .hex ff ff ff ff   ; $ccb5: ff ff ff ff   Data
-            .hex ff ff ff 4d   ; $ccb9: ff ff ff 4d   Data
-            .hex ff ff ff ff   ; $ccbd: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ccc1: ff ff ff ff   Data
-            .hex ff ff ce cf   ; $ccc5: ff ff ce cf   Data
-            .hex ae af 22 e0   ; $ccc9: ae af 22 e0   Data
-            .hex 20 ae af ae   ; $cccd: 20 ae af ae   Data
-            .hex af ae af ae   ; $ccd1: af ae af ae   Data
-            .hex af ae af ff   ; $ccd5: af ae af ff   Data
-            .hex ff ff 59 5a   ; $ccd9: ff ff 59 5a   Data
-            .hex ff 5c 5d ff   ; $ccdd: ff 5c 5d ff   Data
-            .hex ff ff ff ff   ; $cce1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cce5: ff ff ff ff   Data
-            .hex ff de df ae   ; $cce9: ff de df ae   Data
-            .hex af 23 00 20   ; $cced: af 23 00 20   Data
-            .hex ae af ae af   ; $ccf1: ae af ae af   Data
-            .hex ae af ae af   ; $ccf5: ae af ae af   Data
-            .hex ae af ff ff   ; $ccf9: ae af ff ff   Data
-            .hex 68 69 6a 6b   ; $ccfd: 68 69 6a 6b   Data
-            .hex 6c 6d 6e 6f   ; $cd01: 6c 6d 6e 6f   Data
-            .hex ff b6 b7 b8   ; $cd05: ff b6 b7 b8   Data
-            .hex ff ff 81 ff   ; $cd09: ff ff 81 ff   Data
-            .hex ee ef ae af   ; $cd0d: ee ef ae af   Data
-            .hex 23 20 20 ae   ; $cd11: 23 20 20 ae   Data
-            .hex af ae af ae   ; $cd15: af ae af ae   Data
-            .hex af ae af ae   ; $cd19: af ae af ae   Data
-            .hex af ff ff 78   ; $cd1d: af ff ff 78   Data
-            .hex 79 7a 7b 7c   ; $cd21: 79 7a 7b 7c   Data
-            .hex 7d 7e 7f ff   ; $cd25: 7d 7e 7f ff   Data
-            .hex c6 c7 ff ff   ; $cd29: c6 c7 ff ff   Data
-            .hex 90 91 92 ee   ; $cd2d: 90 91 92 ee   Data
-            .hex ef ae af 23   ; $cd31: ef ae af 23   Data
-            .hex 40 20 ae af   ; $cd35: 40 20 ae af   Data
-            .hex ae af ae af   ; $cd39: ae af ae af   Data
-            .hex ae af ae af   ; $cd3d: ae af ae af   Data
-            .hex ff ff 88 89   ; $cd41: ff ff 88 89   Data
-            .hex 8a 8b 8c 8d   ; $cd45: 8a 8b 8c 8d   Data
-            .hex 8e 8f ff ff   ; $cd49: 8e 8f ff ff   Data
-            .hex ff ff ff a0   ; $cd4d: ff ff ff a0   Data
-            .hex a1 a2 ee ef   ; $cd51: a1 a2 ee ef   Data
-            .hex ae af 23 60   ; $cd55: ae af 23 60   Data
-            .hex 20 ae af ae   ; $cd59: 20 ae af ae   Data
-            .hex af ae af ae   ; $cd5d: af ae af ae   Data
-            .hex af ae af ff   ; $cd61: af ae af ff   Data
-            .hex ff 98 99 9a   ; $cd65: ff 98 99 9a   Data
-            .hex 9b 9c 9d 9e   ; $cd69: 9b 9c 9d 9e   Data
-            .hex 9f ff e6 e7   ; $cd6d: 9f ff e6 e7   Data
-            .hex e8 ff b0 b1   ; $cd71: e8 ff b0 b1   Data
-            .hex b2 ee ef ae   ; $cd75: b2 ee ef ae   Data
-            .hex af 23 80 20   ; $cd79: af 23 80 20   Data
-            .hex 96 97 96 97   ; $cd7d: 96 97 96 97   Data
-            .hex 96 97 96 97   ; $cd81: 96 97 96 97   Data
-            .hex 96 97 96 97   ; $cd85: 96 97 96 97   Data
-            .hex 96 97 96 97   ; $cd89: 96 97 96 97   Data
-            .hex 96 97 96 97   ; $cd8d: 96 97 96 97   Data
-            .hex 96 97 96 97   ; $cd91: 96 97 96 97   Data
-            .hex 96 97 96 97   ; $cd95: 96 97 96 97   Data
-            .hex 96 97 96 97   ; $cd99: 96 97 96 97   Data
-            .hex 23 a0 20 a6   ; $cd9d: 23 a0 20 a6   Data
-            .hex a7 a6 a7 a6   ; $cda1: a7 a6 a7 a6   Data
-            .hex a7 a6 a7 a6   ; $cda5: a7 a6 a7 a6   Data
-            .hex a7 a6 a7 a6   ; $cda9: a7 a6 a7 a6   Data
-            .hex a7 a6 a7 a6   ; $cdad: a7 a6 a7 a6   Data
-            .hex a7 a6 a7 a6   ; $cdb1: a7 a6 a7 a6   Data
-            .hex a7 a6 a7 a6   ; $cdb5: a7 a6 a7 a6   Data
-            .hex a7 a6 a7 a6   ; $cdb9: a7 a6 a7 a6   Data
-            .hex a7 a6 a7 23   ; $cdbd: a7 a6 a7 23   Data
-            .hex c0 20 aa fa   ; $cdc1: c0 20 aa fa   Data
-            .hex fa fa fa ba   ; $cdc5: fa fa fa ba   Data
-            .hex aa aa aa 77   ; $cdc9: aa aa aa 77   Data
-            .hex 55 55 55 bb   ; $cdcd: 55 55 55 bb   Data
-            .hex 5a aa aa f7   ; $cdd1: 5a aa aa f7   Data
-            .hex f5 f5 f5 bb   ; $cdd5: f5 f5 f5 bb   Data
-            .hex a5 aa aa 55   ; $cdd9: a5 aa aa 55   Data
-            .hex aa 00 00 aa   ; $cddd: aa 00 00 aa   Data
-            .hex aa aa 23 e0   ; $cde1: aa aa 23 e0   Data
-            .hex 20 aa 2a 8a   ; $cde5: 20 aa 2a 8a   Data
-            .hex 00 00 00 00   ; $cde9: 00 00 00 00   Data
-            .hex aa aa a2 a8   ; $cded: aa aa a2 a8   Data
-            .hex 00 00 aa aa   ; $cdf1: 00 00 aa aa   Data
-            .hex aa aa aa aa   ; $cdf5: aa aa aa aa   Data
-            .hex 0f 0f ff 00   ; $cdf9: 0f 0f ff 00   Data
-            .hex aa 0a 0a 0a   ; $cdfd: aa 0a 0a 0a   Data
-            .hex 0a 0a 0a 0a   ; $ce01: 0a 0a 0a 0a   Data
-            .hex 0a ff 20 00   ; $ce05: 0a ff 20 00   Data
-            .hex 20 76 77 76   ; $ce09: 20 76 77 76   Data
-            .hex 77 76 77 76   ; $ce0d: 77 76 77 76   Data
-            .hex 77 76 77 76   ; $ce11: 77 76 77 76   Data
-            .hex 77 76 77 76   ; $ce15: 77 76 77 76   Data
-            .hex 77 76 77 76   ; $ce19: 77 76 77 76   Data
-            .hex 77 76 77 76   ; $ce1d: 77 76 77 76   Data
-            .hex 77 76 77 76   ; $ce21: 77 76 77 76   Data
-            .hex 77 76 77 76   ; $ce25: 77 76 77 76   Data
-            .hex 77 20 20 20   ; $ce29: 77 20 20 20   Data
-            .hex 76 77 76 77   ; $ce2d: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $ce31: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $ce35: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $ce39: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $ce3d: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $ce41: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $ce45: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $ce49: 76 77 76 77   Data
-            .hex 20 40 20 76   ; $ce4d: 20 40 20 76   Data
-            .hex 77 ff ff ff   ; $ce51: 77 ff ff ff   Data
-            .hex ff ff ff ff   ; $ce55: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ce59: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ce5d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ce61: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ce65: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ce69: ff ff ff ff   Data
-            .hex ff 76 77 20   ; $ce6d: ff 76 77 20   Data
-            .hex 60 20 76 77   ; $ce71: 60 20 76 77   Data
-            .hex ff ff ff 18   ; $ce75: ff ff ff 18   Data
-            .hex 19 19 19 19   ; $ce79: 19 19 19 19   Data
-            .hex 19 19 19 19   ; $ce7d: 19 19 19 19   Data
-            .hex 19 19 19 19   ; $ce81: 19 19 19 19   Data
-            .hex 19 19 19 1a   ; $ce85: 19 19 19 1a   Data
-            .hex ff ff ff ff   ; $ce89: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $ce8d: ff ff ff ff   Data
-            .hex 76 77 20 80   ; $ce91: 76 77 20 80   Data
-            .hex 20 76 77 ff   ; $ce95: 20 76 77 ff   Data
-            .hex ff ff 1b ff   ; $ce99: ff ff 1b ff   Data
-            .hex 0a 0b 0c 0d   ; $ce9d: 0a 0b 0c 0d   Data
-            .hex 0e ff ff 00   ; $cea1: 0e ff ff 00   Data
-            .hex 00 00 00 00   ; $cea5: 00 00 00 00   Data
-            .hex 00 ff 1c ff   ; $cea9: 00 ff 1c ff   Data
-            .hex ff ff ff ff   ; $cead: ff ff ff ff   Data
-            .hex ff ff ff 76   ; $ceb1: ff ff ff 76   Data
-            .hex 77 20 a0 20   ; $ceb5: 77 20 a0 20   Data
-            .hex 76 77 ff ff   ; $ceb9: 76 77 ff ff   Data
-            .hex ff 1b ff 0f   ; $cebd: ff 1b ff 0f   Data
-            .hex 0e 10 0e 0f   ; $cec1: 0e 10 0e 0f   Data
-            .hex ff ff ff 00   ; $cec5: ff ff ff 00   Data
-            .hex 00 00 00 00   ; $cec9: 00 00 00 00   Data
-            .hex ff 1c ff ff   ; $cecd: ff 1c ff ff   Data
-            .hex ff ff ff ff   ; $ced1: ff ff ff ff   Data
-            .hex ff ff 76 77   ; $ced5: ff ff 76 77   Data
-            .hex 20 c0 20 76   ; $ced9: 20 c0 20 76   Data
-            .hex 77 ff ff ff   ; $cedd: 77 ff ff ff   Data
-            .hex 1b ff 11 0e   ; $cee1: 1b ff 11 0e   Data
-            .hex 12 13 11 14   ; $cee5: 12 13 11 14   Data
-            .hex ff ff 00 00   ; $cee9: ff ff 00 00   Data
-            .hex 00 00 00 ff   ; $ceed: 00 00 00 ff   Data
-            .hex 1c ff ff ff   ; $cef1: 1c ff ff ff   Data
-            .hex ff ff ff ff   ; $cef5: ff ff ff ff   Data
-            .hex ff 76 77 20   ; $cef9: ff 76 77 20   Data
-            .hex e0 20 76 77   ; $cefd: e0 20 76 77   Data
-            .hex ff ff ff 1b   ; $cf01: ff ff ff 1b   Data
-            .hex ff ff ff ff   ; $cf05: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cf09: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cf0d: ff ff ff ff   Data
-            .hex ff ff ff 1c   ; $cf11: ff ff ff 1c   Data
-            .hex ff ff ff ff   ; $cf15: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cf19: ff ff ff ff   Data
-            .hex 76 77 21 00   ; $cf1d: 76 77 21 00   Data
-            .hex 20 76 77 ff   ; $cf21: 20 76 77 ff   Data
-            .hex ff ff 1b ff   ; $cf25: ff ff 1b ff   Data
-            .hex 16 16 16 16   ; $cf29: 16 16 16 16   Data
-            .hex 16 16 16 16   ; $cf2d: 16 16 16 16   Data
-            .hex 16 16 16 16   ; $cf31: 16 16 16 16   Data
-            .hex 16 ff 1c ff   ; $cf35: 16 ff 1c ff   Data
-            .hex ff ff ff ff   ; $cf39: ff ff ff ff   Data
-            .hex ff ff ff 76   ; $cf3d: ff ff ff 76   Data
-            .hex 77 21 20 20   ; $cf41: 77 21 20 20   Data
-            .hex 76 77 ff ff   ; $cf45: 76 77 ff ff   Data
-            .hex ff 1b ff 14   ; $cf49: ff 1b ff 14   Data
-            .hex 0c 14 15 0f   ; $cf4d: 0c 14 15 0f   Data
-            .hex ff ff 00 00   ; $cf51: ff ff 00 00   Data
-            .hex 00 00 00 00   ; $cf55: 00 00 00 00   Data
-            .hex ff 1c ff ff   ; $cf59: ff 1c ff ff   Data
-            .hex ff ff ff ff   ; $cf5d: ff ff ff ff   Data
-            .hex ff ff 76 77   ; $cf61: ff ff 76 77   Data
-            .hex 21 40 20 76   ; $cf65: 21 40 20 76   Data
-            .hex 77 ff ff ff   ; $cf69: 77 ff ff ff   Data
-            .hex 1d 1e 1e 1e   ; $cf6d: 1d 1e 1e 1e   Data
-            .hex 1e 1e 1e 1e   ; $cf71: 1e 1e 1e 1e   Data
-            .hex 1e 1e 1e 1e   ; $cf75: 1e 1e 1e 1e   Data
-            .hex 1e 1e 1e 1e   ; $cf79: 1e 1e 1e 1e   Data
-            .hex 1f ff ff ff   ; $cf7d: 1f ff ff ff   Data
-            .hex ff ff ff ff   ; $cf81: ff ff ff ff   Data
-            .hex ff 76 77 21   ; $cf85: ff 76 77 21   Data
-            .hex 60 20 76 77   ; $cf89: 60 20 76 77   Data
-            .hex ff ff ff ff   ; $cf8d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cf91: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cf95: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cf99: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cf9d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cfa1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cfa5: ff ff ff ff   Data
-            .hex 76 77 21 80   ; $cfa9: 76 77 21 80   Data
-            .hex 20 76 77 ff   ; $cfad: 20 76 77 ff   Data
-            .hex ff ff ff ff   ; $cfb1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cfb5: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cfb9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cfbd: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cfc1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cfc5: ff ff ff ff   Data
-            .hex ff ff ff 76   ; $cfc9: ff ff ff 76   Data
-            .hex 77 21 a0 20   ; $cfcd: 77 21 a0 20   Data
-            .hex 76 77 ff ff   ; $cfd1: 76 77 ff ff   Data
-            .hex ff ff ff ff   ; $cfd5: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cfd9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cfdd: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cfe1: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cfe5: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cfe9: ff ff ff ff   Data
-            .hex ff ff 76 77   ; $cfed: ff ff 76 77   Data
-            .hex 21 c0 20 76   ; $cff1: 21 c0 20 76   Data
-            .hex 77 ff ff ff   ; $cff5: 77 ff ff ff   Data
-            .hex ff ff ff ff   ; $cff9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $cffd: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d001: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d005: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d009: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d00d: ff ff ff ff   Data
-            .hex ff 76 77 21   ; $d011: ff 76 77 21   Data
-            .hex e0 20 76 77   ; $d015: e0 20 76 77   Data
-            .hex ff ff ff ff   ; $d019: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d01d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d021: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d025: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d029: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d02d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d031: ff ff ff ff   Data
-            .hex 76 77 22 00   ; $d035: 76 77 22 00   Data
-            .hex 20 76 77 ff   ; $d039: 20 76 77 ff   Data
-            .hex ff ff ff ff   ; $d03d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d041: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d045: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d049: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d04d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d051: ff ff ff ff   Data
-            .hex ff ff ff 76   ; $d055: ff ff ff 76   Data
-            .hex 77 22 20 20   ; $d059: 77 22 20 20   Data
-            .hex 76 77 ff ff   ; $d05d: 76 77 ff ff   Data
-            .hex ff ff ff ff   ; $d061: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d065: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d069: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d06d: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d071: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d075: ff ff ff ff   Data
-            .hex ff ff 76 77   ; $d079: ff ff 76 77   Data
-            .hex 22 40 20 76   ; $d07d: 22 40 20 76   Data
-            .hex 77 ff ff ff   ; $d081: 77 ff ff ff   Data
-            .hex ff ff ff ff   ; $d085: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d089: ff ff ff ff   Data
-            .hex ff ff ff 38   ; $d08d: ff ff ff 38   Data
-            .hex ff ff ff ff   ; $d091: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d095: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d099: ff ff ff ff   Data
-            .hex ff 76 77 22   ; $d09d: ff 76 77 22   Data
-            .hex 60 20 76 77   ; $d0a1: 60 20 76 77   Data
-            .hex ff ff ff ff   ; $d0a5: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d0a9: ff ff ff ff   Data
-            .hex ff ff ff 39   ; $d0ad: ff ff ff 39   Data
-            .hex ff 3b 3c ff   ; $d0b1: ff 3b 3c ff   Data
-            .hex 3e ff ff ff   ; $d0b5: 3e ff ff ff   Data
-            .hex ff ff ff ff   ; $d0b9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d0bd: ff ff ff ff   Data
-            .hex 76 77 22 80   ; $d0c1: 76 77 22 80   Data
-            .hex 20 76 77 ff   ; $d0c5: 20 76 77 ff   Data
-            .hex ff ff ff ff   ; $d0c9: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d0cd: ff ff ff ff   Data
-            .hex ff 48 49 4a   ; $d0d1: ff 48 49 4a   Data
-            .hex 4b 4c 4d 4e   ; $d0d5: 4b 4c 4d 4e   Data
-            .hex 4f ff ff ff   ; $d0d9: 4f ff ff ff   Data
-            .hex ff ff ff ff   ; $d0dd: ff ff ff ff   Data
-            .hex ff ff ff 76   ; $d0e1: ff ff ff 76   Data
-            .hex 77 22 a0 20   ; $d0e5: 77 22 a0 20   Data
-            .hex 76 77 ff ff   ; $d0e9: 76 77 ff ff   Data
-            .hex ff ff ff ff   ; $d0ed: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d0f1: ff ff ff ff   Data
-            .hex 58 59 5a 5b   ; $d0f5: 58 59 5a 5b   Data
-            .hex 5c 5d 5e 5f   ; $d0f9: 5c 5d 5e 5f   Data
-            .hex ff ff ff ff   ; $d0fd: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d101: ff ff ff ff   Data
-            .hex ff ff 76 77   ; $d105: ff ff 76 77   Data
-            .hex 22 c0 20 76   ; $d109: 22 c0 20 76   Data
-            .hex 77 ff ff ff   ; $d10d: 77 ff ff ff   Data
-            .hex ff ff ff ff   ; $d111: ff ff ff ff   Data
-            .hex ff ff ff 68   ; $d115: ff ff ff 68   Data
-            .hex 69 6a 6b 6c   ; $d119: 69 6a 6b 6c   Data
-            .hex 6d 6e 6f ff   ; $d11d: 6d 6e 6f ff   Data
-            .hex ff ff ff ff   ; $d121: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d125: ff ff ff ff   Data
-            .hex ff 76 77 22   ; $d129: ff 76 77 22   Data
-            .hex e0 20 76 77   ; $d12d: e0 20 76 77   Data
-            .hex ff ff ff ff   ; $d131: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d135: ff ff ff ff   Data
-            .hex ff ff 78 79   ; $d139: ff ff 78 79   Data
-            .hex 7a 7b 7c 7d   ; $d13d: 7a 7b 7c 7d   Data
-            .hex 7e 7f ff ff   ; $d141: 7e 7f ff ff   Data
-            .hex ff ff ff ff   ; $d145: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d149: ff ff ff ff   Data
-            .hex 76 77 23 00   ; $d14d: 76 77 23 00   Data
-            .hex 20 76 77 ff   ; $d151: 20 76 77 ff   Data
-            .hex ff ff ff ff   ; $d155: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d159: ff ff ff ff   Data
-            .hex ff 88 89 8a   ; $d15d: ff 88 89 8a   Data
-            .hex 8b 8c 8d 8e   ; $d161: 8b 8c 8d 8e   Data
-            .hex 8f ff ff ff   ; $d165: 8f ff ff ff   Data
-            .hex ff ff ff ff   ; $d169: ff ff ff ff   Data
-            .hex ff ff ff 76   ; $d16d: ff ff ff 76   Data
-            .hex 77 23 20 20   ; $d171: 77 23 20 20   Data
-            .hex 76 77 ff ff   ; $d175: 76 77 ff ff   Data
-            .hex ff ff ff ff   ; $d179: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d17d: ff ff ff ff   Data
-            .hex 98 99 9a 9b   ; $d181: 98 99 9a 9b   Data
-            .hex 9c 9d 9e 9f   ; $d185: 9c 9d 9e 9f   Data
-            .hex ff ff ff ff   ; $d189: ff ff ff ff   Data
-            .hex ff ff ff ff   ; $d18d: ff ff ff ff   Data
-            .hex ff ff 76 77   ; $d191: ff ff 76 77   Data
-            .hex 23 40 20 76   ; $d195: 23 40 20 76   Data
-            .hex 77 86 87 86   ; $d199: 77 86 87 86   Data
-            .hex 87 86 87 86   ; $d19d: 87 86 87 86   Data
-            .hex 87 86 87 86   ; $d1a1: 87 86 87 86   Data
-            .hex 87 86 87 86   ; $d1a5: 87 86 87 86   Data
-            .hex 87 86 87 86   ; $d1a9: 87 86 87 86   Data
-            .hex 87 86 87 86   ; $d1ad: 87 86 87 86   Data
-            .hex 87 86 87 86   ; $d1b1: 87 86 87 86   Data
-            .hex 87 76 77 23   ; $d1b5: 87 76 77 23   Data
-            .hex 60 20 76 77   ; $d1b9: 60 20 76 77   Data
-            .hex 96 97 96 97   ; $d1bd: 96 97 96 97   Data
-            .hex 96 97 96 97   ; $d1c1: 96 97 96 97   Data
-            .hex 96 97 96 97   ; $d1c5: 96 97 96 97   Data
-            .hex 96 97 96 97   ; $d1c9: 96 97 96 97   Data
-            .hex 96 97 96 97   ; $d1cd: 96 97 96 97   Data
-            .hex 96 97 96 97   ; $d1d1: 96 97 96 97   Data
-            .hex 96 97 96 97   ; $d1d5: 96 97 96 97   Data
-            .hex 76 77 23 80   ; $d1d9: 76 77 23 80   Data
-            .hex 20 76 77 76   ; $d1dd: 20 76 77 76   Data
-            .hex 77 76 77 76   ; $d1e1: 77 76 77 76   Data
-            .hex 77 76 77 76   ; $d1e5: 77 76 77 76   Data
-            .hex 77 76 77 76   ; $d1e9: 77 76 77 76   Data
-            .hex 77 76 77 76   ; $d1ed: 77 76 77 76   Data
-            .hex 77 76 77 76   ; $d1f1: 77 76 77 76   Data
-            .hex 77 76 77 76   ; $d1f5: 77 76 77 76   Data
-            .hex 77 76 77 76   ; $d1f9: 77 76 77 76   Data
-            .hex 77 23 a0 20   ; $d1fd: 77 23 a0 20   Data
-            .hex 76 77 76 77   ; $d201: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $d205: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $d209: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $d20d: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $d211: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $d215: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $d219: 76 77 76 77   Data
-            .hex 76 77 76 77   ; $d21d: 76 77 76 77   Data
-            .hex 23 c0 20 aa   ; $d221: 23 c0 20 aa   Data
-            .hex fa fa fa fa   ; $d225: fa fa fa fa   Data
-            .hex fa aa aa aa   ; $d229: fa aa aa aa   Data
-            .hex 77 55 55 55   ; $d22d: 77 55 55 55   Data
-            .hex ff 00 88 22   ; $d231: ff 00 88 22   Data
-            .hex f7 f5 f5 f5   ; $d235: f7 f5 f5 f5   Data
-            .hex ff 00 88 22   ; $d239: ff 00 88 22   Data
-            .hex 00 00 6a 5a   ; $d23d: 00 00 6a 5a   Data
-            .hex 0a 00 88 23   ; $d241: 0a 00 88 23   Data
-            .hex e0 20 22 00   ; $d245: e0 20 22 00   Data
-            .hex 00 f6 f4 00   ; $d249: 00 f6 f4 00   Data
-            .hex 00 88 22 00   ; $d24d: 00 88 22 00   Data
-            .hex 00 ff f3 00   ; $d251: 00 ff f3 00   Data
-            .hex 00 88 22 00   ; $d255: 00 88 22 00   Data
-            .hex 00 00 00 00   ; $d259: 00 00 00 00   Data
-            .hex 00 88 0a 0a   ; $d25d: 00 88 0a 0a   Data
-            .hex 0a 0a 0a 0a   ; $d261: 0a 0a 0a 0a   Data
-            .hex 0a 0a ff 20   ; $d265: 0a 0a ff 20   Data
+INCLUDE Blvl9ending_screen.as6
+INCLUDE Bending_screen.as6
+        
+            .hex 20   ; $d265: 0a 0a ff 20   Data
             .hex 00 20 76 77   ; $d269: 00 20 76 77   Data
             .hex 76 77 76 77   ; $d26d: 76 77 76 77   Data
             .hex 76 77 76 77   ; $d271: 76 77 76 77   Data
