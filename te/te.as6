@@ -34,6 +34,7 @@ LCLEARED             = $56	; number of lines being cleared
 LCLEAR_CHECK         = $57	; line clear check counter
 GOV_ANI              = $58	; negative - delay, 0 - top, 20 - finish
 SEL_HEIGHT           = $59      ; selected height
+SPACE_COLUMN         = $5a	; in 2plr mode column for space in spawn lines
 P1_X                 = $60
 P1_Y                 = $61
 P1_OR                = $62
@@ -53,6 +54,7 @@ P1_LCLEARED          = $76	; number of lines being cleared
 P1_LCLEAR_CHECK      = $77	; line clear check counter
 P1_GOV_ANI           = $78
 P1_HEIGHT            = $79
+P1_SPACE_COLUMN      = $7a	; in 2plr mode column for space in spawn lines
 P2_X                 = $80
 P2_Y                 = $81
 P2_OR                = $82
@@ -72,6 +74,7 @@ P2_LCLEARED          = $96	; number of lines being cleared
 P2_LCLEAR_CHECK      = $97	; line clear check counter
 P2_GOV_ANI           = $98
 P2_HEIGHT            = $99
+P2_SPACE_COLUMN      = $9a	; in 2plr mode column for space in spawn lines
 SPR_X                = $a0      ; sprite x coord
 SPR_Y                = $a1      ; sprite y coord
 SPR_PTR_INDEX        = $a2      ; index to spr pointer data
@@ -91,6 +94,7 @@ BUTTONS_NEW          = $b5      ; bits for just pressed buttons
 BUTTONS_ALL          = $b6      ; bits for buttons pressed A B Select Start Up Down Left Right
 CUR_PLR              = $b7	; 0 / 1 for PLR1 / PLR2
 PF_PTR               = $b8	; pointer to playfield data
+MUSIC_FLAG           = $ba	; 0 - normal music, 1 - fast music
 SPAWN_LINES_CUR      = $bb      ; number of extra lines to spawn on cur plr pf
 SPAWN_LINES_OPP      = $bc      ; number of extra lines to spawn on opponents pf
 NMI_FUNC_INDEX       = $bd      ; index of function called from NMI
@@ -100,6 +104,7 @@ GAME_MODE            = $c0      ; current game mode
 SEL_TYPE             = $c1      ; selected game type A or B
 SEL_MUSIC            = $c2      ; selected music (1-3,off)
 COUNTDOWN            = $c3      ; ticks down to 0 every frame
+DEMO_PTR             = $d1      ; pointer to read demo data
 DEMO_COUNTER         = $d3      ; counter for demo mode
 COUNT_1LCLEAR        = $d8	; counter for 1line clears //TODO not used
 COUNT_2LCLEAR        = $d9	; counter for 2line clears //TODO not used
@@ -316,7 +321,7 @@ skip_d700init:
             lda #$35           
             sta $0103
             lda #$ac
-            sta $0104          ; variable initializations
+            sta $0104          ; variable initializations  //TODO used anywhere?
             jsr frame_PPU_rendering_off         ; $80f7: 20 52 aa  
             jsr PPU_disableNMI
             lda #$20
@@ -336,7 +341,7 @@ skip_d700init:
             jsr frame_PPU_rendering_on
             jsr frame_clear_sprite_ram
             lda #$0e           ; $8126: a9 0e     
-            sta $34            ; $8128: 85 34     
+            sta $34            ; //TODO used anywhere?
             lda #$00
             sta GAME_FUNC_INDEX
             sta GAME_MODE
@@ -351,12 +356,12 @@ skip_d700init:
 @skip1:     lda GAME_MODE
             cmp #MODE_DEMO
             bne @skip2         ; if (MODE_DEMO) {
-            lda $d2            ; $8148: a5 d2     
-            cmp #$df           ; $814a: c9 df     
-            bne @skip2         ; $814c: d0 0c     
-            lda #$dd           ; $814e: a9 dd     
-            sta $d2            ; $8150: 85 d2     
-            lda #$00           ; $8152: a9 00     
+            lda DEMO_PTR+1
+            cmp #(>DEMO_DATA)+2           ; end of demo_data?
+            bne @skip2
+            lda #>DEMO_DATA 
+            sta DEMO_PTR+1            ; reset DEMO_PTR
+            lda #$00
             sta FRAMECOUNT+1
             lda #MODE_TITLE
             sta GAME_MODE      ;  set GAME_MODE to MODE_TITLE
@@ -380,10 +385,10 @@ table_jump_game_mode:
 
 ;-------------------------------------------------------------------------------
 game_func4:
-            jsr plr1_init         ; $8174: 20 76 87  
-            jsr table_jump_game_phase         ; $8177: 20 b2 81  
-            jsr game_write_tetr         ; $817a: 20 0a 8a  
-            jsr plr_save1         ; $817d: 20 ae 87  
+            jsr plr1_init
+            jsr table_jump_game_phase
+            jsr game_write_tetr
+            jsr plr_save1
             jsr game_tetr_preview
             inc GAME_FUNC_INDEX ; continue with game_func5     
             rts
@@ -394,17 +399,17 @@ game_func5:
             lda N_PLR
             cmp #$02
             bne @skip1         ; if (2 players) {
-            jsr __8792         ; $818c: 20 92 87  
-            jsr table_jump_game_phase2         ; $818f: 20 d9 81  
-            jsr game_write_tetr         ; $8192: 20 0a 8a  
-            jsr plr_save2         ; $8195: 20 c8 87 } endif 
+            jsr plr2_init
+            jsr table_jump_game_phase2
+            jsr game_write_tetr
+            jsr plr_save2         ;} endif 
 @skip1:     inc GAME_FUNC_INDEX ; continue with game_abort_test     
             rts
 
 ;-------------------------------------------------------------------------------
 mode_func_gamedemo2:
-            lda GAME_FUNC_INDEX            ; $819b: a5 a7     
-            jsr table_jump         ; $819d: 20 82 ac  
+            lda GAME_FUNC_INDEX
+            jsr table_jump
 ;-------------------------------------------------------------------------------
 ; jump table used by mode_func_gamedemo2
             DW game_init_screen, game_func1
@@ -415,39 +420,39 @@ mode_func_gamedemo2:
 
 ;-------------------------------------------------------------------------------
 table_jump_game_phase:
-            lda GAME_PHASE            ; $81b2: a5 48     
-            jsr table_jump         ; $81b4: 20 82 ac  
-            DW jump48_func0, jump48_func1 ;.hex 2f 9e cf      ; $81b7: 2f 9e cf  Invalid Opcode - RLA __cf9e
-            DW jump48_func2, jump48_func3 ;.hex a2 99 6b   ; $81ba: 81 a2 99 6b   Data
-            DW jump48_func4, jump48_func5   ; $81be: 9a 39 9e 58   Data
-            DW jump48_func6, jump48_func7   ; $81c2: 9b f2 a3 03   Data
-            DW jump48_func8, jump48_func9   ; $81c6: 9b 8e 98 39   Data
-            DW jump48_func10, jump48_func11 ;.hex 11 9a 37   ; $81ca: 9e 11 9a 37   Data
+            lda GAME_PHASE
+            jsr table_jump
+            DW jump48_func0, jump48_func1
+            DW jump48_func2, jump48_func3
+            DW jump48_func4, jump48_func5
+            DW jump48_func6, jump48_func7
+            DW jump48_func8, jump48_func9
+            DW jump48_func10, jump48_func11
 
 ;-------------------------------------------------------------------------------
 
 jump48_func1:
             jsr tetr_shift
             jsr tetr_rotate
-            jsr tetr_down
+            jsr tetr_down	; //TODO replace with jmp and remove rts
             rts
 
 ;-------------------------------------------------------------------------------
 table_jump_game_phase2:		; //TODO identical to table_jump_game_phase
-            lda GAME_PHASE            ; $81d9: a5 48     
-            jsr table_jump         ; $81db: 20 82 ac  
-            DW jump48_func0, jump48_2_func1 ;.hex 2f 9e f6      ; $81de: 2f 9e f6  Invalid Opcode - RLA __f69e
-            DW jump48_func2, jump48_func3 ;sta ($a2,x)        ; $81e1: 81 a2 sta __9a6b,y       ; $81e3: 99 6b 9a  
-            DW jump48_func4, jump48_func5 ;and $589e,y        ; $81e6: 39 9e 58 .hex 9b            ; $81e9: 9b        Invalid Opcode - TAS 
-            DW jump48_func6, jump48_func7 ;.hex f2            ; $81ea: f2        Invalid Opcode - KIL .hex a3 03         ; $81eb: a3 03     Invalid Opcode - LAX ($03,x) .hex 9b            ; $81ed: 9b        Invalid Opcode - TAS 
-            DW jump48_func8, jump48_func9 ; stx $3998          ; $81ee: 8e 98 39  
-            DW jump48_func10, jump48_func11 ;.hex 9e 11 9a      ; $81f1: 9e 11 9a  Invalid Opcode - SHX __9a11,y .hex 37 9e         ; $81f4: 37 9e     Invalid Opcode - RLA $9e,x
+            lda GAME_PHASE
+            jsr table_jump
+            DW jump48_func0, jump48_2_func1
+            DW jump48_func2, jump48_func3
+            DW jump48_func4, jump48_func5 
+            DW jump48_func6, jump48_func7
+            DW jump48_func8, jump48_func9
+            DW jump48_func10, jump48_func11
 
 jump48_2_func1:	;//TODO identical to jump48_func1
-            jsr tetr_shift         ; $81f6: 20 ae 89  
-            jsr tetr_rotate         ; $81f9: 20 ab 88  
-            jsr tetr_down         ; $81fc: 20 14 89  
-            rts                ; $81ff: 60        
+            jsr tetr_shift
+            jsr tetr_rotate
+            jsr tetr_down         ; //TODO replace with jmp and remove rts
+            rts
 
 ;-------------------------------------------------------------------------------
 ; display copyright screeen
@@ -813,7 +818,7 @@ mode_func_level:
             and #$0f
             cmp #$0a
             bpl @loop2         ; get RANDOM < 10 (0..9)
-            sta $7a            ; $7a = rnd(0..9)
+            sta P1_SPACE_COLUMN            ; P1_SPACE_COLUMN = rnd(0..9)
 @loop3:     ldx #RANDOM
             ldy #$02
             jsr nextRandom
@@ -821,7 +826,7 @@ mode_func_level:
             and #$0f
             cmp #$0a
             bpl @loop3         ; get RANDOM < 10 (0..9)
-            sta $9a            ; $9a = rnd(0..9)
+            sta P2_SPACE_COLUMN            ; P2_SPACE_COLUMN = rnd(0..9)
             jsr frame_clear_sprite_ram
             jmp @loop0         ; next frame
 
@@ -1142,41 +1147,41 @@ game_func1:
 @loop1:     sta TYPE_COUNTERS-1,x
             dex
             bne @loop1         ; fill $03f0-$03fe with 0 //TODO 15bytes cleared but only 14 needed
-            lda #$05           ; $86ef: a9 05     
-            sta P1_X            ; $86f1: 85 60     
-            sta P2_X            ; $86f3: 85 80     
-            lda #$00           ; $86f5: a9 00     
-            sta P1_Y            ; $86f7: 85 61     
-            sta P2_Y            ; $86f9: 85 81     
-            sta P1_BGUC            ; $86fb: 85 69     
-            sta P2_BGUC            ; $86fd: 85 89     
-            sta P1_FALLT            ; $86ff: 85 65     
-            sta P2_FALLT            ; $8701: 85 85     
-            sta SPAWN_LINES_CUR            ; $8703: 85 bb     
-            sta SPAWN_LINES_OPP            ; $8705: 85 bc     
-            sta P1_SCORE            ; $8707: 85 73     
-            sta P1_SCORE+1            ; $8709: 85 74     
-            sta P1_SCORE+2            ; $870b: 85 75     
-            sta $93            ; $870d: 85 93     
-            sta $94            ; $870f: 85 94     
-            sta $95            ; $8711: 85 95     
-            sta P1_LINES            ; $8713: 85 70     
-            sta P1_LINES+1            ; $8715: 85 71     
-            sta P2_LINES            ; $8717: 85 90     
-            sta P2_LINES+1            ; $8719: 85 91     
+            lda #$05
+            sta P1_X
+            sta P2_X
+            lda #$00
+            sta P1_Y
+            sta P2_Y
+            sta P1_BGUC
+            sta P2_BGUC
+            sta P1_FALLT
+            sta P2_FALLT
+            sta SPAWN_LINES_CUR
+            sta SPAWN_LINES_OPP
+            sta P1_SCORE
+            sta P1_SCORE+1
+            sta P1_SCORE+2
+            sta P2_SCORE
+            sta P2_SCORE+1
+            sta P2_SCORE+2
+            sta P1_LINES
+            sta P1_LINES+1 
+            sta P2_LINES
+            sta P2_LINES+1
             sta $a4            ; $871b: 85 a4     
-            sta COUNT_1LCLEAR            ; $871d: 85 d8     
-            sta COUNT_2LCLEAR            ; $871f: 85 d9     
-            sta COUNT_3LCLEAR            ; $8721: 85 da     
-            sta COUNT_4LCLEAR            ; $8723: 85 db     
-            sta $ba            ; $8725: 85 ba     
+            sta COUNT_1LCLEAR
+            sta COUNT_2LCLEAR
+            sta COUNT_3LCLEAR
+            sta COUNT_4LCLEAR
+            sta MUSIC_FLAG
             sta $ce            ; $8727: 85 ce     
             sta $cf            ; $8729: 85 cf     
             sta DEMO_COUNTER            ; $872b: 85 d3     
-            sta $d1            ; $872d: 85 d1     
+            sta DEMO_PTR            ; $872d: 85 d1     
             sta SPAWN_ID            ; $872f: 85 19     
-            lda #$dd           ; $8731: a9 dd     
-            sta $d2            ; $8733: 85 d2     
+            lda #>DEMO_DATA           ; $8731: a9 dd     
+            sta DEMO_PTR+1            ; $8733: 85 d2     
             lda #$03           ; $8735: a9 03     
             sta NMI_FUNC_INDEX   ; use nmi_func3
             lda #$a0           ; $8739: a9 a0     
@@ -1198,7 +1203,7 @@ game_func1:
             sta P1_LINES            ; $875d: 85 70     
             sta P2_LINES            ; $875f: 85 90     
 @s_typeA:   lda #NMI_LINE_COUNT|NMI_LEVEL|NMI_SCORE|NMI_TYPE_COUNT
-            sta NMI_FLAGS            ; $8763: 85 a3     
+            sta NMI_FLAGS
             jsr frame_clear_sprite_ram
             jsr game_init_start_lines
             ldx SEL_MUSIC
@@ -1228,21 +1233,21 @@ plr1_init:     lda #$01           ; $8776: a9 01
             rts
 
 ;-------------------------------------------------------------------------------
-__8792:     lda #$02           ; $8792: a9 02     
-            sta CUR_PLR            ; $8794: 85 b7     
-            lda #>PLAYFIELD2           ; $8796: a9 05     
-            sta PF_PTR+1            ; $8798: 85 b9     
-            lda JOY2_RAW_NEW            ; $879a: a5 f6     
-            sta BUTTONS_NEW           ; $879c: 85 b5     
-            lda JOY2_RAW_ALL            ; $879e: a5 f8     
-            sta BUTTONS_ALL            ; $87a0: 85 b6     
-            ldx #$1f           ; $87a2: a2 1f     
-__87a4:     lda $80,x          ; $87a4: b5 80     
-            sta $40,x          ; $87a6: 95 40     
-            dex                ; $87a8: ca        
-            cpx #$ff           ; $87a9: e0 ff     
-            bne __87a4         ; $87ab: d0 f7     
-            rts                ; $87ad: 60        
+plr2_init:     lda #$02
+            sta CUR_PLR
+            lda #>PLAYFIELD2
+            sta PF_PTR+1
+            lda JOY2_RAW_NEW
+            sta BUTTONS_NEW
+            lda JOY2_RAW_ALL
+            sta BUTTONS_ALL
+            ldx #$1f
+@loop1:     lda $80,x 
+            sta $40,x
+            dex
+            cpx #$ff
+            bne @loop1
+            rts
 
 ;-------------------------------------------------------------------------------
 plr_save1:     ldx #$1f
@@ -1516,7 +1521,7 @@ tetr_down:
             lda B1
             sta TETR_Y
             lda #$02
-            sta GAME_PHASE
+            sta GAME_PHASE	; phase 2 if invalid
             jsr set_BGU_COUNT
 @ret:     rts
 
@@ -2931,12 +2936,13 @@ __988d:     rts                ; $988d: 60
 
 ;-------------------------------------------------------------------------------
 jump48_func8:
-            lda BGU_COUNT            ; $988e: a5 49     
-            cmp #$20           ; $9890: c9 20     
-            bmi @ret         ; $9892: 30 56     
-            lda N_PLR            ; $9894: a5 be     
-            cmp #$01           ; $9896: c9 01     
-            beq @skip2         ; $9898: f0 20     
+            lda BGU_COUNT
+            cmp #32
+            bmi @ret         ; if (BG update not ready) return
+            lda N_PLR
+            cmp #$01
+            beq @skip2
+; 2 plr            
             lda $a4            ; $989a: a5 a4     
             cmp #$00           ; $989c: c9 00     
             bne @skip1         ; $989e: d0 0e     
@@ -2951,8 +2957,9 @@ jump48_func8:
             cmp CUR_PLR            ; $98b0: c5 b7     
             bne @ret         ; $98b2: d0 36     
             lda $a4            ; $98b4: a5 a4     
-            cmp #$1c           ; $98b6: c9 1c     
-            bne @ret         ; $98b8: d0 30     
+            cmp #28           ; $98b6: c9 1c     
+            bne @ret         ; $98b8: d0 30
+     
 @skip2:     lda #$00           ; $98ba: a9 00     
             sta $a4            ; $98bc: 85 a4     
             sta FALL_TIMER            ; $98be: 85 45     
@@ -2986,7 +2993,7 @@ gamedemo_spawn:
             bne TETR_spawn     ; if (demo_mode) {
             ldx DEMO_COUNTER
             inc DEMO_COUNTER
-            lda DEMO_DATA,x    ; read table value
+            lda DEMO_SPAWN_DATA,x    ; read table value
             lsr
             lsr
             lsr
@@ -3173,53 +3180,55 @@ jump48_func2:
 
 ;-------------------------------------------------------------------------------
 jump48_func10:
-            lda GOV_ANI            ; $9a11: a5 58     
-            cmp #$14           ; $9a13: c9 14     
-            beq @skip2         ; $9a15: f0 30     
-            lda FRAMECOUNT            ; $9a17: a5 b1     
-            and #$03           ; $9a19: 29 03     
-            bne @ret         ; $9a1b: d0 29     
-            ldx GOV_ANI            ; $9a1d: a6 58     
-            bmi @skip1         ; $9a1f: 30 1d     
-            lda mul10_table,x       ; $9a21: bd d6 96  
-            tay                ; $9a24: a8        
-            lda #$00           ; $9a25: a9 00     
-            sta B2           ; $9a27: 85 aa     
-            lda #$13           ; $9a29: a9 13     
-            sta TETR_OR            ; $9a2b: 85 42     
-@loop1:     lda #$4f           ; $9a2d: a9 4f     
-            sta (PF_PTR),y        ; $9a2f: 91 b8     
-            iny                ; $9a31: c8        
-            inc B2           ; $9a32: e6 aa     
-            lda B2           ; $9a34: a5 aa     
-            cmp #$0a           ; $9a36: c9 0a     
-            bne @loop1         ; $9a38: d0 f3     
-            lda GOV_ANI            ; $9a3a: a5 58     
-            sta BGU_COUNT            ; $9a3c: 85 49     
-@skip1:     inc GOV_ANI            ; $9a3e: e6 58     
-            lda GOV_ANI            ; $9a40: a5 58     
-            cmp #$14           ; $9a42: c9 14     
-            bne @ret         ; $9a44: d0 00     
-@ret:     rts                ; $9a46: 60        
-
-@skip2:     lda N_PLR            ; $9a47: a5 be     
-            cmp #$02           ; $9a49: c9 02     
-            beq @skip4         ; $9a4b: f0 17     
-            lda P1_SCORE+2            ; $9a4d: a5 75     
-            cmp #$03           ; $9a4f: c9 03     
-            bcc @skip3         ; $9a51: 90 0b     
-            lda #$80           ; $9a53: a9 80     
-            jsr Nframe_clear_sprite_ram         ; $9a55: 20 59 a4  
+            lda GOV_ANI
+            cmp #20
+            beq @skip2
+; GOV_ANI < 20            
+            lda FRAMECOUNT
+            and #$03
+            bne @ret
+            ldx GOV_ANI
+            bmi @skip1		; if (GOV_ANI >= 0)
+            lda mul10_table,x
+            tay
+            lda #$00
+            sta B2
+            lda #19
+            sta TETR_OR            ; empty tetrimino
+@loop1:     lda #$4f           ; game over fill char
+            sta (PF_PTR),y        ; write to screen
+            iny
+            inc B2
+            lda B2
+            cmp #10
+            bne @loop1         ; fill 1 line of PF
+            lda GOV_ANI
+            sta BGU_COUNT            ; trigger BG update
+@skip1:     inc GOV_ANI            ; next line
+            lda GOV_ANI
+            cmp #20
+            bne @ret         ; //TODO remove test
+@ret:     rts 
+; GOV_ANI = 20
+@skip2:     lda N_PLR
+            cmp #$02
+            beq @skip4
+; 1plr            
+            lda P1_SCORE+2
+            cmp #$03
+            bcc @skip3         ; if (P1_SCORE < 30000) skip3
+            lda #128
+            jsr Nframe_clear_sprite_ram         ; wait 128 frames
             jsr __9e3a         ; $9a58: 20 3a 9e  
-            jmp @skip4         ; $9a5b: 4c 64 9a  
+            jmp @skip4
 
-@skip3:     lda JOY1_RAW_NEW            ; $9a5e: a5 f5     
+@skip3:     lda JOY1_RAW_NEW
             cmp #BUTTON_START
-            bne @ret2         ; $9a62: d0 06     
-@skip4:     lda #$00           ; $9a64: a9 00     
-            sta GAME_PHASE            ; $9a66: 85 48     
-            sta JOY1_RAW_NEW            ; $9a68: 85 f5     
-@ret2:     rts                ; $9a6a: 60        
+            bne @ret2
+@skip4:     lda #$00
+            sta GAME_PHASE            ; if (START pressed) reset game phase
+            sta JOY1_RAW_NEW
+@ret2:     rts  
 
 ;-------------------------------------------------------------------------------
 jump48_func3:
@@ -3311,48 +3320,52 @@ jump48_func3:
 
 ;-------------------------------------------------------------------------------
 jump48_func7:
-            lda N_PLR            ; $9b03: a5 be     
-            cmp #$01           ; $9b05: c9 01     
-            beq @skip4         ; $9b07: f0 47     
-            ldy SPAWN_LINES_CUR            ; $9b09: a4 bb     
-            beq @skip4         ; $9b0b: f0 43     
-            lda BGU_COUNT            ; $9b0d: a5 49     
-            cmp #$20           ; $9b0f: c9 20     
-            bmi @ret         ; $9b11: 30 3f     
-            lda mul10_table,y       ; $9b13: b9 d6 96  
-            sta TEMP2+1            ; $9b16: 85 a9     
-            lda #$00           ; $9b18: a9 00     
-            sta TEMP2            ; $9b1a: 85 a8     
-@loop1:     ldy TEMP2+1            ; $9b1c: a4 a9     
-            lda (PF_PTR),y        ; $9b1e: b1 b8     
-            ldy TEMP2            ; $9b20: a4 a8     
-            sta (PF_PTR),y        ; $9b22: 91 b8     
-            inc TEMP2            ; $9b24: e6 a8     
-            inc TEMP2+1            ; $9b26: e6 a9     
-            lda TEMP2+1            ; $9b28: a5 a9     
-            cmp #$c8           ; $9b2a: c9 c8     
-            bne @loop1         ; $9b2c: d0 ee     
-            iny                ; $9b2e: c8        
-            ldx #$00           ; $9b2f: a2 00     
-@loop2:     cpx $5a            ; $9b31: e4 5a     
-            beq @skip1         ; $9b33: f0 05     
-            lda #$78           ; $9b35: a9 78     
-            jmp @skip2         ; $9b37: 4c 3c 9b  
+            lda N_PLR
+            cmp #$01
+            beq @skip4		; if (1plr) next phase
+; 2plr            
+            ldy SPAWN_LINES_CUR
+            beq @skip4		; if (no lines to spawn) next phase
+            lda BGU_COUNT
+            cmp #32
+            bmi @ret		; if (BGU not finished) return
 
-@skip1:     lda #$ff           ; $9b3a: a9 ff     
-@skip2:     sta (PF_PTR),y        ; $9b3c: 91 b8     
-            inx                ; $9b3e: e8        
-            cpx #$0a           ; $9b3f: e0 0a     
-            bne @skip3         ; $9b41: d0 02     
-            ldx #$00           ; $9b43: a2 00     
-@skip3:     iny                ; $9b45: c8        
-            cpy #$c8           ; $9b46: c0 c8     
-            bne @loop2         ; $9b48: d0 e7     
-            lda #$00           ; $9b4a: a9 00     
-            sta SPAWN_LINES_CUR            ; $9b4c: 85 bb     
-            sta BGU_COUNT            ; $9b4e: 85 49     
-@skip4:     inc GAME_PHASE            ; $9b50: e6 48     
-@ret:     rts                ; $9b52: 60        
+            lda mul10_table,y
+            sta TEMP2+1            ; TEMP2+1 = lines to spawn*10 == tiles to spawn == source index
+            lda #$00
+            sta TEMP2            ; dest index = 0
+
+@loop1:     ldy TEMP2+1
+            lda (PF_PTR),y
+            ldy TEMP2
+            sta (PF_PTR),y
+            inc TEMP2
+            inc TEMP2+1
+            lda TEMP2+1
+            cmp #200           ; copy tiles TEMP2+1..199 to pos0 (move up SPAWN Lines)
+            bne @loop1
+     
+            iny                ; first free tile after moving up
+            ldx #$00
+@loop2:     cpx SPACE_COLUMN
+            beq @skip1
+            lda #$78           ; value for full block
+            jmp @skip2
+
+@skip1:     lda #$ff           ; value for empty space 
+@skip2:     sta (PF_PTR),y        ; write $78 or $ff to playfield
+            inx
+            cpx #10
+            bne @skip3
+            ldx #$00           ; if X==10 X=0
+@skip3:     iny
+            cpy #200
+            bne @loop2         ; fill rest of playfield
+            lda #$00
+            sta SPAWN_LINES_CUR            ; reset
+            sta BGU_COUNT            ; need scr update
+@skip4:     inc GAME_PHASE            ; next game phase
+@ret:     rts
 
 ;-------------------------------------------------------------------------------
 OPP_SPAWN_TABLE:     .hex 00 00 01 02   ; $9b53: 00 00 01 02   Data
@@ -3619,38 +3632,38 @@ game_func3:
             rts			; continue with game_func4
 
 ;-------------------------------------------------------------------------------
-; set faster music if line 5 is not empty
-music_speed:     ldx #$05           ; $9d17: a2 05     
-            lda mul10_table,x       ; $9d19: bd d6 96  
-            tay                ; $9d1c: a8        
-            ldx #$0a           ; $9d1d: a2 0a     
-__9d1f:     lda (PF_PTR),y        ; $9d1f: b1 b8     
-            cmp #$ef           ; $9d21: c9 ef     
-            bne __9d3c         ; $9d23: d0 17     
-            iny                ; $9d25: c8        
-            dex                ; $9d26: ca        
-            bne __9d1f         ; $9d27: d0 f6     
-            lda $ba            ; $9d29: a5 ba     
-            beq __9d50         ; $9d2b: f0 23     
-            lda #$00           ; $9d2d: a9 00     
-            sta $ba            ; $9d2f: 85 ba     
-            ldx SEL_MUSIC            ; $9d31: a6 c2     
-            lda MUSIC_TABLE,x       ; $9d33: bd d2 85  
-            jsr snd_setMUSIC         ; $9d36: 20 07 9e  
-            jmp __9d50         ; $9d39: 4c 50 9d  
-
-;-------------------------------------------------------------------------------
-__9d3c:     lda $ba            ; $9d3c: a5 ba     
-            bne __9d50         ; $9d3e: d0 10     
-            lda #$ff           ; $9d40: a9 ff     
-            sta $ba            ; $9d42: 85 ba     
-            lda SEL_MUSIC            ; $9d44: a5 c2     
-            clc                ; $9d46: 18        
-            adc #$04           ; $9d47: 69 04     
-            tax                ; $9d49: aa        
-            lda MUSIC_TABLE,x       ; $9d4a: bd d2 85  
-            jsr snd_setMUSIC         ; $9d4d: 20 07 9e  
-__9d50:     rts                ; $9d50: 60        
+; set faster music if line 5 is not empty, normal music if clear
+music_speed:     ldx #$05
+            lda mul10_table,x
+            tay
+            ldx #10
+@loop1:     lda (PF_PTR),y
+            cmp #$ef
+            bne @skip1
+            iny 
+            dex 
+            bne @loop1         ; check if (line5 clear)
+; clear
+            lda MUSIC_FLAG  
+            beq @ret         ; if normal music ret
+            lda #$00
+            sta MUSIC_FLAG
+            ldx SEL_MUSIC
+            lda MUSIC_TABLE,x
+            jsr snd_setMUSIC         ; set normal music
+            jmp @re
+; not clear
+@skip1:     lda MUSIC_FLAG
+            bne @ret         ; if (fast music) ret
+            lda #$ff
+            sta MUSIC_FLAG
+            lda SEL_MUSIC
+            clc
+            adc #$04
+            tax
+            lda MUSIC_TABLE,x
+            jsr snd_setMUSIC         ; set fast music
+@ret:     rts
 
 ;-------------------------------------------------------------------------------
 ; called from nmi
@@ -3675,9 +3688,9 @@ nmi_handle_input_demo:
             jmp @skip3         ; $9d70: 4c 9a 9d  
 
 @skip2:     ldx #$00           ; $9d73: a2 00     
-            lda ($d1,x)        ; $9d75: a1 d1     
+            lda (DEMO_PTR,x)        ; $9d75: a1 d1     
             sta TEMP2            ; $9d77: 85 a8     
-            jsr @skip10         ; $9d79: 20 e8 9d  
+            jsr ptr_inc         ; $9d79: 20 e8 9d  
             lda $ce            ; $9d7c: a5 ce     
             eor TEMP2            ; $9d7e: 45 a8     
             and TEMP2            ; $9d80: 25 a8     
@@ -3685,11 +3698,11 @@ nmi_handle_input_demo:
             lda TEMP2            ; $9d84: a5 a8     
             sta $ce            ; $9d86: 85 ce     
             ldx #$00           ; $9d88: a2 00     
-            lda ($d1,x)        ; $9d8a: a1 d1     
+            lda (DEMO_PTR,x)        ; $9d8a: a1 d1     
             sta $cf            ; $9d8c: 85 cf     
-            jsr @skip10         ; $9d8e: 20 e8 9d  
-            lda $d2            ; $9d91: a5 d2     
-            cmp #$df           ; $9d93: c9 df     
+            jsr ptr_inc         ; $9d8e: 20 e8 9d  
+            lda DEMO_PTR+1            ; $9d91: a5 d2     
+            cmp #(>DEMO_DATA)+2           ; $9d93: c9 df     
             beq @skip5         ; $9d95: f0 0b     
             jmp @skip4         ; $9d97: 4c 9e 9d  
 
@@ -3699,8 +3712,9 @@ nmi_handle_input_demo:
             sta JOY1_RAW_ALL            ; $9da0: 85 f7     
 @skip5:     rts                ; $9da2: 60        
 
-@skip6:     lda #$dd           ; $9da3: a9 dd     
-            sta $d2            ; $9da5: 85 d2     
+; START pressed
+@skip6:     lda #>DEMO_DATA           ; $9da3: a9 dd     
+            sta DEMO_PTR+1            ; $9da5: 85 d2     
             lda #$00           ; $9da7: a9 00     
             sta FRAMECOUNT+1            ; $9da9: 85 b2     
             lda #MODE_TITLE
@@ -3719,13 +3733,13 @@ nmi_handle_input_demo:
             beq @skip8         ; $9dc3: f0 1f     
             ldx #$00           ; $9dc5: a2 00     
             lda $ce            ; $9dc7: a5 ce     
-            sta ($d1,x)        ; $9dc9: 81 d1     
-            jsr @skip10         ; $9dcb: 20 e8 9d  
+            sta (DEMO_PTR,x)        ; $9dc9: 81 d1     
+            jsr ptr_inc         ; $9dcb: 20 e8 9d  
             lda $cf            ; $9dce: a5 cf     
-            sta ($d1,x)        ; $9dd0: 81 d1     
-            jsr @skip10         ; $9dd2: 20 e8 9d  
-            lda $d2            ; $9dd5: a5 d2     
-            cmp #$df           ; $9dd7: c9 df     
+            sta (DEMO_PTR,x)        ; $9dd0: 81 d1     
+            jsr ptr_inc         ; $9dd2: 20 e8 9d  
+            lda DEMO_PTR+1            ; $9dd5: a5 d2     
+            cmp #(>DEMO_DATA)+2           ; $9dd7: c9 df     
             beq @skip9         ; $9dd9: f0 0c     
             lda JOY1_RAW_ALL            ; $9ddb: a5 f7     
             sta $ce            ; $9ddd: 85 ce     
@@ -3738,14 +3752,15 @@ nmi_handle_input_demo:
 
 @skip9:     rts                ; $9de7: 60       //TODO remove by moving label 
 
-@skip10:    lda $d1            ; $9de8: a5 d1     
-            clc                ; $9dea: 18        
-            adc #$01           ; $9deb: 69 01     
-            sta $d1            ; $9ded: 85 d1     
-            lda #$00           ; $9def: a9 00     
-            adc $d2            ; $9df1: 65 d2     
-            sta $d2            ; $9df3: 85 d2     
-            rts                ; $9df5: 60        
+ptr_inc:
+	    lda DEMO_PTR
+            clc
+            adc #$01
+            sta DEMO_PTR
+            lda #$00
+            adc DEMO_PTR+1
+            sta DEMO_PTR+1
+            rts
 
 ;-------------------------------------------------------------------------------
 mode_func_setup_demo:
@@ -6822,7 +6837,11 @@ INCLUDE Bending_screen.as6
             .hex 00 00 00 00   ; $dcf1: 00 00 00 00   Data
             .hex 00 00 00 00   ; $dcf5: 00 00 00 00   Data
             .hex 00 00 00 00   ; $dcf9: 00 00 00 00   Data
-            .hex 00 00 00 00   ; $dcfd: 00 00 00 00   Data
+            .hex 00 00 00
+
+; 2pages 512bytes of DEMO_DATA
+DEMO_DATA:
+            .hex 00   ; $dcfd: 00 00 00 00   Data
             .hex 31 40 06 00   ; $dd01: 31 40 06 00   Data
             .hex 04 40 07 00   ; $dd05: 04 40 07 00   Data
             .hex 5d 04 2e 00   ; $dd09: 5d 04 2e 00   Data
@@ -6956,7 +6975,7 @@ INCLUDE Bending_screen.as6
 ; demo table
 ; data for demo mode
 ; bit4-7 spawn_table index
-DEMO_DATA:     .hex 00 14 8a 45   ; $df00: 00 14 8a 45   Data
+DEMO_SPAWN_DATA:     .hex 00 14 8a 45   ; $df00: 00 14 8a 45   Data
             .hex 22 11 88 44   ; $df04: 22 11 88 44   Data
             .hex 22 91 48 a4   ; $df08: 22 91 48 a4   Data
             .hex 52 29 14 0a   ; $df0c: 52 29 14 0a   Data
