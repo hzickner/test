@@ -2559,6 +2559,9 @@ skip5:	inc GAME_PHASE
 ret:	rts
 .endp
 
+phase_func11:
+	inc GAME_PHASE
+
 phase_func4:
 phase_func9:
 	rts
