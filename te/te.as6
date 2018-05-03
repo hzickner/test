@@ -1101,13 +1101,13 @@ game_init_screen:
             jsr frame_clear_sprite_ram
             jsr frame_PPU_rendering_on
             jsr frame_clear_sprite_ram  ; //TODO 3 frame_funtions?
-            lda #$01           ; $869f: a9 01     
-            sta P1_PHASE            ; $86a1: 85 68     
-            sta P2_PHASE            ; $86a3: 85 88     
-            lda P1_LEVEL            ; $86a5: a5 67     
-            sta P1_LVL            ; $86a7: 85 64     
-            lda P2_LEVEL            ; $86a9: a5 87     
-            sta P2_LVL            ; $86ab: 85 84     
+            lda #$01
+            sta P1_PHASE
+            sta P2_PHASE
+            lda P1_LEVEL
+            sta P1_LVL
+            lda P2_LEVEL
+            sta P2_LVL
             inc GAME_FUNC_INDEX  ; game_func1
             rts
 
@@ -2946,10 +2946,10 @@ jump48_func8:
             lda $a4            ; $989a: a5 a4     
             cmp #$00           ; $989c: c9 00     
             bne @skip1         ; $989e: d0 0e     
-            inc $a4            ; $98a0: e6 a4     
+            inc $a4            ; start counting in game_func2
             lda CUR_PLR            ; $98a2: a5 b7     
             sta $a5            ; $98a4: 85 a5     
-            jsr gamedemo_spawn         ; $98a6: 20 eb 98  
+            jsr gamedemo_spawn         ; spawn new tetr
             sta $a6            ; $98a9: 85 a6     
             jmp @ret         ; $98ab: 4c ea 98  
 
@@ -3617,9 +3617,9 @@ game_func3:
             ldx #$04
             ldy #$05
             jsr memset		; fill page 4-5 with $ef, clear both playfields
-            lda #$00           ; $9d00: a9 00     
-            sta P1_BGUC            ; $9d02: 85 69     
-            sta P2_BGUC            ; $9d04: 85 89     
+            lda #$00
+            sta P1_BGUC
+            sta P2_BGUC
             lda #$01
             sta P1_PHASE
             sta P2_PHASE            ; //TODO remove last 3 lines (duplicate)
@@ -3651,7 +3651,7 @@ music_speed:     ldx #$05
             ldx SEL_MUSIC
             lda MUSIC_TABLE,x
             jsr snd_setMUSIC         ; set normal music
-            jmp @re
+            jmp @ret
 ; not clear
 @skip1:     lda MUSIC_FLAG
             bne @ret         ; if (fast music) ret
@@ -4669,7 +4669,6 @@ __a463:     lda #$00           ; $a463: a9 00
             sta $cb            ; $a497: 85 cb     
             rts                ; $a499: 60        
 
-;-------------------------------------------------------------------------------
 @skip1:     ldx LEVEL            ; $a49a: a6 44     
             lda __a767,x       ; $a49c: bd 67 a7  
             sta $c7            ; $a49f: 85 c7     
