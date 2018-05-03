@@ -460,10 +460,10 @@ s1:
 ; called via jumptable
 ; game_func1
 .proc game_func1 
-	lda #$ef
+	lda #$7f
 	ldx #1
 	ldy #>PLAYFIELD
-	jsr memset_page		; fill page 4 with $ef
+	jsr memset_page		; fill page 4 with $7f
 
 	ldx #$0d
 	lda #$00
@@ -565,7 +565,7 @@ skip2:	inc GAME_FUNC_INDEX	; continue with game_func3
 
 ;-------------------------------------------------------------------------------
 ; called via jumptable
-; game_func1
+; game_func3
 .proc game_func3
 ;            lda #$05           ; $9cbf: a9 05     
 ;            sta TEMP2+1            ; $9cc1: 85 a9     
@@ -597,10 +597,10 @@ skip2:	lda #$03
 skip3:	lda #$01
 	sta P1_PHASE
 	sta P2_PHASE
-;            lda #$ef           ; $9cf7: a9 ef     
-;            ldx #$04           ; $9cf9: a2 04     
-;            ldy #$05           ; $9cfb: a0 05     
-;            jsr memset         ; fill page 4-5 with $ef
+	lda #$7f           ; $9cf7: a9 ef     
+	ldx #$02           ; $9cf9: a2 04     
+	ldy #>PLAYFIELD           ; $9cfb: a0 05     
+	jsr memset_page         ; fill page 4-5 with $7f
 	lda #$00
 	sta P1_BGUC
 	sta P2_BGUC
@@ -744,24 +744,24 @@ skip5:	inc GAME_FUNC_INDEX	; continue with game_func8
 ; TEMP2 - loop counter
 .proc game_init_start_lines     
 	lda SEL_TYPE
-	bne skip1
-	beq skip4		; if (typeA) return
+	bne skip1		; //TODO remove
+	jmp skip4		; if (typeA) return
 
 skip1:	lda #12
 	sta TEMP2
 				; outer loop (12..0)     
 loop1:	lda TEMP2
-;            beq @skip3         ; //TODO remove: checked at loop end
-;            lda #20
+	beq skip3		; //TODO remove: checked at loop end
+	lda #20
 	sec
 	sbc TEMP2
 	sta TEMP2+1		; 20-loopcounter (8..19)
-;            lda #$00           ; $87f2: a9 00     
-;            sta P1_BGUC            ; $87f4: 85 69     
-;            sta P2_BGUC            ; $87f6: 85 89
-;     
+	lda #$00
+	sta P1_BGUC
+	sta P2_BGUC
+
 	lda #$09
-	sta B1			; loop counter loop2 (9..0)
+	sta B2			; loop counter loop2 (9..0)
     
 loop2:
 ;	     ldx #RANDOM
@@ -770,18 +770,19 @@ loop2:
 	lda RANDOM
 	and #07
 	tay			; index = rnd(0..7)
-;            lda LINE_TILES,y   ; load tile value
-;            sta $ab            ; $880b: 85 ab     
-;            ldx TEMP2+1            ; $880d: a6 a9     
-;            lda mul10_table,x       ; load another table value (8..19outer counter)
-;            clc                ; $8812: 18        
-;            adc $aa            ; $8813: 65 aa     
-;            tay                ; $8815: a8        
-;            lda $ab            ; $8816: a5 ab     
-;            sta PLAYFIELD,y    ; position = loop counter + 10*outer loop counter (80..199), store tile at position
-	dec B1
-	bpl loop2
-
+	lda LINE_TILES,y	; load tile value
+	sta B3
+	ldx TEMP2+1
+	lda mul10_table,x	; load another table value (8..19outer counter)
+	clc   
+	adc B2
+	tay			; row*10 + column = PF index       
+	lda B3     
+	sta PLAYFIELD,y		; position = loop counter + 10*outer loop counter (80..199), store tile at position
+	lda B2
+	beq skip2		; if (loop counter == 0) break
+	dec B2
+	jmp loop2		; fill line with random tiles //TODO optimize
 skip2:
 loop3:
 ;     ldx #RANDOM
@@ -791,40 +792,41 @@ loop3:
 	and #$0f
 	cmp #10
 	bpl loop3		; rnd(0..9)
-;            sta $ac            ; $8833: 85 ac     
-;            ldx TEMP2+1            ; $8835: a6 a9     
-;            lda mul10_table,x       ; $8837: bd d6 96  
-;            clc                ; $883a: 18        
-;            adc $ac            ; $883b: 65 ac     
-;            tay                ; $883d: a8        
-;            lda #$ef           ; $883e: a9 ef     
-;            sta PLAYFIELD,y    ; position = rnd0..9 + 10*outer loop counter (80..199), store empty tile at position
-;                               ; one empty tile per line
-;            jsr frame_clear_sprite_ram ; next frame //TODO remove
+
+	sta B6
+	ldx TEMP2+1
+	lda mul10_table,x
+	clc
+	adc B6
+	tay
+	lda #$7f
+	sta PLAYFIELD,y		; position = rnd0..9 + 10*outer loop counter (80..199), store empty tile at position
+				; one more empty tile per line
+	jsr frame_clear_sprite_ram ; next frame //TODO remove
 	dec TEMP2
 	bne loop1		; while (TEMP2 > 0)
-;     
-;@skip3:     ldx #200
-;@loop4:     lda PLAYFIELD,x
-;            sta PLAYFIELD2,x
-;            dex
-;            bne @loop4         ; copy PLAYFIELD (1..200) to PLAYFIELD2 (1..200) //TODO used?
+ 
+skip3:	ldx #200
+loop4:	lda PLAYFIELD,x
+	sta PLAYFIELD2,x
+	dex
+	bne loop4		; copy PLAYFIELD (1..200) to PLAYFIELD2 (1..200) //TODO used?
 	ldx P1_HEIGHT
 	lda PF_CLEAR_BYTES,x	; get number of bytes to clear from top of playfield  
 	tay
 	lda #$7f		; clear value
 loop5:	sta PLAYFIELD,y
 	dey
-;            cpy #$ff
-	bpl loop5		; clear top of playfield
-;            ldx $99            ; height for 2nd PF //TODO what is $99?
-;            lda PF_CLEAR_BYTES,x
-;            tay
-;            lda #$ef
-;@loop6:     sta PLAYFIELD2,y
-;            dey
-;            cpy #$ff
-;            bne @loop6         ; clear top of 2nd PF
+	cpy #$ff		; //TODO remove
+	bne loop5		; clear top of playfield
+	ldx P2_HEIGHT		; height for 2nd PF //TODO what is $99?
+	lda PF_CLEAR_BYTES,x
+	tay
+	lda #$7f
+loop6:	sta PLAYFIELD2,y
+	dey
+	cpy #$ff
+	bne loop6         ; clear top of 2nd PF
 skip4:	rts
 .endp
 
@@ -1275,13 +1277,18 @@ skip3:
 ;            sta PPUADDR
 	sta TEMP1+1
 	
+	sty TEMP2
+	lda PF_PTR
+	clc
+	adc TEMP2
+	sta TEMP2
+	lda PF_PTR+1
+	sta TEMP2+1		; TEMP2 src pointer
 	ldx #10
-loop1:	lda (PF_PTR),y
-	sty B1
 	ldy #0
+loop1:	lda (TEMP2),y
 ;            sta PPUDATA
 	sta (TEMP1),y
-	ldy B1
 	iny   
 	dex
 	bne loop1		; write PF line to screen
@@ -1640,10 +1647,10 @@ skip_HSinit:
 	lda #$7F
 	jsr memset		; fill screen ram
 	
-	;lda #$ef
-	;ldy #>PLAYFIELD
-	;ldx #2
-	;jsr memset_page		; fill PLAYFIELD 1 and 2 with $ef //TODO check if necessary done in game_func
+	lda #$7f
+	ldy #>PLAYFIELD
+	ldx #2
+	jsr memset_page		; fill PLAYFIELD 1 and 2 with $ef //TODO check if necessary done in game_func
 	jsr nmi_enable
 	jsr frame_clear_sprite_ram
 	jsr frame_GR_rendering_on
@@ -3516,6 +3523,11 @@ HS_SCRadr_table:
 ;            .hex 23 09         ; 9,24
 	.DW scr_mem+19*32+9, scr_mem+21*32+9, scr_mem+23*32+9
 ; 6bytes end of table	
+
+; tile values for starting lines written to playfield
+LINE_TILES: .DB $7f, $58, $7f, $d9   ; $887c: ef 7b ef 7c   Data
+            .DB $59, $59, $7f, $7f   ; $8880: 7d 7d ef ef   Data
+; 8 bytes end of data
 
 ;-------------------------------------------------------------------------------
 OPP_SPAWN_TABLE:
